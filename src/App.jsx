@@ -69,7 +69,9 @@ const router = createBrowserRouter([
     path: '*',
     element: <Navigate to="/login" replace />,
   },
-]);
+], {
+  basename: import.meta.env.BASE_URL
+});
 
 function App() {
   return (
