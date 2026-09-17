@@ -9,6 +9,7 @@ import SearchInput from '../components/SearchInput';
 import CartItem from '../components/CartItem';
 import DiscountDrawer from '../components/DiscountDrawer';
 import { billReducer, initialBillState, calculateBillTotals } from '../reducers/billReducer';
+import BottomNav from '../components/BottomNav';
 
 export default function Dashboard() {
   const { user, shopId, signOut } = useAuth();
@@ -221,6 +222,9 @@ export default function Dashboard() {
         targetItem={activeDiscountItem}
         dispatch={dispatch}
       />
+
+      {/* Conditionally hide BottomNav if cart is active to prevent overlapping the checkout bar */}
+      {items.length === 0 && <BottomNav />}
     </div>
   );
 }

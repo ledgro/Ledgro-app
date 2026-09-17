@@ -3,6 +3,9 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import SignIn from './pages/SignIn';
 import ShopSetup from './pages/ShopSetup';
 import Dashboard from './pages/Dashboard';
+import Ledger from './pages/Ledger';
+import Expenses from './pages/Expenses';
+import Analytics from './pages/Analytics';
 
 // Protected Route wrapper
 const ProtectedRoute = ({ children, requireNoShop = false }) => {
@@ -41,8 +44,6 @@ const AuthRoute = ({ children }) => {
 };
 
 // Use HashRouter for GitHub pages compatibility.
-// Note: We DO NOT set a basename here because the HashRouter only looks at the hash part of the URL (e.g. #/login).
-// The browser inherently handles the subdirectory path (/Ledgro-app/) before the hash.
 const router = createHashRouter([
   {
     path: '/login',
@@ -65,6 +66,30 @@ const router = createHashRouter([
     element: (
       <ProtectedRoute>
         <Dashboard />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/ledger',
+    element: (
+      <ProtectedRoute>
+        <Ledger />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/expenses',
+    element: (
+      <ProtectedRoute>
+        <Expenses />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/analytics',
+    element: (
+      <ProtectedRoute>
+        <Analytics />
       </ProtectedRoute>
     ),
   },
