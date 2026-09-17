@@ -9,7 +9,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt', // Ensure we prompt users instead of auto-updating during a POS transaction
       manifest: {
         name: 'Ledgro',
         short_name: 'Ledgro',
