@@ -1,1 +1,24 @@
 @import "tailwindcss";
+
+@theme {
+  --color-primary: #2563EB;
+  --color-primary-dark: #1D4ED8;
+  --color-success: #10B981;
+  --color-bg-base: #F8FAFC;
+  --color-bg-surface: #FFFFFF;
+  --color-text-main: #0F172A;
+  --color-text-muted: #64748B;
+  --radius-md: 12px;
+  --radius-lg: 24px;
+  --shadow-subtle: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+}
+
+html, body {
+  overflow: hidden;
+  overscroll-behavior-y: none;
+  height: 100dvh;
+}
+
+* {
+  font-variant-numeric: tabular-nums;
+}

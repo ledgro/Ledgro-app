@@ -59,11 +59,11 @@ const SignIn = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <div className="max-w-md w-full bg-white rounded-xl shadow-sm p-8 text-center space-y-8">
-        <div>
-          <h1 className="text-4xl font-bold text-gray-900 tracking-tight">Ledgro</h1>
-          <p className="mt-2 text-gray-500">Simple billing for your shop.</p>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-white p-6">
+      <div className="max-w-md w-full text-center space-y-12">
+        <div className="space-y-3">
+          <h1 className="text-5xl font-black text-blue-600 tracking-tight">Ledgro</h1>
+          <p className="text-slate-500 font-medium text-lg">Simple billing for your shop.</p>
         </div>
 
         {isInAppBrowser ? (
@@ -82,16 +82,16 @@ const SignIn = () => {
             </button>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4 w-full px-4">
             <button
               onClick={handleSignIn}
               disabled={isSigningIn}
-              className={`w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors ${
-                isSigningIn ? 'opacity-70 cursor-not-allowed' : 'hover:bg-gray-50'
+              className={`w-full flex items-center justify-center gap-3 h-14 px-4 border border-slate-200 rounded-xl shadow-sm text-base font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all active:scale-[0.98] ${
+                isSigningIn ? 'opacity-70 cursor-not-allowed' : 'hover:bg-slate-50'
               }`}
             >
               {isSigningIn ? (
-                <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" />
               ) : (
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path
@@ -112,9 +112,9 @@ const SignIn = () => {
                   />
                 </svg>
               )}
-              {isSigningIn ? 'Signing in...' : 'Sign in with Google'}
+              {isSigningIn ? 'Signing in...' : 'Continue with Google'}
             </button>
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
           </div>
         )}
       </div>
