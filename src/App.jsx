@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
+import { createHashRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import SignIn from './pages/SignIn';
 import ShopSetup from './pages/ShopSetup';
@@ -40,7 +40,10 @@ const AuthRoute = ({ children }) => {
   return children;
 };
 
-const router = createBrowserRouter([
+// Use HashRouter for GitHub pages compatibility.
+// Note: We DO NOT set a basename here because the HashRouter only looks at the hash part of the URL (e.g. #/login).
+// The browser inherently handles the subdirectory path (/Ledgro-app/) before the hash.
+const router = createHashRouter([
   {
     path: '/login',
     element: (
