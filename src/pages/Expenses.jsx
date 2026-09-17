@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, orderBy, getDocs, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, addDoc, serverTimestamp, deleteDoc, doc, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Drawer } from 'vaul';
 import BottomNav from '../components/BottomNav';
@@ -31,7 +31,8 @@ export default function Expenses() {
     const fetchExpenses = async () => {
       if (!shopId) return;
       try {
-        const q = query(collection(db, `shops/${shopId}/expenses`), orderBy('createdAt', 'desc'));
+        // Optimize to only fetch recent expenses to prevent unbounded scans
+        const q = query(collection(db, `shops/${shopId}/expenses`), orderBy('createdAt', 'desc'), limit(50));
         const snap = await getDocs(q);
         setExpenses(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (err) {
