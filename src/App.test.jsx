@@ -24,7 +24,10 @@ vi.mock('firebase/firestore', () => ({
   query: vi.fn(),
   where: vi.fn(),
   getDocs: vi.fn(),
-  addDoc: vi.fn()
+  addDoc: vi.fn(),
+  serverTimestamp: vi.fn(),
+  PersistentCacheIndexManager: vi.fn(),
+  enablePersistentCacheIndexAutoCreation: vi.fn()
 }));
 
 vi.mock('firebase/app', () => ({

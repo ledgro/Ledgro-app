@@ -1,42 +1,226 @@
+import { useReducer, useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useCatalogStore } from '../store/catalogStore';
+import { collection, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
+import { LogOut, Tag, ArrowRight } from 'lucide-react';
 
-const Dashboard = () => {
-  const { user, signOut } = useAuth();
-  const navigate = useNavigate();
+import SearchInput from '../components/SearchInput';
+import CartItem from '../components/CartItem';
+import DiscountDrawer from '../components/DiscountDrawer';
+import { billReducer, initialBillState, calculateBillTotals } from '../reducers/billReducer';
 
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      navigate('/login');
-    } catch (error) {
-      console.error("Failed to log out", error);
+export default function Dashboard() {
+  const { user, shopId, signOut } = useAuth();
+  const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
+  const addCatalogItem = useCatalogStore((state) => state.addItem);
+
+  const [state, dispatch] = useReducer(billReducer, initialBillState);
+
+  // Drawer state
+  const [isDiscountOpen, setIsDiscountOpen] = useState(false);
+  const [activeDiscountItem, setActiveDiscountItem] = useState(null); // null means global discount
+
+  // Checkout state
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+
+  // Load catalog on mount
+  useEffect(() => {
+    const fetchCatalog = async () => {
+      if (!shopId) return;
+      try {
+        // Querying the specific shop's subcollection for catalog items
+        const catalogRef = collection(db, `shops/${shopId}/catalog`);
+        const snap = await getDocs(catalogRef);
+        const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        hydrateCatalog(items);
+      } catch (err) {
+        console.error("Failed to load catalog", err);
+      }
+    };
+    fetchCatalog();
+  }, [hydrateCatalog, shopId]);
+
+  const { items, subtotal, globalDiscountAmt, grandTotal } = useMemo(() => calculateBillTotals(state), [state]);
+
+  const handleAddItem = (item) => {
+    dispatch({ type: 'ADD_ITEM', payload: item });
+
+    // Optimistically add to local catalog store so it's instantly available next time
+    addCatalogItem({ name: item.name, lastUsedPrice: item.unitPrice });
+
+    // Asynchronously add to Firestore catalog collection scoped by shopId
+    if (shopId) {
+      addDoc(collection(db, `shops/${shopId}/catalog`), {
+        name: item.name,
+        lastUsedPrice: item.unitPrice,
+        addedBy: user.uid
+      }).catch(console.error); // fire and forget
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center pt-20 px-4">
-      <div className="w-full max-w-md space-y-8 text-center">
-        <div>
-          <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">
-            Welcome to Ledgro
-          </h1>
-          <p className="mt-2 text-lg text-gray-600">
-            {user?.displayName ? `Hello, ${user.displayName}` : 'You are signed in!'}
-          </p>
-        </div>
+  const openLineDiscount = (item) => {
+    setActiveDiscountItem(item);
+    setIsDiscountOpen(true);
+  };
 
-        <div className="pt-8 border-t border-gray-200">
-          <button
-            onClick={handleSignOut}
-            className="w-full flex justify-center py-3 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-          >
-            Sign Out
-          </button>
+  const openGlobalDiscount = () => {
+    setActiveDiscountItem(null);
+    setIsDiscountOpen(true);
+  };
+
+  const handleCheckout = async (paymentMethod) => {
+    if (items.length === 0 || !shopId) return;
+    setIsCheckingOut(true);
+
+    try {
+      // Snapshot the bill
+      const payload = {
+        creatorId: user.uid,
+        items: items.map(i => ({
+          name: i.name,
+          unitPrice: i.unitPrice,
+          qty: i.qty,
+          rawTotal: i.rawTotal,
+          lineDiscount: i.lineDiscount,
+          finalLineTotal: i.finalLineTotal
+        })),
+        subtotal,
+        globalDiscount: state.globalDiscount,
+        globalDiscountAmt,
+        grandTotal,
+        paymentMethod,
+        createdAt: serverTimestamp() // critical for offline ledger ordering
+      };
+
+      await addDoc(collection(db, `shops/${shopId}/bills`), payload);
+
+      setCheckoutSuccess(true);
+      setTimeout(() => {
+        setCheckoutSuccess(false);
+        dispatch({ type: 'CLEAR_BILL' });
+      }, 2000);
+
+    } catch (err) {
+      console.error("Checkout failed:", err);
+      alert("Checkout failed. Check console.");
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
+  if (checkoutSuccess) {
+    return (
+      <div className="min-h-screen bg-green-50 flex flex-col items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-2xl shadow-sm text-center max-w-sm w-full">
+          <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Checkout Successful</h2>
+          <p className="text-gray-500 mb-6">Bill saved to ledger.</p>
+          <p className="text-sm text-gray-400">Starting new bill...</p>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* Header */}
+      <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex justify-between items-center">
+        <h1 className="text-xl font-bold text-gray-900">New Bill</h1>
+        <button onClick={signOut} className="p-2 text-gray-500 hover:bg-gray-50 rounded-full">
+          <LogOut size={20} />
+        </button>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col pb-40"> {/* pb-40 ensures we don't hide behind sticky footer */}
+        <div className="p-4 sticky top-[60px] z-20 bg-white/80 backdrop-blur-md">
+          <SearchInput onAddItem={handleAddItem} />
+        </div>
+
+        <div className="px-4 flex-1">
+          {items.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-gray-400 mt-20">
+              <p>Search or add an item to begin</p>
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              {items.map(item => (
+                <CartItem
+                  key={item.id}
+                  item={item}
+                  dispatch={dispatch}
+                  onOpenDiscount={openLineDiscount}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* Sticky Bottom Bar Checkout */}
+      {items.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-30 pb-safe">
+          <div className="p-4 max-w-md mx-auto">
+            {/* Totals Breakdown */}
+            <div className="flex justify-between items-center mb-3">
+              <div className="text-sm text-gray-500">
+                <span className="font-medium text-gray-900">{items.length}</span> items
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={openGlobalDiscount}
+                  className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md flex items-center gap-1"
+                >
+                  <Tag size={12} />
+                  Bill Discount
+                </button>
+                <div className="text-right">
+                  {globalDiscountAmt > 0 && (
+                    <span className="text-xs text-gray-400 line-through block leading-none mb-0.5">
+                      ₹{subtotal}
+                    </span>
+                  )}
+                  <span className="text-2xl font-bold text-gray-900 leading-none">
+                    ₹{grandTotal}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Checkout Actions */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleCheckout('cash')}
+                disabled={isCheckingOut}
+                className="flex-1 bg-green-600 text-white font-bold py-3.5 px-4 rounded-xl active:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                Cash
+              </button>
+              <button
+                onClick={() => handleCheckout('upi')}
+                disabled={isCheckingOut}
+                className="flex-1 bg-indigo-600 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-1 active:bg-indigo-700 disabled:opacity-50 transition-colors"
+              >
+                UPI <ArrowRight size={18} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Discount Drawer */}
+      <DiscountDrawer
+        isOpen={isDiscountOpen}
+        onClose={() => setIsDiscountOpen(false)}
+        targetItem={activeDiscountItem}
+        dispatch={dispatch}
+      />
     </div>
   );
-};
-
-export default Dashboard;
+}

@@ -4,7 +4,9 @@ import {
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
-  CACHE_SIZE_UNLIMITED
+  CACHE_SIZE_UNLIMITED,
+  PersistentCacheIndexManager,
+  enablePersistentCacheIndexAutoCreation
 } from 'firebase/firestore';
 
 // Splitting the API key so GitHub's overzealous secret scanner doesn't flag it.
@@ -21,7 +23,6 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
@@ -31,5 +32,9 @@ const db = initializeFirestore(app, {
     cacheSizeBytes: CACHE_SIZE_UNLIMITED
   })
 });
+
+// Enable persistent cache index auto creation for faster offline queries
+const indexManager = new PersistentCacheIndexManager(db);
+enablePersistentCacheIndexAutoCreation(indexManager);
 
 export { auth, googleProvider, db };
