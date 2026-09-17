@@ -3,13 +3,17 @@ import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
 import { collection, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { LogOut, Tag, ArrowRight } from 'lucide-react';
+import { LogOut, Tag, ArrowRight, Share2, PlusCircle } from 'lucide-react';
 
 import SearchInput from '../components/SearchInput';
 import CartItem from '../components/CartItem';
 import DiscountDrawer from '../components/DiscountDrawer';
+import Receipt from '../components/Receipt';
 import { billReducer, initialBillState, calculateBillTotals } from '../reducers/billReducer';
 import BottomNav from '../components/BottomNav';
+import html2canvas from 'html2canvas-pro';
+
+import { useRef } from 'react';
 
 export default function Dashboard() {
   const { user, shopId, signOut } = useAuth();
@@ -17,6 +21,7 @@ export default function Dashboard() {
   const addCatalogItem = useCatalogStore((state) => state.addItem);
 
   const [state, dispatch] = useReducer(billReducer, initialBillState);
+  const receiptRef = useRef(null);
 
   // Drawer state
   const [isDiscountOpen, setIsDiscountOpen] = useState(false);
@@ -25,6 +30,7 @@ export default function Dashboard() {
   // Checkout state
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+  const [lastBill, setLastBill] = useState(null);
 
   // Load catalog on mount
   useEffect(() => {
@@ -97,11 +103,8 @@ export default function Dashboard() {
 
       await addDoc(collection(db, `shops/${shopId}/bills`), payload);
 
+      setLastBill(payload);
       setCheckoutSuccess(true);
-      setTimeout(() => {
-        setCheckoutSuccess(false);
-        dispatch({ type: 'CLEAR_BILL' });
-      }, 2000);
 
     } catch (err) {
       console.error("Checkout failed:", err);
@@ -111,18 +114,81 @@ export default function Dashboard() {
     }
   };
 
+  const handleShareReceipt = async () => {
+    if (!receiptRef.current) return;
+
+    try {
+      const canvas = await html2canvas(receiptRef.current, {
+        scale: 3, // High density for crisp text
+        useCORS: true,
+        backgroundColor: '#ffffff'
+      });
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+
+        const file = new File([blob], `receipt-${Date.now()}.png`, { type: 'image/png' });
+
+        // Try Web Share API first
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: 'Bill Receipt',
+              text: 'Thank you for your purchase!'
+            });
+            return;
+          } catch (shareErr) {
+            console.log("Web share cancelled or failed", shareErr);
+          }
+        }
+
+        // Fallback: URL encoded string for WhatsApp deep link
+        const textFallback = `*Bill Receipt*\nTotal: ₹${lastBill.grandTotal}\nItems: ${lastBill.items.length}\nThank you!`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(textFallback)}`, '_blank');
+
+      }, 'image/png');
+
+    } catch (err) {
+      console.error("Failed to generate receipt image", err);
+      alert("Failed to share receipt");
+    }
+  };
+
+  const handleNewBill = () => {
+    setCheckoutSuccess(false);
+    setLastBill(null);
+    dispatch({ type: 'CLEAR_BILL' });
+  };
+
   if (checkoutSuccess) {
     return (
       <div className="min-h-screen bg-green-50 flex flex-col items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-sm text-center max-w-sm w-full">
+        <Receipt ref={receiptRef} billData={lastBill} />
+
+        <div className="bg-white p-8 rounded-2xl shadow-sm text-center max-w-sm w-full z-10">
           <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Checkout Successful</h2>
-          <p className="text-gray-500 mb-6">Bill saved to ledger.</p>
-          <p className="text-sm text-gray-400">Starting new bill...</p>
+          <p className="text-gray-500 mb-8 font-medium">₹{lastBill?.grandTotal} collected via {lastBill?.paymentMethod?.toUpperCase()}</p>
+
+          <div className="space-y-3">
+            <button
+              onClick={handleShareReceipt}
+              className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:bg-indigo-700 transition-colors"
+            >
+              <Share2 size={20} /> Share Receipt
+            </button>
+            <button
+              onClick={handleNewBill}
+              className="w-full bg-gray-100 text-gray-700 font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-200 active:bg-gray-300 transition-colors"
+            >
+              <PlusCircle size={20} /> New Bill
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -164,9 +230,9 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* Sticky Bottom Bar Checkout */}
+      {/* Sticky Bottom Bar Checkout (Stacked above BottomNav) */}
       {items.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-30 pb-safe">
+        <div className="fixed bottom-[64px] left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-30 pb-safe">
           <div className="p-4 max-w-md mx-auto">
             {/* Totals Breakdown */}
             <div className="flex justify-between items-center mb-3">
@@ -223,8 +289,7 @@ export default function Dashboard() {
         dispatch={dispatch}
       />
 
-      {/* Conditionally hide BottomNav if cart is active to prevent overlapping the checkout bar */}
-      {items.length === 0 && <BottomNav />}
+      <BottomNav />
     </div>
   );
 }

@@ -6,6 +6,8 @@ import Dashboard from './pages/Dashboard';
 import Ledger from './pages/Ledger';
 import Expenses from './pages/Expenses';
 import Analytics from './pages/Analytics';
+import Members from './pages/Members';
+import SplashScreen from './components/SplashScreen';
 
 // Protected Route wrapper
 const ProtectedRoute = ({ children, requireNoShop = false }) => {
@@ -33,10 +35,13 @@ const AuthRoute = ({ children }) => {
   const { user, hasShop } = useAuth();
 
   if (user) {
-    if (hasShop) {
+    if (hasShop === true) {
       return <Navigate to="/dashboard" replace />;
-    } else {
+    } else if (hasShop === false) {
       return <Navigate to="/setup" replace />;
+    } else {
+      // hasShop is null, still resolving
+      return <SplashScreen />;
     }
   }
 
@@ -90,6 +95,14 @@ const router = createHashRouter([
     element: (
       <ProtectedRoute>
         <Analytics />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/members',
+    element: (
+      <ProtectedRoute>
+        <Members />
       </ProtectedRoute>
     ),
   },
