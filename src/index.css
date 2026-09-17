@@ -11,6 +11,8 @@
   --radius-md: 12px;
   --radius-lg: 24px;
   --shadow-subtle: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+
+  --font-bruno: "Bruno Ace", sans-serif;
 }
 
 html, body {

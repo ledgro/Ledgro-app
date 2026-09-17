@@ -195,7 +195,7 @@ export default function POS() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="h-[100dvh] overflow-y-auto bg-white flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex justify-between items-center">
         <h1 className="text-xl font-bold text-gray-900">New Bill</h1>

@@ -1,24 +1,35 @@
 import { Minus, Plus, Tag, Trash2 } from 'lucide-react';
 
+import { useState, useEffect } from 'react';
+
 export default function CartItem({ item, dispatch, onOpenDiscount }) {
+  const [localQty, setLocalQty] = useState(item.qty.toString());
+
+  // Sync if external state changes (e.g. via increment/decrement)
+  useEffect(() => {
+    setLocalQty(item.qty.toString());
+  }, [item.qty]);
 
   const handleQtyChange = (newQtyStr) => {
-    // Allows empty string while typing, otherwise parse float
-    if (newQtyStr === '') {
-      dispatch({ type: 'UPDATE_QTY', payload: { id: item.id, qty: '' } });
-      return;
-    }
+    setLocalQty(newQtyStr);
 
-    const qty = parseFloat(newQtyStr);
-    if (!isNaN(qty) && qty >= 0) {
-      dispatch({ type: 'UPDATE_QTY', payload: { id: item.id, qty } });
+    // Only dispatch if it's a valid complete number to avoid erasing trailing decimals
+    if (newQtyStr !== '' && !newQtyStr.endsWith('.')) {
+      const qty = parseFloat(newQtyStr);
+      if (!isNaN(qty) && qty >= 0) {
+        dispatch({ type: 'UPDATE_QTY', payload: { id: item.id, qty } });
+      }
     }
   };
 
   const handleQtyBlur = () => {
-    // Reset to 1 if left totally empty or invalid
-    if (!item.qty || isNaN(item.qty) || item.qty <= 0) {
+    const qty = parseFloat(localQty);
+    if (isNaN(qty) || qty <= 0) {
+      setLocalQty('1');
       dispatch({ type: 'UPDATE_QTY', payload: { id: item.id, qty: 1 } });
+    } else {
+      setLocalQty(qty.toString());
+      dispatch({ type: 'UPDATE_QTY', payload: { id: item.id, qty } });
     }
   };
 
@@ -73,7 +84,7 @@ export default function CartItem({ item, dispatch, onOpenDiscount }) {
             type="text"
             inputMode="decimal"
             pattern="[0-9]*\.?[0-9]*"
-            value={item.qty}
+            value={localQty}
             onChange={(e) => handleQtyChange(e.target.value)}
             onBlur={handleQtyBlur}
             className="w-12 text-center bg-transparent border-none focus:ring-0 font-medium text-gray-900 p-0"

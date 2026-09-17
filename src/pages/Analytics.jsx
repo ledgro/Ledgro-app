@@ -50,8 +50,8 @@ export default function Analytics() {
           getDocs(expensesQuery)
         ]);
 
-        setBills(billsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-        setExpenses(expSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setBills(billsSnap.docs.map(d => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) })));
+        setExpenses(expSnap.docs.map(d => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) })));
       } catch (err) {
         console.error("Failed to fetch analytics:", err);
       } finally {
@@ -168,7 +168,7 @@ export default function Analytics() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col pb-20">
+    <div className="h-[100dvh] overflow-y-auto bg-gray-50 flex flex-col pb-20">
       <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex justify-between items-center">
         <h1 className="text-xl font-bold text-gray-900">Analytics</h1>
         <button onClick={handleExportCSV} className="text-indigo-600 hover:bg-indigo-50 p-2 rounded-full transition-colors flex items-center gap-1 text-sm font-medium">

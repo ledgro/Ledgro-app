@@ -8,6 +8,7 @@ import Ledger from './pages/Ledger';
 import Expenses from './pages/Expenses';
 import Analytics from './pages/Analytics';
 import Members from './pages/Members';
+import Products from './pages/Products';
 import SplashScreen from './components/SplashScreen';
 
 // Protected Route wrapper
@@ -104,6 +105,14 @@ const router = createHashRouter([
     element: (
       <ProtectedRoute>
         <Analytics />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/products',
+    element: (
+      <ProtectedRoute>
+        <Products />
       </ProtectedRoute>
     ),
   },

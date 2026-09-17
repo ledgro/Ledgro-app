@@ -59,10 +59,10 @@ const SignIn = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-white p-6">
+    <div className="h-[100dvh] overflow-y-auto flex flex-col items-center justify-center bg-white p-6">
       <div className="max-w-md w-full text-center space-y-12">
         <div className="space-y-3">
-          <h1 className="text-5xl font-black text-blue-600 tracking-tight">Ledgro</h1>
+          <h1 className="text-5xl font-black text-blue-600 tracking-tight font-bruno">Ledgro</h1>
           <p className="text-slate-500 font-medium text-lg">Simple billing for your shop.</p>
         </div>
 
