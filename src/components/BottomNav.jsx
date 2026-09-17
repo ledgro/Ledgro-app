@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, Receipt, PieChart } from 'lucide-react';
+import { LayoutDashboard, FileText, Receipt, PieChart, Users } from 'lucide-react';
 
 export default function BottomNav() {
   const location = useLocation();
@@ -9,6 +9,7 @@ export default function BottomNav() {
     { path: '/ledger', label: 'Ledger', icon: FileText },
     { path: '/expenses', label: 'Expenses', icon: Receipt },
     { path: '/analytics', label: 'Analytics', icon: PieChart },
+    { path: '/members', label: 'Members', icon: Users },
   ];
 
   return (
