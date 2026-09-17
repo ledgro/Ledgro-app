@@ -7,7 +7,7 @@ import { DayPicker } from 'react-day-picker';
 import "react-day-picker/style.css";
 import { Drawer } from 'vaul';
 import BottomNav from '../components/BottomNav';
-import { Calendar as CalendarIcon, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { Calendar as CalendarIcon, TrendingUp, TrendingDown, DollarSign, Download } from 'lucide-react';
 
 export default function Analytics() {
   const { shopId } = useAuth();
@@ -124,10 +124,56 @@ export default function Analytics() {
     return `${format(dateRange.from, 'MMM d')} - ${format(dateRange.to, 'MMM d')}`;
   };
 
+  const handleExportCSV = () => {
+    if (!bills.length && !expenses.length) {
+      alert("No data to export for this date range.");
+      return;
+    }
+
+    const rows = [];
+
+    // Add Headers
+    rows.push(['Type', 'Date', 'Amount', 'Details', 'Payment Method']);
+
+    // Add Bills
+    bills.forEach(b => {
+      const dateStr = b.createdAt?.toDate ? b.createdAt.toDate().toLocaleString() : 'Pending';
+      const typeStr = b.type === 'reversal' ? 'Refund/Void' : 'Sale';
+      const amountStr = b.grandTotal;
+      const detailsStr = b.type === 'reversal' ? `Reversal for ${b.originalBillId}` : `${b.items?.length || 0} items`;
+      rows.push([typeStr, dateStr, amountStr, detailsStr, b.paymentMethod || '-']);
+    });
+
+    // Add Expenses
+    expenses.forEach(e => {
+      const dateStr = e.createdAt?.toDate ? e.createdAt.toDate().toLocaleString() : 'Pending';
+      const typeStr = 'Expense';
+      const amountStr = -e.amount; // Negative for expense
+      const detailsStr = e.description || e.categoryId || 'Expense';
+      rows.push([typeStr, dateStr, amountStr, detailsStr, '-']);
+    });
+
+    // Convert to CSV string
+    const csvContent = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+
+    // Create Blob and Download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `ledgro_report_${format(dateRange.from, 'yyyyMMdd')}_to_${format(dateRange.to, 'yyyyMMdd')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col pb-20">
       <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex justify-between items-center">
         <h1 className="text-xl font-bold text-gray-900">Analytics</h1>
+        <button onClick={handleExportCSV} className="text-indigo-600 hover:bg-indigo-50 p-2 rounded-full transition-colors flex items-center gap-1 text-sm font-medium">
+          <Download size={18} /> Export
+        </button>
       </header>
 
       <main className="p-4 space-y-6">
