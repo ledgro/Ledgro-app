@@ -3,7 +3,7 @@ import { LayoutDashboard, PlusCircle, FileText, Menu } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Drawer } from 'vaul';
 import { useState } from 'react';
-import { Receipt, PieChart, Users } from 'lucide-react';
+import { Receipt, PieChart, Users, PackagePlus } from 'lucide-react';
 
 export default function BottomNav() {
   const location = useLocation();
@@ -18,6 +18,7 @@ export default function BottomNav() {
   const moreItems = [
     { path: '/analytics', label: 'Reports', icon: PieChart },
     { path: '/expenses', label: 'Expenses', icon: Receipt },
+    { path: '/products', label: 'Add Product', icon: PackagePlus },
     { path: '/members', label: 'Staff', icon: Users },
   ];
 

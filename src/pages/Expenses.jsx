@@ -6,6 +6,7 @@ import { Drawer } from 'vaul';
 import BottomNav from '../components/BottomNav';
 import { motion } from 'framer-motion';
 import { Zap, Plus, Home, Users, Package, Trash2, ArrowRight } from 'lucide-react';
+import { Skeleton } from '../components/Skeleton';
 
 const CATEGORIES = [
   { id: 'electricity', label: 'Electricity', icon: Zap },
@@ -91,7 +92,7 @@ export default function Expenses() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden">
+    <div className="h-[100dvh] overflow-y-auto bg-gray-50 flex flex-col overflow-x-hidden">
       <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex justify-between items-center">
         <h1 className="text-xl font-bold text-gray-900">Expenses</h1>
         <button
@@ -104,8 +105,19 @@ export default function Expenses() {
 
       <main className="flex-1 pb-24">
         {loading ? (
-          <div className="flex justify-center mt-20">
-            <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+          <div className="flex flex-col divide-y divide-gray-100">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-white p-4 flex items-center justify-between shadow-sm">
+                <div className="flex items-center gap-4">
+                  <Skeleton className="w-12 h-12 rounded-full" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                </div>
+                <Skeleton className="h-6 w-16" />
+              </div>
+            ))}
           </div>
         ) : expenses.length === 0 ? (
           <div className="text-center text-gray-500 mt-20">No expenses recorded yet.</div>

@@ -5,6 +5,7 @@ import { db } from '../firebase';
 import { useInView } from 'react-intersection-observer';
 import BottomNav from '../components/BottomNav';
 import { RefreshCcw, FileText } from 'lucide-react';
+import { Skeleton } from '../components/Skeleton';
 
 export default function Ledger() {
   const { user, shopId } = useAuth();
@@ -95,7 +96,7 @@ export default function Ledger() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="h-[100dvh] overflow-y-auto bg-gray-50 flex flex-col">
       <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3">
         <h1 className="text-xl font-bold text-gray-900">Ledger History</h1>
       </header>
@@ -144,8 +145,19 @@ export default function Ledger() {
         )}
 
         {/* Infinite Scroll trigger element */}
-        <div ref={ref} className="py-4 flex justify-center">
-          {loading && <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />}
+        <div ref={ref} className="py-4 flex flex-col gap-4">
+          {loading && [1, 2, 3].map(i => (
+            <div key={i} className="p-4 rounded-xl border border-gray-100 bg-white shadow-sm space-y-4">
+              <div className="flex justify-between">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-6 w-20" />
+              </div>
+              <div className="flex justify-between items-end">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-8 w-24 rounded-lg" />
+              </div>
+            </div>
+          ))}
         </div>
       </main>
 

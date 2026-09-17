@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useCatalogStore } from '../store/catalogStore';
 import { Search, Plus } from 'lucide-react';
+import { formatCurrency } from '../lib/utils';
 
 export default function SearchInput({ onAddItem }) {
   const [query, setQuery] = useState('');
@@ -57,41 +58,41 @@ export default function SearchInput({ onAddItem }) {
   return (
     <div ref={wrapperRef} className="relative w-full z-20">
       <div className="relative">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search className="h-5 w-5 text-gray-400" />
+        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <Search className="h-6 w-6 text-slate-400" />
         </div>
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:text-lg"
+          className="block w-full h-14 pl-12 pr-4 border border-slate-200 rounded-2xl shadow-subtle bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg font-medium transition-all"
           placeholder="Search items..."
           autoFocus
         />
       </div>
 
       {showDropdown && (
-        <div className="absolute mt-1 w-full bg-white shadow-lg rounded-md border border-gray-100 overflow-hidden">
+        <div className="absolute mt-2 w-full bg-white shadow-xl rounded-2xl border border-slate-100 overflow-hidden divide-y divide-slate-50">
           {results.length > 0 ? (
-            <ul className="max-h-60 overflow-auto divide-y divide-gray-100">
+            <ul className="max-h-72 overflow-auto">
               {results.map((item, idx) => (
                 <li
                   key={idx}
                   onClick={() => handleSelectResult(item)}
-                  className="px-4 py-3 hover:bg-gray-50 cursor-pointer flex justify-between items-center"
+                  className="p-4 hover:bg-slate-50 active:bg-slate-100 cursor-pointer flex justify-between items-center transition-colors"
                 >
-                  <span className="font-medium text-gray-900">{item.name}</span>
-                  <span className="text-gray-500">₹{item.lastUsedPrice}</span>
+                  <span className="font-semibold text-slate-900 text-lg">{item.name}</span>
+                  <span className="text-slate-500 font-medium">{formatCurrency(item.lastUsedPrice)}</span>
                 </li>
               ))}
             </ul>
           ) : (
-            <div className="p-4 bg-gray-50">
-              <p className="text-sm text-gray-600 mb-3">"{query}" not found. Add it now:</p>
-              <form onSubmit={handleAddCustom} className="flex gap-2">
+            <div className="p-5 bg-white">
+              <p className="text-sm text-slate-500 font-medium mb-4">Add new product to catalog</p>
+              <form onSubmit={handleAddCustom} className="flex gap-3">
                 <div className="relative flex-1">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-gray-500">₹</span>
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <span className="text-slate-400 font-bold">₹</span>
                   </div>
                   <input
                     type="number"
@@ -100,15 +101,16 @@ export default function SearchInput({ onAddItem }) {
                     onChange={(e) => setCustomPrice(e.target.value)}
                     inputMode="decimal"
                     step="0.01"
-                    className="block w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    placeholder="Price"
+                    className="block w-full h-12 pl-8 pr-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-bold transition-all"
+                    placeholder="0.00"
                   />
                 </div>
                 <button
                   type="submit"
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                  disabled={!customPrice}
+                  className="inline-flex items-center h-12 px-6 rounded-xl shadow-sm text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] disabled:opacity-50 transition-all"
                 >
-                  <Plus className="h-4 w-4 mr-1" /> Add
+                  <Plus className="h-5 w-5 mr-1.5" /> Add
                 </button>
               </form>
             </div>

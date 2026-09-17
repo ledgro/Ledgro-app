@@ -5,7 +5,8 @@ import { db } from '../firebase';
 import { Link } from 'react-router-dom';
 import BottomNav from '../components/BottomNav';
 import { LogOut, PlusCircle, FileText, Receipt, PieChart, RefreshCcw } from 'lucide-react';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, cn } from '../lib/utils';
+import { Skeleton } from '../components/Skeleton';
 import { startOfDay, endOfDay } from 'date-fns';
 
 export default function Dashboard() {
@@ -39,7 +40,7 @@ export default function Dashboard() {
       let count = 0;
 
       todaySnap.docs.forEach(doc => {
-        const data = doc.data();
+        const data = doc.data({ serverTimestamps: 'estimate' });
         if (!data.createdAt) return;
 
         const date = data.createdAt.toDate();
@@ -69,10 +70,10 @@ export default function Dashboard() {
   const initials = user?.displayName ? user.displayName.charAt(0).toUpperCase() : user?.email?.charAt(0).toUpperCase() || 'U';
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col pb-24">
+    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-24">
       {/* Top Header */}
       <header className="bg-white px-4 py-4 flex justify-between items-center sticky top-0 z-30">
-        <h1 className="text-xl font-bold text-slate-900">Ledgro Shop</h1>
+        <h1 className="text-xl font-bold text-slate-900 font-bruno">Ledgro</h1>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-lg">
             {initials}
@@ -89,10 +90,19 @@ export default function Dashboard() {
         <div className="bg-blue-600 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
           <div className="relative z-10">
             <p className="text-blue-100 font-medium mb-1">Today's Sales</p>
-            <h2 className="text-5xl font-black tracking-tight mb-2">
-              {loading ? '...' : formatCurrency(todayTotal)}
-            </h2>
-            <p className="text-blue-200 text-sm font-medium">{loading ? '-' : todayCount} bills generated</p>
+            {loading ? (
+              <div className="space-y-3 mt-2">
+                <Skeleton className="h-12 w-48 bg-blue-400/50 rounded-lg" />
+                <Skeleton className="h-4 w-32 bg-blue-400/50" />
+              </div>
+            ) : (
+              <>
+                <h2 className="text-5xl font-black tracking-tight mb-2">
+                  {formatCurrency(todayTotal)}
+                </h2>
+                <p className="text-blue-200 text-sm font-medium">{todayCount} bills generated</p>
+              </>
+            )}
           </div>
           <div className="absolute -right-8 -bottom-8 opacity-10">
             <PieChart size={160} />
@@ -141,7 +151,17 @@ export default function Dashboard() {
 
           <div className="bg-white rounded-2xl shadow-subtle border border-slate-100 overflow-hidden divide-y divide-slate-50">
             {loading ? (
-              <div className="p-8 flex justify-center"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /></div>
+              <div className="p-4 space-y-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="flex justify-between items-center py-2">
+                    <div className="space-y-2">
+                      <Skeleton className="h-6 w-24" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                    <Skeleton className="h-6 w-16 rounded-lg" />
+                  </div>
+                ))}
+              </div>
             ) : recentBills.length === 0 ? (
               <div className="p-8 text-center text-slate-500 font-medium">No activity yet.</div>
             ) : (

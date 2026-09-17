@@ -131,7 +131,7 @@ export default function Members() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col pb-20">
+    <div className="h-[100dvh] overflow-y-auto bg-gray-50 flex flex-col pb-20">
       <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3">
         <h1 className="text-xl font-bold text-gray-900">Shop Members</h1>
       </header>
