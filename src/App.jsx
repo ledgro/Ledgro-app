@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import SignIn from './pages/SignIn';
 import ShopSetup from './pages/ShopSetup';
 import Dashboard from './pages/Dashboard';
+import POS from './pages/POS';
 import Ledger from './pages/Ledger';
 import Expenses from './pages/Expenses';
 import Analytics from './pages/Analytics';
@@ -71,6 +72,14 @@ const router = createHashRouter([
     element: (
       <ProtectedRoute>
         <Dashboard />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/pos',
+    element: (
+      <ProtectedRoute>
+        <POS />
       </ProtectedRoute>
     ),
   },

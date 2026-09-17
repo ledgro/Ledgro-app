@@ -24,22 +24,25 @@ export default function Members() {
       if (docSnap.exists()) {
         const data = docSnap.data();
 
-        // In a real app we'd fetch full user profiles. Here we just show the UIDs or generic names.
-        // We ensure the creator is at the top.
-        const memberList = (data.memberIds || []).map(uid => ({
+        // Ensure the creator is at the top.
+        const membersMap = data.members || {};
+        const memberList = Object.keys(membersMap).map(uid => ({
           uid,
-          role: uid === data.ownerId ? 'Admin (Hidden)' : 'Member', // Internal tracking, not shown to users
+          role: uid === data.ownerId ? 'Admin (Hidden)' : 'Member',
           name: uid === user.uid ? 'You' : `Member ${uid.substring(0, 4)}`
         }));
 
-        // Make sure creator is shown even if missing from memberIds array legacy data
-        if (!data.memberIds?.includes(data.ownerId)) {
+        // Make sure creator is shown even if missing from members map legacy data
+        if (!membersMap[data.ownerId]) {
           memberList.unshift({
             uid: data.ownerId,
             role: 'Admin (Hidden)',
             name: data.ownerId === user.uid ? 'You' : `Member ${data.ownerId.substring(0, 4)}`
           });
         }
+
+        // Sort so the logged-in user is at top
+        memberList.sort((a, b) => (a.uid === user.uid ? -1 : 1));
 
         setMembers(memberList);
       }
@@ -80,10 +83,10 @@ export default function Members() {
             const shopRef = doc(db, 'shops', shopId);
             const shopSnap = await getDoc(shopRef);
             if (shopSnap.exists()) {
-              const currentMembers = shopSnap.data().memberIds || [];
-              if (!currentMembers.includes(data.claimedBy)) {
+              const currentMembers = shopSnap.data().members || {};
+              if (!currentMembers[data.claimedBy]) {
                 await updateDoc(shopRef, {
-                  memberIds: [...currentMembers, data.claimedBy]
+                  [`members.${data.claimedBy}`]: Date.now()
                 });
               }
             }
@@ -114,9 +117,11 @@ export default function Members() {
       const shopRef = doc(db, 'shops', shopId);
       const shopSnap = await getDoc(shopRef);
       if (shopSnap.exists()) {
-        const currentMembers = shopSnap.data().memberIds || [];
+        const currentMembers = { ...shopSnap.data().members };
+        delete currentMembers[targetUid];
+
         await updateDoc(shopRef, {
-          memberIds: currentMembers.filter(uid => uid !== targetUid)
+          members: currentMembers
         });
       }
     } catch (err) {

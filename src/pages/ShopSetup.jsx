@@ -24,11 +24,12 @@ const ShopSetup = () => {
 
       const shopsRef = collection(db, 'shops');
 
-      // Initialize with memberIds array for easier querying as we implemented in AuthContext
       const docRef = await addDoc(shopsRef, {
         name: shopName.trim(),
         ownerId: user.uid,
-        memberIds: [user.uid]
+        members: {
+          [user.uid]: Date.now()
+        }
       });
 
       setShopId(docRef.id);
@@ -78,7 +79,7 @@ const ShopSetup = () => {
       const poll = setInterval(async () => {
         retries++;
         const shopSnap = await getDoc(doc(db, 'shops', data.shopId));
-        if (shopSnap.exists() && shopSnap.data().memberIds?.includes(user.uid)) {
+        if (shopSnap.exists() && shopSnap.data().members?.[user.uid]) {
           clearInterval(poll);
           setShopId(data.shopId);
           setHasShop(true);
@@ -98,32 +99,32 @@ const ShopSetup = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md px-4">
-        <h2 className="text-center text-3xl font-extrabold text-gray-900">
+        <h2 className="text-center text-3xl font-bold tracking-tight text-slate-900">
           Welcome to Ledgro
         </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
+        <p className="mt-2 text-center text-base text-slate-500 font-medium">
           {mode === 'create' ? 'What is the name of your business?' : 'Enter the code to join a shop'}
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-sm sm:rounded-lg sm:px-10 border border-gray-100">
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4">
+        <div className="bg-white py-8 px-6 shadow-subtle sm:rounded-2xl border border-slate-100">
 
-          <div className="flex bg-gray-100 p-1 rounded-lg mb-6">
+          <div className="flex bg-slate-100 p-1 rounded-xl mb-8">
             <button
               onClick={() => { setMode('create'); setError(''); }}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
-                mode === 'create' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+              className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${
+                mode === 'create' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               Create New Shop
             </button>
             <button
               onClick={() => { setMode('join'); setError(''); }}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
-                mode === 'join' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+              className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${
+                mode === 'join' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               Join a Shop
@@ -133,10 +134,10 @@ const ShopSetup = () => {
           {mode === 'create' ? (
             <form className="space-y-6" onSubmit={handleCreate}>
               <div>
-                <label htmlFor="shopName" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="shopName" className="block text-sm font-medium text-slate-700">
                   Shop Name
                 </label>
-                <div className="mt-1">
+                <div className="mt-2">
                   <input
                     id="shopName"
                     name="shopName"
@@ -144,33 +145,33 @@ const ShopSetup = () => {
                     required
                     value={shopName}
                     onChange={(e) => setShopName(e.target.value)}
-                    className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="appearance-none block w-full px-4 h-14 border border-slate-200 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-medium transition-all"
                     placeholder="e.g. Kerala Supermarket"
                   />
                 </div>
               </div>
 
-              {error && <div className="text-sm text-red-600">{error}</div>}
+              {error && <div className="text-sm text-red-600 font-medium">{error}</div>}
 
               <div>
                 <button
                   type="submit"
                   disabled={loading || !shopName.trim()}
-                  className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
-                    loading || !shopName.trim() ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
-                  } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors`}
+                  className={`w-full flex justify-center items-center h-14 px-4 rounded-xl shadow-sm text-base font-bold text-white transition-all active:scale-[0.98] ${
+                    loading || !shopName.trim() ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                  } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
                 >
-                  {loading ? 'Creating...' : 'Continue'}
+                  {loading ? 'Creating...' : 'Get Started'}
                 </button>
               </div>
             </form>
           ) : (
             <form className="space-y-6" onSubmit={handleJoin}>
               <div>
-                <label htmlFor="inviteCode" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="inviteCode" className="block text-sm font-medium text-slate-700">
                   6-Digit Invite Code
                 </label>
-                <div className="mt-1">
+                <div className="mt-2">
                   <input
                     id="inviteCode"
                     name="inviteCode"
@@ -179,21 +180,21 @@ const ShopSetup = () => {
                     maxLength={6}
                     value={inviteCode}
                     onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                    className="appearance-none block w-full px-3 py-4 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-center text-2xl font-bold tracking-widest uppercase"
+                    className="appearance-none block w-full px-4 h-16 border border-slate-200 rounded-xl shadow-sm placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-3xl font-black tracking-[0.2em] uppercase transition-all"
                     placeholder="XXXXXX"
                   />
                 </div>
               </div>
 
-              {error && <div className="text-sm text-red-600">{error}</div>}
+              {error && <div className="text-sm text-red-600 font-medium">{error}</div>}
 
               <div>
                 <button
                   type="submit"
                   disabled={loading || inviteCode.length !== 6}
-                  className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
-                    loading || inviteCode.length !== 6 ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
-                  } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors`}
+                  className={`w-full flex justify-center items-center h-14 px-4 rounded-xl shadow-sm text-base font-bold text-white transition-all active:scale-[0.98] ${
+                    loading || inviteCode.length !== 6 ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                  } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
                 >
                   {loading ? 'Waiting for creator...' : 'Join Shop'}
                 </button>

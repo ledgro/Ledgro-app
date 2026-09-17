@@ -22,23 +22,13 @@ export const AuthProvider = ({ children }) => {
       if (currentUser) {
         try {
           const shopsRef = collection(db, 'shops');
-          // For now, checking if they are the admin (ownerId) OR if they exist in the members array
-          // Since array-contains on map keys isn't native, we query where their UID is a key in the members map
-          // Actually, Firestore allows checking `members.${uid}` > 0 using orderBy/where if indexed,
-          // or we can use a dedicated array of memberUids.
-          // To keep it simple based on the existing `{ [uid]: timestamp }` structure, we might need to
-          // fetch all shops where they are either ownerId, or we re-structure slightly for easy querying.
-          // Let's assume the user is either the admin OR we update the shop to also include an array `memberIds`.
-          // For this step, we will query where ownerId == uid OR memberIds array-contains uid.
 
-          // Note: To avoid complex compound index setup for this iteration, we'll query where ownerId == uid.
-          // In the join flow, we will see how to handle the member query.
-          // Actually, we can fetch all shops and filter client-side if the user's shop volume is low,
-          // or properly structure `memberIds: [uid1, uid2]`. Let's use `memberIds` array for standard queries.
+          // The security rules demand we check the map: `members.{uid}`.
+          // In Firestore, we can query this directly using a dynamic field path if indexed, or we just fetch where ownerId == uid
+          // and for invited staff, we query where `members.${uid}` > 0.
 
-          // Let's assume the shop document has: { ownerId: uid, memberIds: [uid] }
           const qAdmin = query(shopsRef, where('ownerId', '==', currentUser.uid));
-          const qMember = query(shopsRef, where('memberIds', 'array-contains', currentUser.uid));
+          const qMember = query(shopsRef, where(`members.${currentUser.uid}`, '>', 0));
 
           const [adminSnap, memberSnap] = await Promise.all([getDocs(qAdmin), getDocs(qMember)]);
 
