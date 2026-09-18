@@ -80,6 +80,18 @@ export function billReducer(state, action) {
       return initialBillState;
     }
 
+    case 'INIT_FROM_EDIT': {
+      return {
+        ...state,
+        items: action.payload.items.map(item => ({
+          ...item,
+          id: generateId(), // ensure new UI IDs so editing works
+          lineDiscount: item.lineDiscount || { type: 'flat', value: 0 }
+        })),
+        globalDiscount: action.payload.globalDiscount || { type: 'flat', value: 0 }
+      };
+    }
+
     default:
       return state;
   }
