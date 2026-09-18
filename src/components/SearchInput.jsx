@@ -37,7 +37,7 @@ export default function SearchInput({ onAddItem }) {
   }, [wrapperRef]);
 
   const handleSelectResult = (item) => {
-    onAddItem({ name: item.name, unitPrice: item.lastUsedPrice || 0 });
+    onAddItem({ name: item.name, unitPrice: item.lastUsedPrice || 0, catalogId: item.id });
     setQuery('');
     setShowDropdown(false);
   };
