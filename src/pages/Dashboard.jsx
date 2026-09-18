@@ -10,6 +10,26 @@ import { startOfDay, endOfDay, isToday, isYesterday, format } from 'date-fns';
 import { DayPicker } from 'react-day-picker';
 import "react-day-picker/style.css";
 import { Drawer } from 'vaul';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { Bar } from 'react-chartjs-2';
+import { useDeferredValue } from 'react';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 export default function Dashboard() {
   const { user, shopId, shopName, signOut } = useAuth();
@@ -70,12 +90,15 @@ export default function Dashboard() {
   }, [shopId, dateRange]);
 
   // Deterministic Client-Side Reduction (Offline safe)
+  const deferredBills = useDeferredValue(bills);
+  const deferredExpenses = useDeferredValue(expenses);
+
   const metrics = useMemo(() => {
     let grossRevenue = 0;
     let totalReversals = 0;
     let totalExpenses = 0;
 
-    bills.forEach(bill => {
+    deferredBills.forEach(bill => {
       if (bill.type === 'reversal') {
         totalReversals += Math.abs(bill.grandTotal);
       } else {
@@ -83,12 +106,55 @@ export default function Dashboard() {
       }
     });
 
-    expenses.forEach(exp => {
+    deferredExpenses.forEach(exp => {
       totalExpenses += exp.amount || 0;
     });
 
     const netRevenue = grossRevenue - totalReversals;
     const netProfit = netRevenue - totalExpenses;
+
+    // Daily breakdown for chart
+    const dailyData = {};
+
+    deferredBills.forEach(bill => {
+      if (!bill.createdAt) return;
+      const date = format(bill.createdAt.toDate ? bill.createdAt.toDate() : new Date(), 'MMM dd');
+      if (!dailyData[date]) dailyData[date] = { revenue: 0, expenses: 0 };
+      if (bill.type !== 'reversal') {
+        dailyData[date].revenue += bill.grandTotal || 0;
+      } else {
+        dailyData[date].revenue -= Math.abs(bill.grandTotal || 0); // adjust revenue down for reversals
+      }
+    });
+
+    deferredExpenses.forEach(exp => {
+      if (!exp.createdAt) return;
+      const date = format(exp.createdAt.toDate ? exp.createdAt.toDate() : new Date(), 'MMM dd');
+      if (!dailyData[date]) dailyData[date] = { revenue: 0, expenses: 0 };
+      dailyData[date].expenses += exp.amount || 0;
+    });
+
+    const sortedDates = Object.keys(dailyData).sort((a, b) => new Date(a) - new Date(b));
+
+    const chartData = {
+      labels: sortedDates,
+      datasets: [
+        {
+          label: 'Revenue',
+          data: sortedDates.map(d => dailyData[d].revenue),
+          backgroundColor: '#2563EB',
+          borderRadius: 4,
+        },
+        {
+          label: 'Expenses',
+          data: sortedDates.map(d => dailyData[d].expenses),
+          backgroundColor: '#EF4444',
+          borderRadius: 4,
+        }
+      ]
+    };
+
+    const hasData = sortedDates.length > 0;
 
     return {
       grossRevenue,
@@ -96,9 +162,12 @@ export default function Dashboard() {
       netRevenue,
       totalExpenses,
       netProfit,
-      transactionCount: bills.filter(b => b.type !== 'reversal').length
+      transactionCount: deferredBills.filter(b => b.type !== 'reversal').length,
+      chartData,
+      hasData
     };
-  }, [bills, expenses]);
+  }, [deferredBills, deferredExpenses]);
+
 
   const setQuickDate = (type) => {
     const today = new Date();
@@ -214,19 +283,27 @@ export default function Dashboard() {
         {/* Analytics Section */}
         {loading ? (
           <div className="space-y-4">
-             <Skeleton className="h-32 w-full rounded-3xl" />
+             <Skeleton className="h-24 w-full rounded-3xl" />
              <div className="grid grid-cols-2 gap-4">
                <Skeleton className="h-24 w-full rounded-2xl" />
                <Skeleton className="h-24 w-full rounded-2xl" />
              </div>
+             <Skeleton className="h-48 w-full rounded-3xl" />
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Primary Metric: Net Profit */}
-            <div className={`p-6 rounded-3xl shadow-sm border ${metrics.netProfit >= 0 ? 'bg-green-600 border-green-700' : 'bg-red-600 border-red-700'} text-white`}>
-              <p className="text-sm font-medium text-white/80 mb-1">Net Profit</p>
-              <h2 className="text-4xl font-black tracking-tight">{formatCurrency(metrics.netProfit)}</h2>
+            {/* Primary Metrics (Total Sales / Net Profit) */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-5 rounded-3xl shadow-sm border bg-blue-600 border-blue-700 text-white flex flex-col justify-center">
+                <p className="text-xs font-medium text-white/80 mb-0.5">Total Sales</p>
+                <h2 className="text-2xl font-black tracking-tight">{formatCurrency(metrics.grossRevenue)}</h2>
+              </div>
+              <div className={`p-5 rounded-3xl shadow-sm border ${metrics.netProfit >= 0 ? 'bg-green-600 border-green-700' : 'bg-red-600 border-red-700'} text-white flex flex-col justify-center`}>
+                <p className="text-xs font-medium text-white/80 mb-0.5">Net Profit</p>
+                <h2 className="text-2xl font-black tracking-tight">{formatCurrency(metrics.netProfit)}</h2>
+              </div>
             </div>
+
 
             {/* Metric Grid */}
             <div className="grid grid-cols-2 gap-3">
@@ -256,6 +333,33 @@ export default function Dashboard() {
                 <span className="font-bold">-{formatCurrency(metrics.totalReversals)}</span>
               </div>
             )}
+
+            {/* Profit & Loss Chart */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-subtle min-h-[220px]">
+              <h3 className="text-sm font-bold text-slate-500 mb-4">Profit & Loss</h3>
+              {metrics.hasData ? (
+                <div className="h-48 w-full">
+                  <Bar
+                    data={metrics.chartData}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8 } }
+                      },
+                      scales: {
+                        y: { beginAtZero: true, border: { dash: [4, 4] }, grid: { color: '#F1F5F9' } },
+                        x: { grid: { display: false } }
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="h-40 flex items-center justify-center border-2 border-dashed border-slate-200 rounded-xl">
+                  <p className="text-slate-400 font-medium text-sm">No transactions in this period</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
