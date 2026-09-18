@@ -3,8 +3,8 @@ export const initialBillState = {
   globalDiscount: { type: 'flat', value: 0 },
 };
 
-// Generates a simple UUID for list reconciliation
-const generateId = () => Math.random().toString(36).substr(2, 9);
+// Generates a UUID for list reconciliation
+const generateId = () => crypto.randomUUID();
 
 export function billReducer(state, action) {
   switch (action.type) {
