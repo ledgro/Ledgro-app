@@ -4,8 +4,11 @@ import { collection, query, orderBy, limit, startAfter, getDocs, addDoc, serverT
 import { db } from '../firebase';
 import { useInView } from 'react-intersection-observer';
 import BottomNav from '../components/BottomNav';
-import { RefreshCcw, FileText } from 'lucide-react';
+import { FileText, CheckCircle2, XCircle, RefreshCcw } from 'lucide-react';
 import { Skeleton } from '../components/Skeleton';
+import { Drawer } from 'vaul';
+import { formatCurrency, cn } from '../lib/utils';
+import { useMemo } from 'react';
 
 export default function Ledger() {
   const { user, shopId } = useAuth();
@@ -14,6 +17,7 @@ export default function Ledger() {
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [reversingId, setReversingId] = useState(null);
+  const [selectedBill, setSelectedBill] = useState(null);
 
   const { ref, inView } = useInView();
 
@@ -95,49 +99,72 @@ export default function Ledger() {
     }
   };
 
+  // Merge reversals into original bills
+  const mergedBills = useMemo(() => {
+    const activeBills = [];
+    const reversedIds = new Set();
+
+    // Find all reversals first
+    bills.forEach(b => {
+      if (b.type === 'reversal' && b.originalBillId) {
+        reversedIds.add(b.originalBillId);
+      }
+    });
+
+    // Filter active bills and mark them if voided
+    bills.forEach(b => {
+      if (b.type !== 'reversal') {
+        activeBills.push({
+          ...b,
+          isVoided: reversedIds.has(b.id)
+        });
+      }
+    });
+
+    return activeBills;
+  }, [bills]);
+
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-gray-50 flex flex-col">
-      <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3">
-        <h1 className="text-xl font-bold text-gray-900">Ledger History</h1>
+    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col">
+      <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 py-3 shadow-subtle">
+        <h1 className="text-xl font-bold text-slate-900">Ledger History</h1>
       </header>
 
       <main className="flex-1 pb-24 p-4">
-        {bills.length === 0 && !loading ? (
-          <div className="text-center text-gray-500 mt-20">No bills found.</div>
+        {mergedBills.length === 0 && !loading ? (
+          <div className="text-center text-slate-500 mt-20 font-medium">No bills found.</div>
         ) : (
           <div className="space-y-4">
-            {bills.map(bill => {
-              const isReversal = bill.type === 'reversal';
+            {mergedBills.map(bill => {
               const date = bill.createdAt?.toDate ? bill.createdAt.toDate().toLocaleString() : 'Pending sync...';
 
               return (
-                <div key={bill.id} className={`p-4 rounded-xl shadow-sm border ${isReversal ? 'bg-red-50 border-red-100' : 'bg-white border-gray-100'}`}>
+                <div
+                  key={bill.id}
+                  onClick={() => setSelectedBill(bill)}
+                  className={cn(
+                    "p-4 rounded-2xl shadow-subtle border active:scale-[0.98] transition-all cursor-pointer",
+                    bill.isVoided ? "bg-red-50 border-red-100 opacity-75" : "bg-white border-slate-100"
+                  )}
+                >
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-2">
-                      {isReversal ? <RefreshCcw size={18} className="text-red-500" /> : <FileText size={18} className="text-gray-400" />}
-                      <span className="text-sm font-medium text-gray-500">{date}</span>
+                      {bill.isVoided ? <XCircle size={18} className="text-red-500" /> : <CheckCircle2 size={18} className="text-green-500" />}
+                      <span className="text-sm font-semibold text-slate-500">{date}</span>
                     </div>
-                    <span className={`font-bold text-lg ${isReversal ? 'text-red-600' : 'text-gray-900'}`}>
-                      ₹{bill.grandTotal}
+                    <span className={cn("font-black text-xl", bill.isVoided ? "text-red-500 line-through" : "text-slate-900")}>
+                      {formatCurrency(bill.grandTotal)}
                     </span>
                   </div>
 
-                  {isReversal ? (
-                    <p className="text-sm text-red-600">Reversal for bill ending in ...{bill.originalBillId.slice(-4)}</p>
-                  ) : (
-                    <div className="flex justify-between items-end mt-4">
-                      <div className="text-sm text-gray-500">
-                        {bill.items?.length || 0} items • {bill.paymentMethod?.toUpperCase()}
-                      </div>
-                      <button
-                        onClick={() => handleVoidBill(bill)}
-                        disabled={reversingId === bill.id}
-                        className="text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 px-3 py-1.5 rounded-lg active:bg-red-100 disabled:opacity-50"
-                      >
-                        {reversingId === bill.id ? 'Voiding...' : 'Void Bill'}
-                      </button>
+                  <div className="flex justify-between items-end mt-4">
+                    <div className="text-sm font-medium text-slate-500">
+                      {bill.items?.length || 0} items • {bill.paymentMethod?.toUpperCase()}
                     </div>
-                  )}
+                    {bill.isVoided && (
+                      <span className="text-xs font-bold bg-red-100 text-red-600 px-2 py-1 rounded-md uppercase tracking-wider">Voided</span>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -145,7 +172,7 @@ export default function Ledger() {
         )}
 
         {/* Infinite Scroll trigger element */}
-        {bills.length > 0 && hasMore && (
+        {mergedBills.length > 0 && hasMore && (
           <div ref={ref} className="py-4 flex flex-col gap-4">
             {loading && [1, 2, 3].map(i => (
               <div key={i} className="p-4 rounded-xl border border-gray-100 bg-white shadow-sm space-y-4">
@@ -162,6 +189,78 @@ export default function Ledger() {
           </div>
         )}
       </main>
+
+      {/* Bill Preview Drawer */}
+      <Drawer.Root open={!!selectedBill} onOpenChange={(open) => !open && setSelectedBill(null)}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
+          <Drawer.Content className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 h-[85vh] fixed bottom-0 left-0 right-0 z-50 focus:outline-none overflow-hidden">
+            <div className="p-4 bg-slate-50 flex-1 overflow-y-auto pb-safe">
+              <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-slate-200 mb-6" />
+
+              {selectedBill && (
+                <div className="max-w-md mx-auto space-y-6">
+                  <div className="text-center">
+                    <h2 className={cn("text-3xl font-black mb-1", selectedBill.isVoided ? "text-red-500 line-through" : "text-slate-900")}>
+                      {formatCurrency(selectedBill.grandTotal)}
+                    </h2>
+                    <p className="text-slate-500 font-medium">{selectedBill.createdAt?.toDate ? selectedBill.createdAt.toDate().toLocaleString() : 'Pending'}</p>
+                    <div className="mt-3 inline-flex items-center justify-center gap-1.5 bg-slate-200 text-slate-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest">
+                      {selectedBill.paymentMethod}
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 divide-y divide-slate-50">
+                    <h3 className="font-bold text-slate-400 uppercase tracking-wider text-xs mb-3 pb-2">Itemized List</h3>
+                    {selectedBill.items?.map((item, idx) => (
+                      <div key={idx} className="py-3 flex justify-between items-start">
+                        <div>
+                          <p className="font-semibold text-slate-900">{item.name}</p>
+                          <p className="text-xs font-medium text-slate-400">{item.qty} x {formatCurrency(item.unitPrice)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-slate-900">{formatCurrency(item.finalLineTotal)}</p>
+                          {item.lineDiscount?.value > 0 && <p className="text-xs text-red-500 font-medium">Disc: {item.lineDiscount.value}{item.lineDiscount.type === 'percent' ? '%' : ' flat'}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-2 text-sm font-medium">
+                     <div className="flex justify-between text-slate-500">
+                       <span>Subtotal</span>
+                       <span>{formatCurrency(selectedBill.subtotal)}</span>
+                     </div>
+                     {selectedBill.globalDiscountAmt > 0 && (
+                       <div className="flex justify-between text-red-500">
+                         <span>Global Discount</span>
+                         <span>-{formatCurrency(selectedBill.globalDiscountAmt)}</span>
+                       </div>
+                     )}
+                     <div className="flex justify-between text-slate-900 font-bold pt-2 border-t border-slate-100 text-lg">
+                       <span>Grand Total</span>
+                       <span>{formatCurrency(selectedBill.grandTotal)}</span>
+                     </div>
+                  </div>
+
+                  {!selectedBill.isVoided && (
+                     <button
+                       onClick={() => {
+                         handleVoidBill(selectedBill);
+                         setSelectedBill(null);
+                       }}
+                       disabled={reversingId === selectedBill.id}
+                       className="w-full bg-red-50 text-red-600 font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-red-100 transition-colors shadow-sm disabled:opacity-50"
+                     >
+                       <RefreshCcw size={20} /> {reversingId === selectedBill.id ? 'Voiding...' : 'Void & Refund Bill'}
+                     </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
 
       <BottomNav />
     </div>

@@ -14,6 +14,7 @@ export const AuthProvider = ({ children }) => {
   const [hasShop, setHasShop] = useState(null);
   const [shopId, setShopId] = useState(null);
   const [shopAdminId, setShopAdminId] = useState(null);
+  const [shopName, setShopName] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -36,14 +37,17 @@ export const AuthProvider = ({ children }) => {
             setHasShop(true);
             setShopId(adminSnap.docs[0].id);
             setShopAdminId(adminSnap.docs[0].data().ownerId);
+            setShopName(adminSnap.docs[0].data().name);
           } else if (!memberSnap.empty) {
             setHasShop(true);
             setShopId(memberSnap.docs[0].id);
             setShopAdminId(memberSnap.docs[0].data().ownerId);
+            setShopName(memberSnap.docs[0].data().name);
           } else {
             setHasShop(false);
             setShopId(null);
             setShopAdminId(null);
+            setShopName('');
           }
         } catch (error) {
           console.error("Error checking for shop:", error);
@@ -70,7 +74,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, hasShop, shopId, shopAdminId, setHasShop, setShopId, loading, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, hasShop, shopId, shopAdminId, shopName, setHasShop, setShopId, loading, signInWithGoogle, signOut }}>
       {loading ? <SplashScreen /> : children}
     </AuthContext.Provider>
   );
