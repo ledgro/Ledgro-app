@@ -34,6 +34,7 @@ export function billReducer(state, action) {
             unitPrice: action.payload.unitPrice,
             qty: action.payload.qty || 1,
             lineDiscount: { type: 'flat', value: 0 },
+            catalogId: action.payload.catalogId || null,
           },
         ],
       };

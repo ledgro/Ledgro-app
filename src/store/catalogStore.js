@@ -76,6 +76,19 @@ export const useCatalogStore = create((set, get) => ({
   // Add a new item dynamically when user types something not in the list
   addItem: (item) => {
     set((state) => {
+      // If updating an existing item (based on id)
+      if (item.id) {
+        const existingIndex = state.items.findIndex(i => i.id === item.id);
+        if (existingIndex !== -1) {
+           const newItems = [...state.items];
+           newItems[existingIndex] = item;
+           // Rebuild trie
+           const newTrie = new PrefixTrie();
+           newItems.forEach(i => newTrie.insert(i));
+           return { items: newItems, trie: newTrie };
+        }
+      }
+
       // Create a new Trie to trigger re-renders properly or mutate if careful.
       // We will mutate the existing trie for performance and just spread the items array to trigger a react re-render.
       state.trie.insert(item);

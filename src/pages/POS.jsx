@@ -1,7 +1,7 @@
 import { useReducer, useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
-import { collection, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, writeBatch, doc, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { LogOut, Tag, ArrowRight, Share2, PlusCircle } from 'lucide-react';
 
@@ -103,7 +103,24 @@ export default function POS() {
         createdAt: serverTimestamp() // critical for offline ledger ordering
       };
 
-      await addDoc(collection(db, `shops/${shopId}/bills`), payload);
+      const batch = writeBatch(db);
+
+      const newBillRef = doc(collection(db, `shops/${shopId}/bills`));
+      batch.set(newBillRef, payload);
+
+      // Decrement stock for all items
+      state.items.forEach(item => {
+        if (item.catalogId) {
+           // Look up the actual catalog item to see if it tracks stock
+           const catalogItem = useCatalogStore.getState().items.find(i => i.id === item.catalogId);
+           if (catalogItem && catalogItem.stockCount != null) {
+              const catalogRef = doc(db, `shops/${shopId}/catalog`, item.catalogId);
+              batch.update(catalogRef, { stockCount: increment(-item.qty) });
+           }
+        }
+      });
+
+      await batch.commit();
 
       setLastBill(payload);
       setCheckoutSuccess(true);
