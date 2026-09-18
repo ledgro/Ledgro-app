@@ -6,7 +6,6 @@ import Dashboard from './pages/Dashboard';
 import POS from './pages/POS';
 import Ledger from './pages/Ledger';
 import Expenses from './pages/Expenses';
-import Analytics from './pages/Analytics';
 import Members from './pages/Members';
 import Products from './pages/Products';
 import SplashScreen from './components/SplashScreen';
@@ -97,14 +96,6 @@ const router = createHashRouter([
     element: (
       <ProtectedRoute>
         <Expenses />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/analytics',
-    element: (
-      <ProtectedRoute>
-        <Analytics />
       </ProtectedRoute>
     ),
   },

@@ -145,20 +145,22 @@ export default function Ledger() {
         )}
 
         {/* Infinite Scroll trigger element */}
-        <div ref={ref} className="py-4 flex flex-col gap-4">
-          {loading && [1, 2, 3].map(i => (
-            <div key={i} className="p-4 rounded-xl border border-gray-100 bg-white shadow-sm space-y-4">
-              <div className="flex justify-between">
-                <Skeleton className="h-5 w-32" />
-                <Skeleton className="h-6 w-20" />
+        {bills.length > 0 && hasMore && (
+          <div ref={ref} className="py-4 flex flex-col gap-4">
+            {loading && [1, 2, 3].map(i => (
+              <div key={i} className="p-4 rounded-xl border border-gray-100 bg-white shadow-sm space-y-4">
+                <div className="flex justify-between">
+                  <Skeleton className="h-5 w-32" />
+                  <Skeleton className="h-6 w-20" />
+                </div>
+                <div className="flex justify-between items-end">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-8 w-24 rounded-lg" />
+                </div>
               </div>
-              <div className="flex justify-between items-end">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-8 w-24 rounded-lg" />
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </main>
 
       <BottomNav />
