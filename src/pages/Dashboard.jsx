@@ -12,7 +12,7 @@ import "react-day-picker/style.css";
 import { Drawer } from 'vaul';
 
 export default function Dashboard() {
-  const { user, shopId, signOut } = useAuth();
+  const { user, shopId, shopName, signOut } = useAuth();
 
   // Analytics State
   const [dateRange, setDateRange] = useState({
@@ -166,7 +166,10 @@ export default function Dashboard() {
     <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-24">
       {/* Top Header */}
       <header className="bg-white px-4 py-4 flex justify-between items-center sticky top-0 z-30 shadow-subtle border-b border-slate-100">
-        <h1 className="text-xl font-bold text-blue-600 font-bruno">Ledgro</h1>
+        <div className="flex flex-col">
+          <h1 className="text-xl font-bold text-blue-600 font-bruno">Ledgro</h1>
+          {shopName && <p className="text-xs text-slate-500 font-semibold mt-0.5">{shopName}</p>}
+        </div>
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-sm">
             {initials}

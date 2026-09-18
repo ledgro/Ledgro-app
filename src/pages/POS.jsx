@@ -16,7 +16,7 @@ import html2canvas from 'html2canvas-pro';
 import { useRef } from 'react';
 
 export default function POS() {
-  const { user, shopId, signOut } = useAuth();
+  const { user, shopId, shopName, signOut } = useAuth();
   const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
   const addCatalogItem = useCatalogStore((state) => state.addItem);
 
@@ -31,6 +31,7 @@ export default function POS() {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const [lastBill, setLastBill] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' | 'upi' | 'split'
 
   // Load catalog on mount
   useEffect(() => {
@@ -77,7 +78,7 @@ export default function POS() {
     setIsDiscountOpen(true);
   };
 
-  const handleCheckout = async (paymentMethod) => {
+  const handleCheckout = async () => {
     if (items.length === 0 || !shopId) return;
     setIsCheckingOut(true);
 
@@ -98,6 +99,7 @@ export default function POS() {
         globalDiscountAmt,
         grandTotal,
         paymentMethod,
+        shopName, // Pass the actual shop name to the receipt
         createdAt: serverTimestamp() // critical for offline ledger ordering
       };
 
@@ -257,21 +259,27 @@ export default function POS() {
               </div>
             </div>
 
-            {/* Checkout Actions */}
-            <div className="flex gap-2">
+            {/* Checkout Actions & Payment Toggle */}
+            <div className="flex flex-col gap-3">
+              <div className="flex bg-slate-100 p-1 rounded-xl">
+                {['cash', 'upi', 'split'].map(method => (
+                  <button
+                    key={method}
+                    onClick={() => setPaymentMethod(method)}
+                    className={`flex-1 py-2 text-sm font-bold uppercase tracking-wider rounded-lg transition-all ${
+                      paymentMethod === method ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {method}
+                  </button>
+                ))}
+              </div>
               <button
-                onClick={() => handleCheckout('cash')}
+                onClick={handleCheckout}
                 disabled={isCheckingOut}
-                className="flex-1 bg-green-600 text-white font-bold py-3.5 px-4 rounded-xl active:bg-green-700 disabled:opacity-50 transition-colors"
+                className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-all active:scale-[0.98] shadow-sm"
               >
-                Cash
-              </button>
-              <button
-                onClick={() => handleCheckout('upi')}
-                disabled={isCheckingOut}
-                className="flex-1 bg-indigo-600 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-1 active:bg-indigo-700 disabled:opacity-50 transition-colors"
-              >
-                UPI <ArrowRight size={18} />
+                {isCheckingOut ? 'Processing...' : 'Confirm Checkout'} <ArrowRight size={20} />
               </button>
             </div>
           </div>
