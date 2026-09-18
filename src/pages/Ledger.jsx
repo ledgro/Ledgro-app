@@ -158,8 +158,17 @@ export default function Ledger() {
                   </div>
 
                   <div className="flex justify-between items-end mt-4">
-                    <div className="text-sm font-medium text-slate-500">
-                      {bill.items?.length || 0} items • {bill.paymentMethod?.toUpperCase()}
+                    <div className="text-sm font-medium text-slate-500 flex items-center gap-2">
+                      <span>{bill.items?.length || 0} items</span>
+                      <span>•</span>
+                      {bill.payment?.method === 'split' ? (
+                        <div className="flex items-center text-xs font-bold bg-slate-100 rounded overflow-hidden">
+                          <span className="px-1.5 py-0.5 bg-green-100 text-green-700">₹{bill.payment.breakdown.cash} C</span>
+                          <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700">₹{bill.payment.breakdown.upi} U</span>
+                        </div>
+                      ) : (
+                        <span>{bill.paymentMethod?.toUpperCase()}</span>
+                      )}
                     </div>
                     {bill.isVoided && (
                       <span className="text-xs font-bold bg-red-100 text-red-600 px-2 py-1 rounded-md uppercase tracking-wider">Voided</span>
@@ -205,9 +214,17 @@ export default function Ledger() {
                       {formatCurrency(selectedBill.grandTotal)}
                     </h2>
                     <p className="text-slate-500 font-medium">{selectedBill.createdAt?.toDate ? selectedBill.createdAt.toDate().toLocaleString() : 'Pending'}</p>
-                    <div className="mt-3 inline-flex items-center justify-center gap-1.5 bg-slate-200 text-slate-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest">
-                      {selectedBill.paymentMethod}
-                    </div>
+
+                    {selectedBill.payment?.method === 'split' ? (
+                      <div className="mt-3 inline-flex items-center justify-center gap-2 bg-slate-100 rounded-full text-xs font-bold uppercase tracking-widest overflow-hidden border border-slate-200">
+                        <span className="px-3 py-1 bg-green-100 text-green-700">Cash: {formatCurrency(selectedBill.payment.breakdown.cash)}</span>
+                        <span className="px-3 py-1 bg-purple-100 text-purple-700">UPI: {formatCurrency(selectedBill.payment.breakdown.upi)}</span>
+                      </div>
+                    ) : (
+                      <div className="mt-3 inline-flex items-center justify-center gap-1.5 bg-slate-200 text-slate-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest">
+                        {selectedBill.paymentMethod}
+                      </div>
+                    )}
                   </div>
 
                   <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 divide-y divide-slate-50">

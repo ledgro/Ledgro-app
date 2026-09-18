@@ -16,7 +16,7 @@ export default function Products() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showInactive, setShowInactive] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [sortBy, setSortBy] = useState('recently_added');
 
   // Bottom Sheet State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -34,34 +34,43 @@ export default function Products() {
 
   const [submitting, setSubmitting] = useState(false);
 
-  const categories = useMemo(() => {
-    const cats = new Set(catalogItems.map(item => item.category).filter(Boolean));
-    return ['All', ...Array.from(cats)];
-  }, [catalogItems]);
-
   // Filter products
   const activeProducts = useMemo(() => {
-    const filtered = catalogItems
+    let filtered = catalogItems
       .filter(item => item.isActive !== false)
-      .filter(item => selectedCategory === 'All' || item.category === selectedCategory)
       .filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    // Sort low stock items to the top
-    return filtered.sort((a, b) => {
+    filtered = filtered.sort((a, b) => {
+      // Always pull active low-stock items to the top regardless of standard sort
       const aIsLow = a.stockCount != null && a.lowStockAlert != null && a.stockCount <= a.lowStockAlert;
       const bIsLow = b.stockCount != null && b.lowStockAlert != null && b.stockCount <= b.lowStockAlert;
       if (aIsLow && !bIsLow) return -1;
       if (!aIsLow && bIsLow) return 1;
-      return 0; // retain original order otherwise
+
+      // Standard sorting
+      switch (sortBy) {
+        case 'a_z':
+          return a.name.localeCompare(b.name);
+        case 'oldest':
+          return (a.createdAt?.toMillis ? a.createdAt.toMillis() : 0) - (b.createdAt?.toMillis ? b.createdAt.toMillis() : 0);
+        case 'low_stock':
+          return (a.stockCount || 0) - (b.stockCount || 0);
+        case 'high_stock':
+          return (b.stockCount || 0) - (a.stockCount || 0);
+        case 'recently_added':
+        default:
+          return (b.createdAt?.toMillis ? b.createdAt.toMillis() : 0) - (a.createdAt?.toMillis ? a.createdAt.toMillis() : 0);
+      }
     });
-  }, [catalogItems, searchQuery]);
+
+    return filtered;
+  }, [catalogItems, searchQuery, sortBy]);
 
   const inactiveProducts = useMemo(() => {
     return catalogItems
       .filter(item => item.isActive === false)
-      .filter(item => selectedCategory === 'All' || item.category === selectedCategory)
       .filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  }, [catalogItems, searchQuery, selectedCategory]);
+  }, [catalogItems, searchQuery]);
 
   const openDrawer = (item = null) => {
     setEditingItem(item);
@@ -197,35 +206,30 @@ export default function Products() {
           </button>
         </div>
 
-        {/* Category Pills */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-          {categories.map(cat => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={cn(
-                "whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-semibold transition-colors border",
-                selectedCategory === cat
-                  ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-              )}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-slate-400" />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-slate-400" />
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="block w-full h-11 pl-10 pr-3 border border-slate-200 rounded-xl shadow-subtle bg-slate-50 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium transition-all text-sm"
+              placeholder="Search..."
+            />
           </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="block w-full h-12 pl-11 pr-4 border border-slate-200 rounded-xl shadow-subtle bg-slate-50 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium transition-all"
-            placeholder="Search catalog..."
-          />
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="h-11 px-3 border border-slate-200 rounded-xl shadow-subtle bg-white text-slate-700 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"
+          >
+            <option value="recently_added">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="a_z">A-Z</option>
+            <option value="low_stock">Lowest Stock</option>
+            <option value="high_stock">Highest Stock</option>
+          </select>
         </div>
       </header>
 
