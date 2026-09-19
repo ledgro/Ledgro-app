@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot } from 'firebase/
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Users, Trash2, UserPlus } from 'lucide-react';
+import { hapticVibrate } from '../lib/utils';
 
 export default function Members() {
   const { user, shopId, shopAdminId } = useAuth();
@@ -113,6 +114,10 @@ export default function Members() {
     if (!isCreator || targetUid === user.uid) return;
     if (!window.confirm("Remove this member?")) return;
 
+    if (localStorage.getItem('ledgro_haptic') !== 'false') {
+      hapticVibrate(20);
+    }
+
     try {
       const shopRef = doc(db, 'shops', shopId);
       const shopSnap = await getDoc(shopRef);
@@ -123,9 +128,16 @@ export default function Members() {
         await updateDoc(shopRef, {
           members: currentMembers
         });
+
+        if (localStorage.getItem('ledgro_haptic') !== 'false') {
+          hapticVibrate([50, 30, 50]);
+        }
       }
     } catch (err) {
       console.error("Failed to remove member", err);
+      if (localStorage.getItem('ledgro_haptic') !== 'false') {
+        hapticVibrate([100, 50, 100]);
+      }
       alert("Failed to remove member.");
     }
   };

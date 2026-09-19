@@ -6,7 +6,7 @@ export const initialBillState = {
 // Generates a simple UUID for list reconciliation
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-export function billReducer(state, action) {
+export function billReducer(state = initialBillState, action) {
   switch (action.type) {
     case 'ADD_ITEM': {
       const existingItemIndex = state.items.findIndex(

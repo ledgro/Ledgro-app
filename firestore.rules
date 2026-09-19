@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isMember(shopId) {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/shops/$(shopId)).data.members[request.auth.uid] != null;
+    }
+
+    function isAdmin(shopId) {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/shops/$(shopId)).data.ownerId == request.auth.uid;
+    }
+
+    match /shops/{shopId} {
+      allow read: if isAuthenticated() &&
+        resource.data.members[request.auth.uid] != null;
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.ownerId == request.auth.uid;
+
+      allow update: if isAdmin(shopId)
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(['name', 'members', 'phone', 'address', 'tagline', 'updatedAt']);
+
+      allow delete: if isAdmin(shopId);
+
+      match /bills/{billId} {
+        allow read: if isMember(shopId)
+          && request.query.limit <= 100;
+        allow create: if isMember(shopId)
+          && request.resource.data.creatorId == request.auth.uid;
+        allow update: if isMember(shopId)
+          && resource.data.type != 'reversal'
+          && request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['type', 'originalBillId', 'creatorId', 'grandTotal', 'createdAt']);
+        allow delete: if false;
+      }
+
+      match /expenses/{expenseId} {
+        allow read: if isMember(shopId)
+          && request.query.limit <= 100;
+        allow create: if isMember(shopId);
+        allow update, delete: if isAdmin(shopId)
+          || resource.data.creatorId == request.auth.uid;
+      }
+
+      match /catalog/{productId} {
+        allow read: if isMember(shopId);
+        allow create: if isMember(shopId);
+        allow update: if isMember(shopId)
+          && request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['name', 'lastUsedPrice', 'unit', 'stockCount',
+              'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency']);
+        allow delete: if false;
+      }
+    }
+
+    match /invites/{code} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated()
+        && isAdmin(request.resource.data.shopId)
+        && request.resource.data.expiresAt > request.time;
+      allow update: if isAuthenticated()
+        && resource.data.claimedBy == null
+        && request.time < resource.data.expiresAt
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(['claimedBy']);
+      allow delete: if isAuthenticated()
+        && isAdmin(resource.data.shopId);
+    }
+  }
+}

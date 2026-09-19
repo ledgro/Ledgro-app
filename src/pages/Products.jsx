@@ -8,6 +8,7 @@ import { Drawer } from 'vaul';
 import { PackagePlus, ArrowRight, Search, Plus, Archive, ChevronDown, ChevronUp, AlertCircle, Edit2 } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
 import { cn } from '../lib/utils';
+import { useBodyLock } from '../hooks/useBodyLock';
 
 export default function Products() {
   const { user, shopId } = useAuth();
@@ -21,6 +22,8 @@ export default function Products() {
   // Bottom Sheet State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null); // null means "Add New"
+
+  useBodyLock(isDrawerOpen);
 
   // Form State
   const [name, setName] = useState('');

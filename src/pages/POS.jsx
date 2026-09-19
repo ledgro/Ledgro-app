@@ -15,6 +15,18 @@ import html2canvas from 'html2canvas-pro';
 
 import { useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { hapticVibrate } from '../lib/utils';
+
+function generateBillNumber() {
+  const date = new Date();
+  const yy = String(date.getFullYear()).slice(2);
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const suffix = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+    .map(b => chars[b % chars.length]).join('');
+  return `${yy}${mm}${dd}-${suffix}`;
+}
 
 export default function POS() {
   const { user, shopId, shopName, signOut } = useAuth();
@@ -76,8 +88,20 @@ export default function POS() {
 
   const { items, subtotal, globalDiscountAmt, grandTotal } = useMemo(() => calculateBillTotals(state), [state]);
 
+  // Derive top 8 most frequent active items for fast-access grid
+  const fastAccessItems = useMemo(() => {
+    const catalogItems = useCatalogStore.getState().items;
+    return catalogItems
+      .filter(i => i.isActive !== false)
+      .sort((a, b) => (b.frequency || 0) - (a.frequency || 0))
+      .slice(0, 8);
+  }, [state.items.length]); // Re-evaluate occasionally or on mount
+
   const handleAddItem = (item) => {
     dispatch({ type: 'ADD_ITEM', payload: item });
+    if (localStorage.getItem('ledgro_haptic') !== 'false') {
+      hapticVibrate(10);
+    }
 
     // Optimistically add to local catalog store so it's instantly available next time
     addCatalogItem({ name: item.name, lastUsedPrice: item.unitPrice });
@@ -137,6 +161,7 @@ export default function POS() {
         paymentMethod, // legacy string, keeping for backwards compatibility
         payment: paymentData,
         shopName, // Pass the actual shop name to the receipt
+        billNo: generateBillNumber(),
         createdAt: serverTimestamp() // critical for offline ledger ordering
       };
 
@@ -157,27 +182,35 @@ export default function POS() {
         });
       }
 
-      // Decrement stock for all items (if edit, technically we should do a diff,
-      // but for simplicity in POS context, usually we just decrement new.
-      // We will skip complex stock reconciliation on edit for now or just decrement as normal)
+      // Update catalog: Decrement stock (if tracked) and increment frequency
       state.items.forEach(item => {
         if (item.catalogId) {
-           // Look up the actual catalog item to see if it tracks stock
            const catalogItem = useCatalogStore.getState().items.find(i => i.id === item.catalogId);
-           if (catalogItem && catalogItem.stockCount != null) {
+           if (catalogItem) {
               const catalogRef = doc(db, `shops/${shopId}/catalog`, item.catalogId);
-              batch.update(catalogRef, { stockCount: increment(-item.qty) });
+              const updates = { frequency: increment(1) };
+              if (catalogItem.stockCount != null) {
+                 updates.stockCount = increment(-item.qty);
+              }
+              batch.update(catalogRef, updates);
            }
         }
       });
 
       await batch.commit();
 
+      if (localStorage.getItem('ledgro_haptic') !== 'false') {
+        hapticVibrate([50, 30, 50]);
+      }
+
       setLastBill(payload);
       setCheckoutSuccess(true);
 
     } catch (err) {
       console.error("Checkout failed:", err);
+      if (localStorage.getItem('ledgro_haptic') !== 'false') {
+        hapticVibrate([100, 50, 100]);
+      }
       alert("Checkout failed. Check console.");
     } finally {
       setIsCheckingOut(false);
@@ -279,11 +312,30 @@ export default function POS() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col pb-40"> {/* pb-40 ensures we don't hide behind sticky footer */}
-        <div className="p-4 sticky top-[60px] z-20 bg-white/80 backdrop-blur-md">
+        <div className="p-4 pb-2 sticky top-[60px] z-20 bg-white/80 backdrop-blur-md">
           <SearchInput onAddItem={handleAddItem} />
         </div>
 
-        <div className="px-4 flex-1">
+        {/* Fast-Access Pinned Grid */}
+        {fastAccessItems.length > 0 && (
+          <div className="px-4 pb-4 overflow-x-auto no-scrollbar">
+            <div className="flex gap-2">
+              {fastAccessItems.map(fItem => (
+                <button
+                  key={fItem.id}
+                  onClick={() => handleAddItem({ name: fItem.name, unitPrice: fItem.lastUsedPrice || 0, catalogId: fItem.id, qty: 1 })}
+                  className="flex-shrink-0 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2 flex flex-col items-center justify-center active:bg-blue-100 transition-colors shadow-sm"
+                  style={{ minWidth: '100px' }}
+                >
+                  <span className="font-bold text-slate-800 text-sm truncate w-full text-center">{fItem.name}</span>
+                  <span className="text-blue-600 font-bold text-xs mt-0.5">₹{fItem.lastUsedPrice}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="px-4 flex-1 mt-2">
           {items.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-400 mt-20">
               <p>Search or add an item to begin</p>
