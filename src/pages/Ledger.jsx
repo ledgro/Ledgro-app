@@ -9,9 +9,12 @@ import { Skeleton } from '../components/Skeleton';
 import { Drawer } from 'vaul';
 import { formatCurrency, cn } from '../lib/utils';
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Edit3 } from 'lucide-react';
 
 export default function Ledger() {
   const { user, shopId } = useAuth();
+  const navigate = useNavigate();
   const [bills, setBills] = useState([]);
   const [lastDoc, setLastDoc] = useState(null);
   const [hasMore, setHasMore] = useState(true);
@@ -261,16 +264,27 @@ export default function Ledger() {
                   </div>
 
                   {!selectedBill.isVoided && (
-                     <button
-                       onClick={() => {
-                         handleVoidBill(selectedBill);
-                         setSelectedBill(null);
-                       }}
-                       disabled={reversingId === selectedBill.id}
-                       className="w-full bg-red-50 text-red-600 font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-red-100 transition-colors shadow-sm disabled:opacity-50"
-                     >
-                       <RefreshCcw size={20} /> {reversingId === selectedBill.id ? 'Voiding...' : 'Void & Refund Bill'}
-                     </button>
+                     <div className="grid grid-cols-2 gap-3">
+                       <button
+                         onClick={() => {
+                           handleVoidBill(selectedBill);
+                           setSelectedBill(null);
+                         }}
+                         disabled={reversingId === selectedBill.id}
+                         className="w-full bg-red-50 text-red-600 font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-red-100 transition-colors shadow-sm disabled:opacity-50"
+                       >
+                         <RefreshCcw size={20} /> Void
+                       </button>
+                       <button
+                         onClick={() => {
+                           navigate('/pos', { state: { editBill: selectedBill } });
+                         }}
+                         disabled={reversingId === selectedBill.id}
+                         className="w-full bg-blue-50 text-blue-600 font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-100 transition-colors shadow-sm disabled:opacity-50"
+                       >
+                         <Edit3 size={20} /> Correct & Edit
+                       </button>
+                     </div>
                   )}
                 </div>
               )}
