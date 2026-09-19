@@ -134,6 +134,7 @@ export default function Dashboard() {
     // Daily breakdown for chart
     const dailyData = {};
 
+
     deferredBills.forEach(bill => {
       if (!bill.createdAt) return;
       const date = format(bill.createdAt.toDate ? bill.createdAt.toDate() : new Date(), 'MMM dd');
@@ -153,6 +154,7 @@ export default function Dashboard() {
     });
 
     const sortedDates = Object.keys(dailyData).sort((a, b) => new Date(a) - new Date(b));
+
 
     const chartData = {
       labels: sortedDates,

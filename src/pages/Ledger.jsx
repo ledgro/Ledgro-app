@@ -127,12 +127,14 @@ export default function Ledger() {
     const activeBills = [];
     const reversedIds = new Set();
 
+
     // Find all reversals first
     bills.forEach(b => {
       if (b.type === 'reversal' && b.originalBillId) {
         reversedIds.add(b.originalBillId);
       }
     });
+
 
     // Filter active bills and mark them if voided
     bills.forEach(b => {
@@ -260,6 +262,7 @@ export default function Ledger() {
                     </span>
                   </div>
 
+
                   <div className="flex justify-between items-end mt-4">
                     <div className="text-sm font-medium text-slate-500 flex items-center gap-2">
                       <span>{bill.items?.length || 0} items</span>
@@ -310,6 +313,7 @@ export default function Ledger() {
             <div className="p-4 bg-slate-50 flex-1 overflow-y-auto pb-safe">
               <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-slate-200 mb-6" />
 
+
               {selectedBill && (
                 <div className="max-w-md mx-auto space-y-6">
                   <div className="text-center">
@@ -317,6 +321,7 @@ export default function Ledger() {
                       {formatCurrency(selectedBill.grandTotal)}
                     </h2>
                     <p className="text-slate-500 font-medium">{selectedBill.createdAt?.toDate ? selectedBill.createdAt.toDate().toLocaleString() : 'Pending'}</p>
+
 
                     {selectedBill.payment?.method === 'split' ? (
                       <div className="mt-3 inline-flex items-center justify-center gap-2 bg-slate-100 rounded-full text-xs font-bold uppercase tracking-widest overflow-hidden border border-slate-200">

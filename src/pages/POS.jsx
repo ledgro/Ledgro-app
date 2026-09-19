@@ -49,12 +49,14 @@ export default function POS() {
   const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' | 'upi' | 'split'
   const [splitCash, setSplitCash] = useState('');
 
+
   const editBill = location.state?.editBill || null;
 
   // Init from edit
   useEffect(() => {
     if (editBill && state.items.length === 0 && !checkoutSuccess) {
       dispatch({ type: 'INIT_FROM_EDIT', payload: editBill });
+
 
       // If it was a split payment, re-initialize the split UI
       if (editBill.payment?.method === 'split') {
@@ -63,6 +65,7 @@ export default function POS() {
       } else {
          setPaymentMethod(editBill.paymentMethod || 'cash');
       }
+
 
       // Clear location state so refresh doesn't trigger edit mode again
       window.history.replaceState({}, document.title);
@@ -134,6 +137,7 @@ export default function POS() {
       // Calculate split amounts if applicable
       const cashReceived = parseFloat(splitCash) || 0;
       const upiAmount = Math.max(0, grandTotal - cashReceived);
+
 
       const paymentData = {
         method: paymentMethod,
@@ -403,6 +407,7 @@ export default function POS() {
                   </button>
                 ))}
               </div>
+
 
               {/* Split Payment UI */}
               {paymentMethod === 'split' && (
