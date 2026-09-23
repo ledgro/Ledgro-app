@@ -58,7 +58,10 @@ export default function Members() {
     setIsGenerating(true);
 
     // Generate 6 digit alphanumeric
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const code = Array.from(crypto.getRandomValues(new Uint8Array(6)))
+      .map((b) => chars[b % chars.length])
+      .join('');
 
     try {
       const expiresAt = new Date();

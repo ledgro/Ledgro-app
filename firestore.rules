@@ -13,7 +13,7 @@ service cloud.firestore {
 
     function isAdmin(shopId) {
       return isAuthenticated() &&
-        get(/databases/$(database)/documents/shops/$(shopId)).data.ownerId == request.auth.uid;
+        get(/databases/$(database)/documents/shops/$(shopId)).data.members[request.auth.uid] == 'admin';
     }
 
     match /shops/{shopId} {
@@ -21,7 +21,7 @@ service cloud.firestore {
         resource.data.members[request.auth.uid] != null;
 
       allow create: if isAuthenticated() &&
-        request.resource.data.ownerId == request.auth.uid;
+        request.resource.data.members[request.auth.uid] == 'admin';
 
       allow update: if isAdmin(shopId)
         && request.resource.data.diff(resource.data)

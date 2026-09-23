@@ -9,12 +9,8 @@ import {
   enablePersistentCacheIndexAutoCreation
 } from 'firebase/firestore';
 
-// Splitting the API key so GitHub's overzealous secret scanner doesn't flag it.
-// Firebase client API keys are intended to be public.
-const FIREBASE_API_KEY = "AIzaSyAQ8vg15DH-" + "tmAGbxRf6GXPAKvsG328EsA";
-
 const firebaseConfig = {
-  apiKey: FIREBASE_API_KEY,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: "getledgro-2afec.firebaseapp.com",
   projectId: "getledgro-2afec",
   storageBucket: "getledgro-2afec.firebasestorage.app",

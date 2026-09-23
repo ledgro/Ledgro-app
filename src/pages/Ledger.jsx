@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, orderBy, limit, startAfter, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, startAfter, getDocs, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useInView } from 'react-intersection-observer';
 import BottomNav from '../components/BottomNav';
@@ -15,6 +15,7 @@ import { useRef } from 'react';
 import html2canvas from 'html2canvas-pro';
 import { useBodyLock } from '../hooks/useBodyLock';
 import { hapticVibrate } from '../lib/utils';
+import { useCatalogStore } from '../store/catalogStore';
 
 export default function Ledger() {
   const { user, shopId, shopName } = useAuth();
@@ -89,6 +90,8 @@ export default function Ledger() {
 
     setReversingId(originalBill.id);
     try {
+      const batch = writeBatch(db);
+
       const payload = {
         type: 'reversal',
         originalBillId: originalBill.id,
@@ -97,7 +100,27 @@ export default function Ledger() {
         createdAt: serverTimestamp() // Must use server time for strict accounting
       };
 
-      const reversalDocRef = await addDoc(collection(db, `shops/${shopId}/bills`), payload);
+      const reversalDocRef = doc(collection(db, `shops/${shopId}/bills`));
+      batch.set(reversalDocRef, payload);
+
+      // Revert inventory and frequency
+      if (originalBill.items && Array.isArray(originalBill.items)) {
+        originalBill.items.forEach(item => {
+          if (item.name) {
+             const catalogItem = useCatalogStore.getState().items.find(i => i.name === item.name);
+             if (catalogItem) {
+                const catalogRef = doc(db, `shops/${shopId}/catalog`, catalogItem.id);
+                const updates = { frequency: increment(-1) };
+                if (catalogItem.stockCount != null) {
+                   updates.stockCount = increment(item.qty);
+                }
+                batch.update(catalogRef, updates);
+             }
+          }
+        });
+      }
+
+      await batch.commit();
 
       // Optimistic update: inject the reversal at the top of the timeline
       const optimisticReversal = {
