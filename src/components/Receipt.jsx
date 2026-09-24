@@ -5,7 +5,14 @@ const Receipt = forwardRef(({ billData }, ref) => {
 
   const { items, subtotal, globalDiscountAmt, grandTotal, paymentMethod, shopName } = billData;
   const dateStr = new Date().toLocaleString();
-  const billNo = `${new Date().toLocaleDateString('en-GB').replace(/\//g, '')}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+  // Use billNo from billData if present, otherwise fallback to generating it securely
+  const billNo = billData.billNo || (() => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const suffix = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+      .map(b => chars[b % chars.length]).join('');
+    return `${new Date().toLocaleDateString('en-GB').replace(/\//g, '')}-${suffix}`;
+  })();
 
   // Using raw hex codes to bypass Tailwind v4 oklch canvas bug
   return (

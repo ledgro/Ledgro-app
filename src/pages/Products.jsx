@@ -8,6 +8,7 @@ import { Drawer } from 'vaul';
 import { PackagePlus, ArrowRight, Search, Plus, Archive, ChevronDown, ChevronUp, AlertCircle, Edit2 } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
 import { cn } from '../lib/utils';
+import { useBodyLock } from '../hooks/useBodyLock';
 
 export default function Products() {
   const { user, shopId } = useAuth();
@@ -22,6 +23,8 @@ export default function Products() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null); // null means "Add New"
 
+  useBodyLock(isDrawerOpen);
+
   // Form State
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
@@ -32,6 +35,7 @@ export default function Products() {
   const [description, setDescription] = useState('');
   const [isActive, setIsActive] = useState(true);
 
+
   const [submitting, setSubmitting] = useState(false);
 
   // Filter products
@@ -40,12 +44,14 @@ export default function Products() {
       .filter(item => item.isActive !== false)
       .filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
+
     filtered = filtered.sort((a, b) => {
       // Always pull active low-stock items to the top regardless of standard sort
       const aIsLow = a.stockCount != null && a.lowStockAlert != null && a.stockCount <= a.lowStockAlert;
       const bIsLow = b.stockCount != null && b.lowStockAlert != null && b.stockCount <= b.lowStockAlert;
       if (aIsLow && !bIsLow) return -1;
       if (!aIsLow && bIsLow) return 1;
+
 
       // Standard sorting
       switch (sortBy) {
@@ -62,6 +68,7 @@ export default function Products() {
           return (b.createdAt?.toMillis ? b.createdAt.toMillis() : 0) - (a.createdAt?.toMillis ? a.createdAt.toMillis() : 0);
       }
     });
+
 
     return filtered;
   }, [catalogItems, searchQuery, sortBy]);
@@ -206,6 +213,7 @@ export default function Products() {
           </button>
         </div>
 
+
         <div className="flex gap-2">
           <div className="relative flex-1">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -260,6 +268,7 @@ export default function Products() {
               </div>
               {showInactive ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
             </button>
+
 
             {showInactive && (
               <div className="mt-4 opacity-75">
@@ -330,6 +339,7 @@ export default function Products() {
                     </div>
                   </div>
 
+
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Category (Optional)</label>
                     <input
@@ -348,6 +358,7 @@ export default function Products() {
                   <p className="text-xs text-slate-500 font-medium leading-relaxed">
                     Stock count is optional and soft. It will decrement on sales but never block a transaction if empty.
                   </p>
+
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -371,6 +382,7 @@ export default function Products() {
 
                 <hr className="border-slate-100" />
 
+
                 {/* Status */}
                 <div className="space-y-4">
                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Status</h3>
@@ -389,6 +401,7 @@ export default function Products() {
 
               </form>
             </div>
+
 
             <div className="p-4 bg-white border-t border-slate-100 pb-safe absolute bottom-0 left-0 right-0">
               <button

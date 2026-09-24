@@ -89,6 +89,7 @@ export const useCatalogStore = create((set, get) => ({
         }
       }
 
+
       // Create a new Trie to trigger re-renders properly or mutate if careful.
       // We will mutate the existing trie for performance and just spread the items array to trigger a react re-render.
       state.trie.insert(item);

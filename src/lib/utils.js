@@ -11,3 +11,10 @@ export function formatCurrency(amount) {
     maximumFractionDigits: 2
   });
 }
+
+export function hapticVibrate(pattern) {
+  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    // pattern can be a number (ms) or array of numbers
+    navigator.vibrate(pattern);
+  }
+}

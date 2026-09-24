@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, orderBy, limit, startAfter, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, startAfter, getDocs, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useInView } from 'react-intersection-observer';
 import BottomNav from '../components/BottomNav';
@@ -10,10 +10,15 @@ import { Drawer } from 'vaul';
 import { formatCurrency, cn } from '../lib/utils';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Edit3 } from 'lucide-react';
+import { Edit3, Share2 } from 'lucide-react';
+import { useRef } from 'react';
+import html2canvas from 'html2canvas-pro';
+import { useBodyLock } from '../hooks/useBodyLock';
+import { hapticVibrate } from '../lib/utils';
+import { useCatalogStore } from '../store/catalogStore';
 
 export default function Ledger() {
-  const { user, shopId } = useAuth();
+  const { user, shopId, shopName } = useAuth();
   const navigate = useNavigate();
   const [bills, setBills] = useState([]);
   const [lastDoc, setLastDoc] = useState(null);
@@ -22,7 +27,12 @@ export default function Ledger() {
   const [reversingId, setReversingId] = useState(null);
   const [selectedBill, setSelectedBill] = useState(null);
 
+  useBodyLock(!!selectedBill);
+
+  const [isExporting, setIsExporting] = useState(false);
+
   const { ref, inView } = useInView();
+  const ledgerListRef = useRef(null);
 
   const fetchBills = useCallback(async (isNextPage = false) => {
     if (!shopId || loading || (!hasMore && isNextPage)) return;
@@ -74,8 +84,14 @@ export default function Ledger() {
   const handleVoidBill = async (originalBill) => {
     if (!shopId || !window.confirm(`Are you sure you want to void bill for ₹${originalBill.grandTotal}?`)) return;
 
+    if (localStorage.getItem('ledgro_haptic') !== 'false') {
+      hapticVibrate(20); // destructive action
+    }
+
     setReversingId(originalBill.id);
     try {
+      const batch = writeBatch(db);
+
       const payload = {
         type: 'reversal',
         originalBillId: originalBill.id,
@@ -84,7 +100,27 @@ export default function Ledger() {
         createdAt: serverTimestamp() // Must use server time for strict accounting
       };
 
-      const reversalDocRef = await addDoc(collection(db, `shops/${shopId}/bills`), payload);
+      const reversalDocRef = doc(collection(db, `shops/${shopId}/bills`));
+      batch.set(reversalDocRef, payload);
+
+      // Revert inventory and frequency
+      if (originalBill.items && Array.isArray(originalBill.items)) {
+        originalBill.items.forEach(item => {
+          if (item.name) {
+             const catalogItem = useCatalogStore.getState().items.find(i => i.name === item.name);
+             if (catalogItem) {
+                const catalogRef = doc(db, `shops/${shopId}/catalog`, catalogItem.id);
+                const updates = { frequency: increment(-1) };
+                if (catalogItem.stockCount != null) {
+                   updates.stockCount = increment(item.qty);
+                }
+                batch.update(catalogRef, updates);
+             }
+          }
+        });
+      }
+
+      await batch.commit();
 
       // Optimistic update: inject the reversal at the top of the timeline
       const optimisticReversal = {
@@ -94,8 +130,15 @@ export default function Ledger() {
       };
 
       setBills(prev => [optimisticReversal, ...prev]);
+
+      if (localStorage.getItem('ledgro_haptic') !== 'false') {
+        hapticVibrate([50, 30, 50]); // success
+      }
     } catch (err) {
       console.error("Failed to void bill:", err);
+      if (localStorage.getItem('ledgro_haptic') !== 'false') {
+        hapticVibrate([100, 50, 100]); // error
+      }
       alert("Failed to void bill.");
     } finally {
       setReversingId(null);
@@ -107,12 +150,14 @@ export default function Ledger() {
     const activeBills = [];
     const reversedIds = new Set();
 
+
     // Find all reversals first
     bills.forEach(b => {
       if (b.type === 'reversal' && b.originalBillId) {
         reversedIds.add(b.originalBillId);
       }
     });
+
 
     // Filter active bills and mark them if voided
     bills.forEach(b => {
@@ -127,17 +172,97 @@ export default function Ledger() {
     return activeBills;
   }, [bills]);
 
+  const handleExportLedger = async () => {
+    if (!ledgerListRef.current) return;
+    setIsExporting(true);
+
+    try {
+      // 1. Clone the ledger container
+      const originalElement = ledgerListRef.current;
+      const clone = originalElement.cloneNode(true);
+
+      // 2. Position absolutely off-screen
+      clone.style.position = 'absolute';
+      clone.style.left = '-9999px';
+      clone.style.top = '0';
+
+      // 3. Strip overflow to force full rendering
+      clone.style.overflow = 'visible';
+      clone.style.height = 'max-content';
+      clone.style.width = '384px'; // Force mobile width for consistent capture
+      clone.style.backgroundColor = '#F8FAFC'; // bg-slate-50
+      clone.style.padding = '16px';
+
+      // Add a header to the clone
+      const header = document.createElement('h2');
+      header.innerText = `Ledger Export - ${shopName || 'Shop'}`;
+      header.style.fontSize = '20px';
+      header.style.fontWeight = 'bold';
+      header.style.marginBottom = '16px';
+      header.style.color = '#0F172A';
+      clone.insertBefore(header, clone.firstChild);
+
+      // 5. Append to document body
+      document.body.appendChild(clone);
+
+      // 6. Capture
+      const canvas = await html2canvas(clone, {
+        scale: window.devicePixelRatio || 2,
+        useCORS: true,
+        backgroundColor: '#F8FAFC',
+        windowWidth: 384
+      });
+
+      // 7. Remove clone
+      document.body.removeChild(clone);
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        const file = new File([blob], `ledger-export-${Date.now()}.png`, { type: 'image/png' });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: 'Ledgro Ledger Export',
+              text: 'Here is the ledger export.'
+            });
+            return;
+          } catch (shareErr) {
+            console.log("Web share cancelled/failed", shareErr);
+          }
+        }
+
+        const text = encodeURIComponent(`Ledger export from ${shopName || 'Shop'}`);
+        window.open(`https://wa.me/?text=${text}`, '_blank');
+      }, 'image/png');
+
+    } catch (err) {
+      console.error("Export failed", err);
+      alert("Failed to capture ledger.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col">
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 py-3 shadow-subtle">
+      <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 py-3 shadow-subtle flex justify-between items-center">
         <h1 className="text-xl font-bold text-slate-900">Ledger History</h1>
+        <button
+          onClick={handleExportLedger}
+          disabled={isExporting || mergedBills.length === 0}
+          className="text-blue-600 font-bold text-sm flex items-center gap-1 active:scale-95 disabled:opacity-50 transition-transform bg-blue-50 px-3 py-1.5 rounded-full"
+        >
+          <Share2 size={16} /> {isExporting ? 'Exporting...' : 'Export'}
+        </button>
       </header>
 
       <main className="flex-1 pb-24 p-4">
         {mergedBills.length === 0 && !loading ? (
           <div className="text-center text-slate-500 mt-20 font-medium">No bills found.</div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4" ref={ledgerListRef}>
             {mergedBills.map(bill => {
               const date = bill.createdAt?.toDate ? bill.createdAt.toDate().toLocaleString() : 'Pending sync...';
 
@@ -159,6 +284,7 @@ export default function Ledger() {
                       {formatCurrency(bill.grandTotal)}
                     </span>
                   </div>
+
 
                   <div className="flex justify-between items-end mt-4">
                     <div className="text-sm font-medium text-slate-500 flex items-center gap-2">
@@ -210,6 +336,7 @@ export default function Ledger() {
             <div className="p-4 bg-slate-50 flex-1 overflow-y-auto pb-safe">
               <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-slate-200 mb-6" />
 
+
               {selectedBill && (
                 <div className="max-w-md mx-auto space-y-6">
                   <div className="text-center">
@@ -217,6 +344,7 @@ export default function Ledger() {
                       {formatCurrency(selectedBill.grandTotal)}
                     </h2>
                     <p className="text-slate-500 font-medium">{selectedBill.createdAt?.toDate ? selectedBill.createdAt.toDate().toLocaleString() : 'Pending'}</p>
+
 
                     {selectedBill.payment?.method === 'split' ? (
                       <div className="mt-3 inline-flex items-center justify-center gap-2 bg-slate-100 rounded-full text-xs font-bold uppercase tracking-widest overflow-hidden border border-slate-200">

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Drawer } from 'vaul';
+import { useBodyLock } from '../hooks/useBodyLock';
 
 export default function DiscountDrawer({ isOpen, onClose, targetItem, dispatch }) {
+  useBodyLock(isOpen);
   const [discountType, setDiscountType] = useState('flat'); // 'flat' | 'percent'
   const [discountValue, setDiscountValue] = useState('');
 

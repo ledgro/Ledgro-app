@@ -7,6 +7,7 @@ import BottomNav from '../components/BottomNav';
 import { motion } from 'framer-motion';
 import { Zap, Plus, Home, Users, Package, Trash2, ArrowRight } from 'lucide-react';
 import { Skeleton } from '../components/Skeleton';
+import { useBodyLock } from '../hooks/useBodyLock';
 
 const CATEGORIES = [
   { id: 'electricity', label: 'Electricity', icon: Zap },
@@ -23,6 +24,8 @@ export default function Expenses() {
   // Drawer state
   const [isOpen, setIsOpen] = useState(false);
   const [amount, setAmount] = useState('');
+
+  useBodyLock(isOpen);
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState(CATEGORIES[0].id);
   const [submitting, setSubmitting] = useState(false);

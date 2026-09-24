@@ -3,11 +3,14 @@ import { LayoutDashboard, PlusCircle, FileText, Menu } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Drawer } from 'vaul';
 import { useState } from 'react';
-import { Receipt, Users, PackagePlus } from 'lucide-react';
+import { Receipt, Users, PackagePlus, Settings } from 'lucide-react';
+import { useBodyLock } from '../hooks/useBodyLock';
 
 export default function BottomNav() {
   const location = useLocation();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
+
+  useBodyLock(isMoreOpen);
 
   const navItems = [
     { path: '/dashboard', label: 'Home', icon: LayoutDashboard },
@@ -19,6 +22,7 @@ export default function BottomNav() {
     { path: '/expenses', label: 'Expenses', icon: Receipt },
     { path: '/products', label: 'Add Product', icon: PackagePlus },
     { path: '/members', label: 'Staff', icon: Users },
+    { path: '/settings', label: 'Settings', icon: Settings },
   ];
 
   return (

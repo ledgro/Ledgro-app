@@ -21,6 +21,7 @@ import {
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import { useDeferredValue } from 'react';
+import { useBodyLock } from '../hooks/useBodyLock';
 
 ChartJS.register(
   CategoryScale,
@@ -40,6 +41,9 @@ export default function Dashboard() {
     to: endOfDay(new Date())
   });
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
+  useBodyLock(isCalendarOpen);
+
   const [tempRange, setTempRange] = useState({ from: undefined, to: undefined });
 
   // Data State
@@ -47,6 +51,20 @@ export default function Dashboard() {
   const [bills, setBills] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // iOS Install Prompt State
+  const [showIOSPrompt, setShowIOSPrompt] = useState(false);
+
+  useEffect(() => {
+    // Only show prompt if NOT standalone, on iOS, and hasn't been dismissed
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isStandalone = window.navigator.standalone === true;
+    const hasPrompted = localStorage.getItem('installPromptDismissed');
+
+    if (isIOS && !isStandalone && !hasPrompted) {
+      setShowIOSPrompt(true);
+    }
+  }, []);
 
   const fetchDashboardData = async () => {
     if (!shopId) return;
@@ -116,6 +134,7 @@ export default function Dashboard() {
     // Daily breakdown for chart
     const dailyData = {};
 
+
     deferredBills.forEach(bill => {
       if (!bill.createdAt) return;
       const date = format(bill.createdAt.toDate ? bill.createdAt.toDate() : new Date(), 'MMM dd');
@@ -135,6 +154,7 @@ export default function Dashboard() {
     });
 
     const sortedDates = Object.keys(dailyData).sort((a, b) => new Date(a) - new Date(b));
+
 
     const chartData = {
       labels: sortedDates,
@@ -250,6 +270,33 @@ export default function Dashboard() {
       </header>
 
       <main className="p-4 space-y-6">
+
+        {/* iOS Install Prompt */}
+        {showIOSPrompt && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex flex-col items-center text-center space-y-3 relative">
+            <button
+              onClick={() => {
+                localStorage.setItem('installPromptDismissed', 'true');
+                setShowIOSPrompt(false);
+              }}
+              className="absolute top-2 right-2 text-blue-400 hover:text-blue-600 p-1"
+            >
+              ✕
+            </button>
+            <div className="bg-white p-2 rounded-xl shadow-sm">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 15V3M12 3L8.5 6.5M12 3L15.5 6.5" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M20 12V20C20 20.5523 19.5523 21 19 21H5C4.44772 21 4 20.5523 4 20V12" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div>
+              <p className="font-bold text-blue-900 text-sm">Add Ledgro to your Home Screen</p>
+              <p className="text-xs text-blue-700 mt-1 leading-relaxed">
+                To protect your offline data from being deleted by Safari, tap the share icon below and select "Add to Home Screen".
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Date Selector */}
         <div className="flex gap-2">
