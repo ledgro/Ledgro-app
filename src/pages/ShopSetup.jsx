@@ -28,7 +28,7 @@ const ShopSetup = () => {
         name: shopName.trim(),
         ownerId: user.uid,
         members: {
-          [user.uid]: Date.now()
+          [user.uid]: 'admin'
         }
       });
 
