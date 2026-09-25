@@ -73,5 +73,11 @@ service cloud.firestore {
       allow delete: if isAuthenticated()
         && isAdmin(resource.data.shopId);
     }
+match /adminRecovery/{shopId} {
+      allow read: if isMember(shopId);
+      allow create: if isMember(shopId) && request.resource.data.requestedBy == request.auth.uid;
+      allow update: if isMember(shopId) && (isAdmin(shopId) || request.resource.data.requestedBy == request.auth.uid);
+      allow delete: if isAdmin(shopId);
+    }
   }
 }

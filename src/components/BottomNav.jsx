@@ -12,6 +12,12 @@ export default function BottomNav() {
 
   useBodyLock(isMoreOpen);
 
+const [billCount, setBillCount] = useState(0);
+
+  useEffect(() => {
+     setBillCount(parseInt(localStorage.getItem('ledgro-billCount') || '0'));
+  }, [location.pathname]);
+
   const navItems = [
     { path: '/dashboard', label: 'Home', icon: LayoutDashboard },
     { path: '/pos', label: 'New Bill', icon: PlusCircle, isPrimary: true },
@@ -19,7 +25,7 @@ export default function BottomNav() {
   ];
 
   const moreItems = [
-    { path: '/expenses', label: 'Expenses', icon: Receipt },
+    ...(billCount >= 5 ? [{ path: '/expenses', label: 'Expenses', icon: Receipt }] : []),
     { path: '/products', label: 'Add Product', icon: PackagePlus },
     { path: '/members', label: 'Staff', icon: Users },
     { path: '/settings', label: 'Settings', icon: Settings },
@@ -48,10 +54,10 @@ export default function BottomNav() {
                     <Icon size={28} strokeWidth={2.5} className={isActive ? "text-blue-600" : "text-slate-400"} />
                   </div>
                 ) : (
-                  <>
-                    <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-                    {isActive && <span className="text-[10px] font-semibold">{label}</span>}
-                  </>
+                  <div className={cn("flex items-center gap-1.5 transition-all", isActive ? "bg-blue-50 px-3 py-1.5 rounded-xl text-blue-600" : "text-slate-400 flex-col")}>
+                    <Icon size={isActive ? 20 : 24} strokeWidth={isActive ? 2.5 : 2} />
+                    {isActive && <span className="text-[11px] font-bold tracking-wide">{label}</span>}
+                  </div>
                 )}
               </Link>
             );

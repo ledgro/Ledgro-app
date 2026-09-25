@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot, clearIndexedDbPersistence } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot, clearIndexedDbPersistence, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Users, Trash2, UserPlus, LogOut, ArrowUpCircle } from 'lucide-react';
@@ -9,10 +9,14 @@ import { useNavigate } from 'react-router-dom';
 
 export default function Members() {
   const { user, shopId, shopAdminId, signOut } = useAuth();
-  const [members, setMembers] = useState([]);
+const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Admin Recovery State
+  const [recoveryDoc, setRecoveryDoc] = useState(null);
+  const [isRequestingRecovery, setIsRequestingRecovery] = useState(false);
 
   const navigate = useNavigate();
   const isCreator = user?.uid === shopAdminId;
@@ -20,6 +24,7 @@ export default function Members() {
   useEffect(() => {
     if (!shopId) return;
     const unsubscribe = onSnapshot(doc(db, 'shops', shopId), (docSnap) => {
+      // existing logic
       if (docSnap.exists()) {
         const data = docSnap.data();
         const membersMap = data.members || {};
@@ -33,8 +38,92 @@ export default function Members() {
       }
       setLoading(false);
     });
-    return () => unsubscribe();
+
+    // Listen to adminRecovery doc
+    const unsubRecovery = onSnapshot(doc(db, 'adminRecovery', shopId), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.status === 'pending') {
+          // Check auto-elevation
+          const reqTime = data.requestedAt?.toDate ? data.requestedAt.toDate() : new Date();
+          const daysPassed = (new Date() - reqTime) / (1000 * 60 * 60 * 24);
+          if (daysPassed >= 14 && data.requestedBy === user.uid) {
+             // Auto-elevate
+             autoElevateAdmin(data);
+          } else {
+             setRecoveryDoc({ id: snap.id, ...data });
+          }
+        } else {
+          setRecoveryDoc(null);
+        }
+      } else {
+        setRecoveryDoc(null);
+      }
+    });
+
+    return () => { unsubscribe(); unsubRecovery(); };
   }, [shopId, user.uid]);
+
+  const autoElevateAdmin = async (data) => {
+     try {
+       const shopRef = doc(db, 'shops', shopId);
+       const shopSnap = await getDoc(shopRef);
+       if (shopSnap.exists()) {
+          const oldAdmin = shopSnap.data().ownerId;
+          await updateDoc(shopRef, {
+             [`members.${data.requestedBy}`]: 'admin',
+             [`members.${oldAdmin}`]: 'member',
+             ownerId: data.requestedBy
+          });
+          await updateDoc(doc(db, 'adminRecovery', shopId), { status: 'approved' });
+          alert("14 days have passed. You are now the admin.");
+       }
+     } catch (e) { console.error(e); }
+  };
+
+  const handleRequestRecovery = async () => {
+    if (!window.confirm("Request admin access? If the current admin does not respond in 14 days, you will automatically become the admin.")) return;
+    setIsRequestingRecovery(true);
+    try {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 14);
+      await setDoc(doc(db, 'adminRecovery', shopId), {
+        requestedBy: user.uid,
+        requestedAt: serverTimestamp(),
+        shopId: shopId,
+        status: 'pending',
+        expiresAt: expiresAt
+      });
+      alert("Request submitted.");
+    } catch (err) {
+      alert("Failed to submit request.");
+    } finally {
+      setIsRequestingRecovery(false);
+    }
+  };
+
+  const handleApproveRecovery = async () => {
+     if (!recoveryDoc) return;
+     try {
+       const targetUid = recoveryDoc.requestedBy;
+       const shopRef = doc(db, 'shops', shopId);
+       await updateDoc(shopRef, {
+          [`members.${targetUid}`]: 'admin',
+          [`members.${user.uid}`]: 'member',
+          ownerId: targetUid
+       });
+       await updateDoc(doc(db, 'adminRecovery', shopId), { status: 'approved' });
+       alert("Admin transferred successfully.");
+     } catch (e) {
+       alert("Failed to transfer admin role.");
+     }
+  };
+
+  const handleRejectRecovery = async () => {
+     try {
+       await deleteDoc(doc(db, 'adminRecovery', shopId));
+     } catch (e) {}
+  };
 
   const handleGenerateInvite = async () => {
     setIsGenerating(true);
@@ -161,7 +250,35 @@ export default function Members() {
         <h1 className="text-xl font-bold text-slate-900">Shop Members</h1>
       </header>
 
-      <main className="p-4 space-y-6">
+<main className="p-4 space-y-6">
+        {recoveryDoc && recoveryDoc.requestedBy !== user.uid && isCreator && (
+          <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl shadow-sm">
+            <h3 className="font-bold text-amber-900 mb-1">Admin Access Requested</h3>
+            <p className="text-sm text-amber-700 mb-4">Member {recoveryDoc.requestedBy.substring(0,4)} has requested to become the admin. If you do not respond within 14 days, they will automatically be elevated.</p>
+            <div className="flex gap-2">
+              <button onClick={handleApproveRecovery} className="flex-1 bg-amber-600 text-white font-bold py-2 rounded-lg">Approve</button>
+              <button onClick={handleRejectRecovery} className="flex-1 bg-white border border-amber-300 text-amber-700 font-bold py-2 rounded-lg">Reject</button>
+            </div>
+          </div>
+        )}
+
+        {recoveryDoc && recoveryDoc.requestedBy === user.uid && (
+          <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl shadow-sm text-center">
+            <h3 className="font-bold text-blue-900 mb-1">Request Pending</h3>
+            <p className="text-sm text-blue-700">Your request for admin access is pending. If the admin does not respond within 14 days, you will automatically be elevated.</p>
+          </div>
+        )}
+
+        {!isCreator && !recoveryDoc && (
+          <button
+            onClick={handleRequestRecovery}
+            disabled={isRequestingRecovery}
+            className="w-full bg-slate-100 text-slate-700 font-bold py-4 rounded-xl active:bg-slate-200"
+          >
+            {isRequestingRecovery ? 'Requesting...' : 'Request Admin Access'}
+          </button>
+        )}
+
         {isCreator && (
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-center">
             {inviteCode ? (

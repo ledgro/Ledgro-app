@@ -11,6 +11,7 @@ import { cn } from '../lib/utils';
 import { useBodyLock } from '../hooks/useBodyLock';
 
 export default function Products() {
+  const billCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
   const { user, shopId } = useAuth();
   const catalogItems = useCatalogStore((state) => state.items);
   const addCatalogItem = useCatalogStore((state) => state.addItem);
@@ -297,11 +298,11 @@ export default function Products() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 pb-32">
-              <form id="product-form" onSubmit={handleSaveProduct} className="space-y-5">
+              <form id="product-form" onSubmit={handleSaveProduct} className="space-y-6">
 
                 {/* Basic Details */}
                 <div className="space-y-4">
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Basic Info</h3>
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Product Info</h3>
 
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Product Name *</label>
@@ -309,44 +310,37 @@ export default function Products() {
                       type="text" required value={name} onChange={(e) => setName(e.target.value)}
                       className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium"
                       placeholder="e.g. Aashirvaad Atta 5kg"
+                      autoFocus
                     />
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Price *</label>
-                      <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
-                        <input
-                          type="number" inputMode="decimal" step="0.01" required value={price} onChange={(e) => setPrice(e.target.value)}
-                          className="w-full pl-8 pr-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
-                          placeholder="0.00"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Unit</label>
-                      <select
-                        value={unit} onChange={(e) => setUnit(e.target.value)}
-                        className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium bg-white"
-                      >
-                        <option value="piece">Piece</option>
-                        <option value="kg">Kg</option>
-                        <option value="gram">Gram</option>
-                        <option value="litre">Litre</option>
-                        <option value="ml">ml</option>
-                      </select>
-                    </div>
-                  </div>
-
 
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Category (Optional)</label>
-                    <input
-                      type="text" value={category} onChange={(e) => setCategory(e.target.value)}
-                      className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium"
-                      placeholder="e.g. Groceries"
-                    />
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Selling Price *</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                      <input
+                        type="number" inputMode="decimal" step="0.01" required value={price} onChange={(e) => setPrice(e.target.value)}
+                        className="w-full pl-8 pr-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <p className="text-[10px] font-semibold text-slate-400 mt-1">Past bills will not be affected</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Unit</label>
+                    <div className="flex overflow-x-auto no-scrollbar gap-2 bg-slate-100 p-1 rounded-xl">
+                      {['piece', 'kg', 'litre', 'gram', 'ml'].map(u => (
+                        <button
+                          type="button"
+                          key={u}
+                          onClick={() => setUnit(u)}
+                          className={`flex-1 min-w-[60px] py-1.5 text-xs font-bold capitalize rounded-lg transition-all ${unit === u ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
+                        >
+                          {u}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -355,45 +349,75 @@ export default function Products() {
                 {/* Inventory Management */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Inventory</h3>
-                  <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                    Stock count is optional and soft. It will decrement on sales but never block a transaction if empty.
-                  </p>
 
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Current Stock</label>
-                      <input
-                        type="number" inputMode="decimal" step="0.01" value={stockCount} onChange={(e) => setStockCount(e.target.value)}
-                        className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium"
-                        placeholder="Optional"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Low Alert At</label>
-                      <input
-                        type="number" inputMode="decimal" step="0.01" value={lowStockAlert} onChange={(e) => setLowStockAlert(e.target.value)}
-                        className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium"
-                        placeholder="Optional"
-                      />
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Stock Count</label>
+                    <div className="flex gap-2">
+                       <input
+                         type="number" inputMode="decimal" step="0.01" value={stockCount} onChange={(e) => setStockCount(e.target.value)}
+                         className="flex-1 px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium"
+                         placeholder="Current exact count"
+                       />
+                       <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
+                          <button type="button" onClick={() => setStockCount(prev => String(Math.max(0, (parseFloat(prev||0) - 1))))} className="w-10 h-10 flex items-center justify-center font-black text-slate-600 bg-white rounded-lg shadow-sm">-</button>
+                          <button type="button" onClick={() => setStockCount(prev => String((parseFloat(prev||0) + 1)))} className="w-10 h-10 flex items-center justify-center font-black text-slate-600 bg-white rounded-lg shadow-sm">+</button>
+                       </div>
                     </div>
                   </div>
+
+{billCount >= 5 && (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Low Stock Alert</label>
+                      <div className="flex items-center gap-3">
+                         <span className="text-sm text-slate-500 font-medium">Alert me when stock falls below</span>
+                         <input
+                           type="number" inputMode="decimal" step="1" value={lowStockAlert} onChange={(e) => setLowStockAlert(e.target.value)}
+                           className="w-16 px-2 text-center h-10 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
+                           placeholder="0"
+                         />
+                         <span className="text-sm text-slate-500 font-medium">items</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <hr className="border-slate-100" />
 
+                {/* Category */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Category</h3>
+                  <input
+                    type="text" value={category} onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium"
+                    placeholder="Enter or select a category"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {['Provisions', 'Snacks', 'Toiletries', 'Beverages', 'Stationery', 'Other'].map(cat => (
+                      <button
+                        type="button"
+                        key={cat}
+                        onClick={() => setCategory(cat)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${category === cat ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-600'}`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <hr className="border-slate-100" />
 
                 {/* Status */}
                 <div className="space-y-4">
                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Status</h3>
                    <label className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer">
                      <div>
-                       <span className="font-bold text-slate-900 block">Active Product</span>
-                       <span className="text-xs text-slate-500">Uncheck to hide from POS without deleting</span>
+                       <span className="font-bold text-slate-900 block">Available for Sale</span>
+                       <span className="text-xs text-slate-500">Uncheck to hide from POS</span>
                      </div>
                      <div className="relative inline-block w-12 h-6 rounded-full">
                        <input type="checkbox" className="peer sr-only" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-                       <span className="absolute inset-0 bg-slate-300 rounded-full transition peer-checked:bg-blue-600"></span>
+                       <span className="absolute inset-0 bg-slate-300 rounded-full transition peer-checked:bg-green-500"></span>
                        <span className="absolute inset-y-1 left-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:left-7"></span>
                      </div>
                    </label>
