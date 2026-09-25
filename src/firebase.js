@@ -38,7 +38,6 @@ const db = initializeFirestore(app, {
   })
 });
 
-// Enable persistent cache index auto creation for faster offline queries
 const indexManager = new PersistentCacheIndexManager(db);
 enablePersistentCacheIndexAutoCreation(indexManager);
 

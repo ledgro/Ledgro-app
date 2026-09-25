@@ -1,15 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Share2, Download, ChevronLeft } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { DayPicker } from 'react-day-picker';
 import { Drawer } from 'vaul';
+import { Skeleton } from '../components/Skeleton';
 import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
-import { startOfDay, endOfDay, subDays, startOfWeek, startOfMonth, subMonths, endOfMonth, isAfter, format } from 'date-fns';
+import { startOfDay, endOfDay, startOfWeek, startOfMonth, subMonths, format } from 'date-fns';
 import { Link } from 'react-router-dom';
 
 export default function PLScreen() {
@@ -36,7 +37,7 @@ export default function PLScreen() {
   const reportRef = useRef(null);
   const [isExporting, setIsExporting] = useState(false);
 
-  const fetchPLData = async (range) => {
+  const fetchPLData = useCallback(async (range) => {
     if (!shopId || !range.from) return null;
 
     try {
@@ -91,7 +92,7 @@ export default function PLScreen() {
       console.error(err);
       return null;
     }
-  };
+  }, [shopId]);
 
   useEffect(() => {
     let active = true;
@@ -122,7 +123,7 @@ export default function PLScreen() {
 
     load();
     return () => { active = false; };
-  }, [shopId, dateRangeType, dateRange, vsLastMonth]);
+  }, [dateRangeType, dateRange, vsLastMonth, fetchPLData]);
 
 
   const handleShare = async () => {
@@ -162,7 +163,7 @@ export default function PLScreen() {
           try {
             await navigator.share({ files: [file], title: 'P&L Report' });
             return;
-          } catch (e) {}
+          } catch (_err) { return null; }
         }
         const text = encodeURIComponent(`P&L Report from ${shopName || 'Shop'}\nNet Earnings: ₹${data.netEarnings}`);
         window.open(`https://wa.me/?text=${text}`, '_blank');

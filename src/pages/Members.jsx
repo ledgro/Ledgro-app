@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot, clearIndexedDbPersistence, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot, clearIndexedDbPersistence, serverTimestamp, terminate } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
-import { Users, Trash2, UserPlus, LogOut, ArrowUpCircle } from 'lucide-react';
+import { Trash2, UserPlus, LogOut, ArrowUpCircle } from 'lucide-react';
 import { hapticVibrate } from '../lib/utils';
-import { useNavigate } from 'react-router-dom';
 
 export default function Members() {
   const { user, shopId, shopAdminId, signOut } = useAuth();
@@ -51,7 +50,7 @@ export default function Members() {
           const daysPassed = (new Date() - reqTime) / (1000 * 60 * 60 * 24);
           if (daysPassed >= 14 && data.requestedBy === user.uid) {
              // Auto-elevate
-             autoElevateAdmin(data);
+             autoElevateAdmin(data, shopId);
           } else {
              setRecoveryDoc({ id: snap.id, ...data });
           }
@@ -66,9 +65,10 @@ export default function Members() {
     return () => { unsubscribe(); unsubRecovery(); };
   }, [shopId, user.uid]);
 
-  const autoElevateAdmin = async (data) => {
+  async function autoElevateAdmin(data, currentShopId) {
      try {
-       const shopRef = doc(db, 'shops', shopId);
+       if (!currentShopId) return;
+       const shopRef = doc(db, 'shops', currentShopId);
        const shopSnap = await getDoc(shopRef);
        if (shopSnap.exists()) {
           const oldAdmin = shopSnap.data().ownerId;
@@ -77,11 +77,11 @@ export default function Members() {
              [`members.${oldAdmin}`]: 'member',
              ownerId: data.requestedBy
           });
-          await updateDoc(doc(db, 'adminRecovery', shopId), { status: 'approved' });
+          await updateDoc(doc(db, 'adminRecovery', currentShopId), { status: 'approved' });
           alert("14 days have passed. You are now the admin.");
        }
-     } catch (e) { console.error(e); }
-  };
+     } catch (_err) { console.error(_err); }
+  }
 
   const handleRequestRecovery = async () => {
     if (!window.confirm("Request admin access? If the current admin does not respond in 14 days, you will automatically become the admin.")) return;
@@ -97,7 +97,7 @@ export default function Members() {
         expiresAt: expiresAt
       });
       alert("Request submitted.");
-    } catch (err) {
+    } catch (_err) {
       alert("Failed to submit request.");
     } finally {
       setIsRequestingRecovery(false);
@@ -116,7 +116,7 @@ export default function Members() {
        });
        await updateDoc(doc(db, 'adminRecovery', shopId), { status: 'approved' });
        alert("Admin transferred successfully.");
-     } catch (e) {
+     } catch (_err) {
        alert("Failed to transfer admin role.");
      }
   };
@@ -124,7 +124,7 @@ export default function Members() {
   const handleRejectRecovery = async () => {
      try {
        await deleteDoc(doc(db, 'adminRecovery', shopId));
-     } catch (e) {}
+     } catch (_err) {}
   };
 
   const handleGenerateInvite = async () => {
@@ -156,10 +156,10 @@ export default function Members() {
             setInviteCode(null);
             unsubscribe();
             alert("New member joined successfully!");
-          } catch (e) {}
+          } catch (_err) {}
         }
       });
-    } catch (err) {
+    } catch (_err) {
       alert("Failed to generate invite code");
     } finally {
       setIsGenerating(false);
@@ -180,7 +180,7 @@ export default function Members() {
         await updateDoc(shopRef, { members: currentMembers });
         if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate([50, 30, 50]);
       }
-    } catch (err) {
+    } catch (_err) {
       alert("Failed to remove member.");
     }
   };
@@ -196,8 +196,8 @@ export default function Members() {
               ownerId: targetUid
            });
            alert("Admin transferred successfully.");
-        } catch (e) {
-           console.error(e);
+        } catch (_err) {
+           console.error(_err);
            alert("Failed to transfer admin role.");
         }
      }
@@ -215,7 +215,7 @@ export default function Members() {
           try {
              await deleteDoc(doc(db, 'shops', shopId));
              await handleWipeAndExit();
-          } catch (e) {
+          } catch (_err) {
              alert("Failed to delete shop.");
           }
        }
@@ -230,15 +230,16 @@ export default function Members() {
                 await updateDoc(shopRef, { members: currentMembers });
                 await handleWipeAndExit();
              }
-          } catch (e) {
+          } catch (_err) {
              alert("Failed to leave shop.");
           }
        }
     }
   };
 
-  const handleWipeAndExit = async () => {
+const handleWipeAndExit = async () => {
     try {
+       await terminate(db);
        await clearIndexedDbPersistence(db);
     } catch(e) {
        console.log('IndexedDB clear skipped or failed', e);

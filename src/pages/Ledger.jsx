@@ -4,18 +4,14 @@ import { collection, query, orderBy, limit, startAfter, getDocs, doc, writeBatch
 import { db } from '../firebase';
 import { useInView } from 'react-intersection-observer';
 import BottomNav from '../components/BottomNav';
-import { CheckCircle2, XCircle, RefreshCcw, Edit3, Share2, Search, ArrowLeftRight } from 'lucide-react';
-import { Skeleton } from '../components/Skeleton';
+import { CheckCircle2, XCircle, RefreshCcw, Share2, Search, ArrowLeftRight } from 'lucide-react';
 import { Drawer } from 'vaul';
 import { formatCurrency, cn, hapticVibrate } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
-import html2canvas from 'html2canvas-pro';
 import { useBodyLock } from '../hooks/useBodyLock';
-import { useCatalogStore } from '../store/catalogStore';
 
 export default function Ledger() {
-  const { user, shopId, shopName } = useAuth();
-  const navigate = useNavigate();
+  const { user, shopId } = useAuth();
 
   const [bills, setBills] = useState([]);
   const [lastDoc, setLastDoc] = useState(null);
@@ -23,7 +19,6 @@ export default function Ledger() {
   const [loading, setLoading] = useState(false);
   const [reversingId, setReversingId] = useState(null);
   const [selectedBill, setSelectedBill] = useState(null);
-  const [isExporting, setIsExporting] = useState(false);
 
   // Search and Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -255,7 +250,7 @@ export default function Ledger() {
       <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 pt-3 pb-2 shadow-subtle flex flex-col gap-3">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold text-slate-900">Bill History</h1>
-          <button onClick={handleExportLedger} disabled={isExporting || processedBills.length === 0} className="text-blue-600 font-bold text-sm flex items-center gap-1 active:scale-95 disabled:opacity-50 bg-blue-50 px-3 py-1.5 rounded-full">
+          <button onClick={handleExportLedger} disabled={ processedBills.length === 0} className="text-blue-600 font-bold text-sm flex items-center gap-1 active:scale-95 disabled:opacity-50 bg-blue-50 px-3 py-1.5 rounded-full">
             <Share2 size={16} /> Export
           </button>
         </div>

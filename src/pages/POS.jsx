@@ -33,10 +33,9 @@ function generateBillNumber(uid) {
 }
 
 export default function POS() {
-  const { user, shopId, shopName, signOut } = useAuth();
+  const { user, shopId, shopName } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
-  const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
+const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
   const addCatalogItem = useCatalogStore((state) => state.addItem);
 
   const [state, dispatch] = useReducer(billReducer, initialBillState);

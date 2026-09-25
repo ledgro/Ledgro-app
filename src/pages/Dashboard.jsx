@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, where, getDocs, addDoc, serverTimestamp, getCountFromServer } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Cloud, CloudOff, RefreshCcw } from 'lucide-react';
@@ -62,7 +62,7 @@ export default function Dashboard() {
     }
   }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     if (!shopId) return;
     setLoading(true);
 
@@ -175,11 +175,11 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [shopId]);
 
   useEffect(() => {
     fetchDashboardData();
-  }, [shopId]);
+  }, [fetchDashboardData]);
 
   useEffect(() => {
     const checkSync = () => {
@@ -216,7 +216,7 @@ export default function Dashboard() {
       alert("Day locked and summary saved!");
       setIsCloseDrawerOpen(false);
       fetchDashboardData();
-    } catch (err) {
+    } catch (_err) {
       alert("Failed to close register.");
     } finally {
       setIsClosingRecord(false);
