@@ -78,37 +78,76 @@ export default function Settings() {
 
   const handleExportData = async () => {
     if (!shopId) return;
+
     try {
-      const billsRef = collection(db, `shops/${shopId}/bills`);
-      const expensesRef = collection(db, `shops/${shopId}/expenses`);
+      const billsSnap = await getDocs(collection(db, `shops/${shopId}/bills`));
+      const expSnap = await getDocs(collection(db, `shops/${shopId}/expenses`));
 
-      const [billsSnap, expensesSnap] = await Promise.all([getDocs(billsRef), getDocs(expensesRef)]);
+      // 1. Bills CSV
+      const billHeaders = "Bill Number,Date,Time,Items,Subtotal,Discount,Grand Total,Payment Method,Cash Amount,UPI Amount,Created By,Status";
+      const billRows = [billHeaders];
 
-      const rows = [['Date', 'Type', 'Amount', 'Payment Method', 'Items/Description', 'Status']];
+      const rawBills = [];
+      billsSnap.forEach(doc => {
+         const data = doc.data();
+         rawBills.push({...data, id: doc.id});
 
-      billsSnap.docs.forEach(d => {
-        const b = d.data();
-        const dateStr = b.createdAt?.toDate ? format(b.createdAt.toDate(), 'yyyy-MM-dd HH:mm') : 'Pending';
-        const itemsStr = b.items?.map(i => `${i.qty}x ${i.name}`).join('; ') || '';
-        const methodStr = b.payment?.method === 'split' ? `Split (Cash: ${b.payment.breakdown.cash}, UPI: ${b.payment.breakdown.upi})` : b.paymentMethod;
-        rows.push([dateStr, 'Sale', b.grandTotal, methodStr, itemsStr, b.type === 'reversal' ? 'Voided' : 'Active']);
+         const date = data.createdAt?.toDate ? format(data.createdAt.toDate(), 'yyyy-MM-dd') : '';
+         const time = data.createdAt?.toDate ? format(data.createdAt.toDate(), 'HH:mm:ss') : '';
+         const items = data.items ? data.items.map(i => `${i.name} (${i.qty})`).join(';') : '';
+
+         let cashAmt = 0;
+         let upiAmt = 0;
+         const pMethod = data.paymentMethod || data.payment?.method || data.refundMethod || 'unknown';
+         if (pMethod === 'split' && data.payment?.breakdown) {
+            cashAmt = data.payment.breakdown.cash;
+            upiAmt = data.payment.breakdown.upi;
+         } else if (pMethod === 'upi') {
+            upiAmt = data.grandTotal;
+         } else {
+            cashAmt = data.grandTotal;
+         }
+
+         const status = data.isVoided ? 'voided' : (data.type || 'active');
+
+         billRows.push(`"${data.billNo || data.id}","${date}","${time}","${items}",${data.subtotal || 0},${data.globalDiscountAmt || 0},${data.grandTotal || 0},"${pMethod}",${cashAmt},${upiAmt},"${data.creatorId}","${status}"`);
       });
 
-      expensesSnap.docs.forEach(d => {
-        const e = d.data();
-        const dateStr = e.createdAt?.toDate ? format(e.createdAt.toDate(), 'yyyy-MM-dd HH:mm') : 'Pending';
-        rows.push([dateStr, 'Expense', -e.amount, '-', e.description || e.categoryId, 'Active']);
+      // 2. Expenses CSV
+      const expHeaders = "Date,Description,Category,Amount,Created By";
+      const expRows = [expHeaders];
+      const rawExp = [];
+      expSnap.forEach(doc => {
+         const data = doc.data();
+         rawExp.push({...data, id: doc.id});
+         const date = data.createdAt?.toDate ? format(data.createdAt.toDate(), 'yyyy-MM-dd HH:mm') : '';
+         expRows.push(`"${date}","${data.description || ''}","${data.category || ''}",${data.amount || 0},"${data.creatorId || ''}"`);
       });
 
-      const csvContent = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `ledgro_export_${format(new Date(), 'yyyyMMdd')}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const downloadFile = (content, filename, type) => {
+         const blob = new Blob([content], { type: type });
+         const url = window.URL.createObjectURL(blob);
+         const a = document.createElement('a');
+         a.href = url;
+         a.download = filename;
+         document.body.appendChild(a);
+         a.click();
+         document.body.removeChild(a);
+         window.URL.revokeObjectURL(url);
+      };
+
+      // Download Sequentially
+      downloadFile(billRows.join('\n'), `ledgro_bills_${Date.now()}.csv`, 'text/csv');
+
+      setTimeout(() => {
+         downloadFile(expRows.join('\n'), `ledgro_expenses_${Date.now()}.csv`, 'text/csv');
+      }, 1000);
+
+      setTimeout(() => {
+         const rawData = JSON.stringify({ bills: rawBills, expenses: rawExp }, null, 2);
+         downloadFile(rawData, `ledgro_backup_${Date.now()}.json`, 'application/json');
+      }, 2000);
+
     } catch (err) {
       console.error(err);
       alert("Failed to export data.");

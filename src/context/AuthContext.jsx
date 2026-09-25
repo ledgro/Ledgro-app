@@ -29,7 +29,7 @@ export const AuthProvider = ({ children }) => {
           // and for invited staff, we query where `members.${uid}` > 0.
 
           const qAdmin = query(shopsRef, where('ownerId', '==', currentUser.uid));
-          const qMember = query(shopsRef, where(`members.${currentUser.uid}`, '!=', null));
+          const qMember = query(shopsRef, where(`members.${currentUser.uid}`, 'in', ['admin', 'member']));
 
           const [adminSnap, memberSnap] = await Promise.all([getDocs(qAdmin), getDocs(qMember)]);
 

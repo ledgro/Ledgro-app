@@ -9,7 +9,9 @@ import Expenses from './pages/Expenses';
 import Members from './pages/Members';
 import Products from './pages/Products';
 import Settings from './pages/Settings';
+import PLScreen from './pages/PLScreen';
 import SplashScreen from './components/SplashScreen';
+import Legal from './pages/Legal';
 
 // Protected Route wrapper
 const ProtectedRoute = ({ children, requireNoShop = false }) => {
@@ -125,12 +127,36 @@ const router = createHashRouter([
     ),
   },
   {
+    path: '/pnl',
+    element: (
+      <ProtectedRoute>
+        <PLScreen />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/privacy',
+    element: <Legal />,
+  },
+  {
+    path: '/terms',
+    element: <Legal />,
+  },
+  {
     path: '*',
     element: <Navigate to="/login" replace />,
   },
 ]);
 
+
+if (navigator.storage && navigator.storage.persist) {
+  navigator.storage.persist().then(granted => {
+    if (!granted) console.warn('Storage persistence denied');
+  });
+}
+
 function App() {
+
   return (
     <AuthProvider>
       <RouterProvider router={router} />
