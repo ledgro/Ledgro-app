@@ -36,8 +36,8 @@ export default function Ledger() {
   const { ref, inView } = useInView();
   const ledgerListRef = useRef(null);
 
-  const fetchBills = useCallback(async (isNextPage = false) => {
-    if (!shopId || loading || (!hasMore && isNextPage)) return;
+const fetchBills = useCallback(async (isNextPage = false) => {
+    if (!shopId || (!hasMore && isNextPage)) return;
 
     setLoading(true);
     try {
@@ -74,7 +74,7 @@ export default function Ledger() {
     } finally {
       setLoading(false);
     }
-  }, [shopId, lastDoc, loading, hasMore]);
+  }, [shopId, lastDoc, hasMore]); // Removed 'loading' from dependencies
 
   useEffect(() => {
     if (shopId && bills.length === 0) {
