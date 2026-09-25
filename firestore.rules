@@ -18,7 +18,7 @@ service cloud.firestore {
 
     match /shops/{shopId} {
       allow read: if isAuthenticated() &&
-        resource.data.members[request.auth.uid] != null;
+        (resource.data.ownerId == request.auth.uid || resource.data.members[request.auth.uid] != null);
 
       allow create: if isAuthenticated() &&
         request.resource.data.members[request.auth.uid] == 'admin';
