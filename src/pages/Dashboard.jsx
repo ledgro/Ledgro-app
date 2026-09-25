@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { collection, query, where, getDocs, addDoc, serverTimestamp, getCountFromServer } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -18,6 +18,23 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState({ online: navigator.onLine, pending: false, lastSynced: 'Just now' });
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
+
+  const chartRef = useRef(null);
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      if (chartRef.current) {
+        chartRef.current.options.scales.x.ticks.color = isDark ? '#94A3B8' : '#64748B';
+        chartRef.current.options.scales.y.ticks.color = isDark ? '#94A3B8' : '#64748B';
+        chartRef.current.options.scales.x.grid.color = isDark ? '#1E293B' : '#F1F5F9';
+        chartRef.current.update();
+      }
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
+
 
   // Stats
   const [stats, setStats] = useState({

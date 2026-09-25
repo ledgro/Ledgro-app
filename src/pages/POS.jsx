@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
 import { collection, addDoc, serverTimestamp, getDocs, writeBatch, doc, increment } from 'firebase/firestore';
 import { db } from '../firebase';
-import { LogOut, Tag, ArrowRight, Share2, PlusCircle } from 'lucide-react';
+import { Tag, ArrowRight, Share2, PlusCircle, Download } from 'lucide-react';
 
 import SearchInput from '../components/SearchInput';
 import CartItem from '../components/CartItem';
@@ -17,15 +17,19 @@ import { useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { hapticVibrate } from '../lib/utils';
 
-function generateBillNumber() {
-  const date = new Date();
-  const yy = String(date.getFullYear()).slice(2);
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const suffix = Array.from(crypto.getRandomValues(new Uint8Array(4)))
-    .map(b => chars[b % chars.length]).join('');
-  return `${yy}${mm}${dd}-${suffix}`;
+function generateBillNumber(uid) {
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dateKey = `billSeq_${dd}${mm}${now.getFullYear()}`;
+
+  const current = parseInt(localStorage.getItem(dateKey) || '0') + 1;
+  localStorage.setItem(dateKey, current.toString());
+
+  const prefix = uid ? uid.slice(0, 2).toUpperCase() : 'XX';
+  const seq = String(current).padStart(3, '0');
+
+  return `${prefix}-${dd}${mm}-${seq}`;
 }
 
 export default function POS() {
@@ -37,6 +41,7 @@ export default function POS() {
 
   const [state, dispatch] = useReducer(billReducer, initialBillState);
   const receiptRef = useRef(null);
+  const springTotal = useSpring(grandTotal, { stiffness: 200, damping: 20 });
 
   // Drawer state
   const [isDiscountOpen, setIsDiscountOpen] = useState(false);
@@ -44,6 +49,7 @@ export default function POS() {
 
   // Checkout state
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [isFirstBillDrawerOpen, setIsFirstBillDrawerOpen] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const [lastBill, setLastBill] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' | 'upi' | 'split'
@@ -165,7 +171,7 @@ export default function POS() {
         paymentMethod, // legacy string, keeping for backwards compatibility
         payment: paymentData,
         shopName, // Pass the actual shop name to the receipt
-        billNo: generateBillNumber(),
+        billNo: generateBillNumber(user.uid),
         createdAt: serverTimestamp() // critical for offline ledger ordering
       };
 
@@ -209,6 +215,8 @@ export default function POS() {
 
       setLastBill(payload);
       setCheckoutSuccess(true);
+      const bCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
+      localStorage.setItem('ledgro-billCount', (bCount + 1).toString());
 
     } catch (err) {
       console.error("Checkout failed:", err);
@@ -221,45 +229,70 @@ export default function POS() {
     }
   };
 
-  const handleShareReceipt = async () => {
-    if (!receiptRef.current) return;
+  const generateReceiptImage = async () => {
+    if (!receiptRef.current) return null;
+    const canvas = await html2canvas(receiptRef.current, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      width: 720,
+      logging: false
+    });
 
-    try {
-      const canvas = await html2canvas(receiptRef.current, {
-        scale: 3, // High density for crisp text
-        useCORS: true,
-        backgroundColor: '#ffffff'
-      });
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
 
-      canvas.toBlob(async (blob) => {
-        if (!blob) return;
+    // Dispose canvas to prevent memory leak
+    canvas.width = 0;
+    canvas.height = 0;
+    const ctx = canvas.getContext('2d');
+    if (ctx) ctx.clearRect(0, 0, 0, 0);
 
-        const file = new File([blob], `receipt-${Date.now()}.png`, { type: 'image/png' });
+    return blob;
+  };
 
-        // Try Web Share API first
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          try {
-            await navigator.share({
-              files: [file],
-              title: 'Bill Receipt',
-              text: 'Thank you for your purchase!'
-            });
-            return;
-          } catch (shareErr) {
-            console.log("Web share cancelled or failed", shareErr);
-          }
-        }
+  const shareReceipt = async () => {
+    const blob = await generateReceiptImage();
+    if (!blob) return;
 
-        // Fallback: URL encoded string for WhatsApp deep link
-        const textFallback = `*Bill Receipt*\nTotal: ₹${lastBill.grandTotal}\nItems: ${lastBill.items.length}\nThank you!`;
-        window.open(`https://wa.me/?text=${encodeURIComponent(textFallback)}`, '_blank');
+    const file = new File([blob], 'ledgro-receipt.png', { type: 'image/png' });
 
-      }, 'image/png');
-
-    } catch (err) {
-      console.error("Failed to generate receipt image", err);
-      alert("Failed to share receipt");
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: `Receipt from ${shopName}`
+        });
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+      }
     }
+
+    const text = encodeURIComponent(`Receipt from ${shopName} via Ledgro`);
+    const url = `https://wa.me/?text=${text}`;
+    if (url.length <= 2048) window.open(url, '_blank');
+  };
+
+  const downloadReceipt = async () => {
+    const blob = await generateReceiptImage();
+    if (!blob) return;
+
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase());
+
+    if (isIOS) {
+      const file = new File([blob], 'ledgro-receipt.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: 'Save Receipt' }); } catch(e) {}
+      }
+      return;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ledgro-receipt.png';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleNewBill = () => {
@@ -284,16 +317,22 @@ export default function POS() {
 
           <div className="space-y-3">
             <button
-              onClick={handleShareReceipt}
+              onClick={shareReceipt}
               className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:bg-indigo-700 transition-colors"
             >
-              <Share2 size={20} /> Share Receipt
+              <Share2 size={20} /> Share via WhatsApp
+            </button>
+            <button
+              onClick={downloadReceipt}
+              className="w-full bg-white border border-slate-200 text-slate-700 font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+            >
+              <Download size={20} /> {/iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase()) ? 'Save to Photos' : 'Download'}
             </button>
             <button
               onClick={handleNewBill}
-              className="w-full bg-gray-100 text-gray-700 font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-200 active:bg-gray-300 transition-colors"
+              className="w-full bg-gray-100 text-gray-700 font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-200 active:bg-gray-300 transition-colors mt-4"
             >
-              <PlusCircle size={20} /> New Bill
+              <PlusCircle size={20} /> Done (New Bill)
             </button>
           </div>
         </div>
@@ -346,14 +385,24 @@ export default function POS() {
             </div>
           ) : (
             <div className="flex flex-col">
-              {items.map(item => (
-                <CartItem
-                  key={item.id}
-                  item={item}
-                  dispatch={dispatch}
-                  onOpenDiscount={openLineDiscount}
-                />
-              ))}
+              <AnimatePresence mode="popLayout">
+                {items.map(item => (
+                  <motion.div
+                    key={item.id}
+                    layout
+                    initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                    animate={{ opacity: 1, height: 'auto', marginBottom: 12 }}
+                    exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 35, duration: 0.2 }}
+                  >
+                    <CartItem
+                      item={item}
+                      dispatch={dispatch}
+                      onOpenDiscount={openLineDiscount}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           )}
         </div>
@@ -382,9 +431,9 @@ export default function POS() {
                       ₹{subtotal}
                     </span>
                   )}
-                  <span className="text-2xl font-bold text-gray-900 leading-none">
-                    ₹{grandTotal}
-                  </span>
+                  <animated.span className="text-2xl font-bold text-gray-900 leading-none">
+                    {springTotal.to(val => `₹${Math.round(val).toLocaleString('en-IN')}`)}
+                  </animated.span>
                 </div>
               </div>
             </div>
@@ -462,6 +511,25 @@ export default function POS() {
         dispatch={dispatch}
       />
 
+            <Drawer.Root open={isFirstBillDrawerOpen} onOpenChange={setIsFirstBillDrawerOpen}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
+          <Drawer.Content className="bg-white flex flex-col rounded-t-[24px] mt-24 h-auto fixed bottom-0 left-0 right-0 z-50 focus:outline-none">
+            <div className="p-8 bg-white rounded-t-[24px] flex flex-col items-center pb-safe">
+              <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-slate-200 mb-6" />
+              <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4 text-3xl">🎉</div>
+              <h2 className="text-2xl font-black text-slate-900 mb-2 text-center">Your first digital bill!</h2>
+              <p className="text-slate-500 font-medium text-center mb-6">Welcome to Ledgro. We're excited to help you grow your business.</p>
+              <button
+                onClick={() => setIsFirstBillDrawerOpen(false)}
+                className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl active:bg-blue-700 transition-colors"
+              >
+                Continue
+              </button>
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
       <BottomNav />
     </div>
   );

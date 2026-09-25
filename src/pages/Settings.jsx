@@ -10,6 +10,7 @@ import { getDocs, collection } from 'firebase/firestore';
 import { format } from 'date-fns';
 
 export default function Settings() {
+  const billCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
   const { user, shopId, signOut } = useAuth();
   const navigate = useNavigate();
 
@@ -23,7 +24,11 @@ export default function Settings() {
   // App Preferences State (localStorage)
   const [defaultPayment, setDefaultPayment] = useState(() => localStorage.getItem('ledgro_defaultPayment') || 'cash');
   const [hapticFeedback, setHapticFeedback] = useState(() => localStorage.getItem('ledgro_haptic') !== 'false');
+  const [theme, setTheme] = useState(() => localStorage.getItem('ledgro-theme') || 'system');
   const [autoReset, setAutoReset] = useState(() => localStorage.getItem('ledgro_autoReset') !== 'false');
+
+
+
 
   useEffect(() => {
     const fetchShopProfile = async () => {
@@ -46,6 +51,18 @@ export default function Settings() {
   }, [shopId]);
 
   // Sync preferences to localStorage
+
+  const handleThemeChange = (newTheme) => {
+    setTheme(newTheme);
+    localStorage.setItem('ledgro-theme', newTheme);
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (newTheme === 'dark' || (newTheme === 'system' && prefersDark)) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  };
+
   useEffect(() => {
     localStorage.setItem('ledgro_defaultPayment', defaultPayment);
     localStorage.setItem('ledgro_haptic', hapticFeedback);
