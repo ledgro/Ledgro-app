@@ -71,10 +71,7 @@ const ShopSetup = () => {
         claimedBy: user.uid
       });
 
-      // We don't manually navigate here. The creator's client will add us to the shop,
-      // and our AuthContext onSnapshot/listener or a forced refresh will pick it up.
-      // For instant UX, we wait a few seconds, then manually fetch to see if we're in.
-      // A more robust way is to just let AuthContext do its job, but we'll manually poll for UX speed.
+
       let retries = 0;
       const poll = setInterval(async () => {
         retries++;

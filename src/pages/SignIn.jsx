@@ -12,8 +12,7 @@ const SignIn = () => {
   const [isSigningIn, setIsSigningIn] = useState(false);
 
   useEffect(() => {
-    // Detect WhatsApp or Facebook in-app browsers
-    const ua = navigator.userAgent || navigator.vendor || window.opera;
+        const ua = navigator.userAgent || navigator.vendor || window.opera;
     if (
       ua.indexOf('FBAN') > -1 ||
       ua.indexOf('FBAV') > -1 ||

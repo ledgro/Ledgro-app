@@ -24,9 +24,7 @@ export const AuthProvider = ({ children }) => {
         try {
           const shopsRef = collection(db, 'shops');
 
-          // The security rules demand we check the map: `members.{uid}`.
-          // In Firestore, we can query this directly using a dynamic field path if indexed, or we just fetch where ownerId == uid
-          // and for invited staff, we query where `members.${uid}` > 0.
+
 
           const qAdmin = query(shopsRef, where('ownerId', '==', currentUser.uid));
           const qMember = query(shopsRef, where(`members.${currentUser.uid}`, 'in', ['admin', 'member']));
