@@ -31,20 +31,7 @@ export const AuthProvider = ({ children }) => {
           const qAdmin = query(shopsRef, where('ownerId', '==', currentUser.uid));
           const qMember = query(shopsRef, where(`members.${currentUser.uid}`, 'in', ['admin', 'member']));
 
-          let adminSnap = { empty: true, docs: [] };
-          let memberSnap = { empty: true, docs: [] };
-
-          try {
-             adminSnap = await getDocs(qAdmin);
-          } catch (e) {
-             console.log("Admin query failed (normal if not creator): ", e);
-          }
-
-          try {
-             memberSnap = await getDocs(qMember);
-          } catch (e) {
-             console.log("Member query failed (normal if no member array): ", e);
-          }
+          const [adminSnap, memberSnap] = await Promise.all([getDocs(qAdmin), getDocs(qMember)]);
 
           if (!adminSnap.empty) {
             setHasShop(true);

@@ -78,24 +78,18 @@ const ShopSetup = () => {
       let retries = 0;
       const poll = setInterval(async () => {
         retries++;
-        try {
-          const shopSnap = await getDoc(doc(db, 'shops', data.shopId));
-          if (shopSnap.exists() && shopSnap.data().members?.[user.uid]) {
-            clearInterval(poll);
-            setShopId(data.shopId);
-            setHasShop(true);
-            navigate('/dashboard');
-          }
-        } catch (pollErr) {
-          // Ignore permission errors while waiting to be added
-        }
-
-        if (retries > 15) {
+        const shopSnap = await getDoc(doc(db, 'shops', data.shopId));
+        if (shopSnap.exists() && shopSnap.data().members?.[user.uid]) {
+          clearInterval(poll);
+          setShopId(data.shopId);
+          setHasShop(true);
+          navigate('/dashboard');
+        } else if (retries > 10) {
           clearInterval(poll);
           setError("Timeout waiting for shop creator to process. Please try logging in again.");
           setLoading(false);
         }
-      }, 2000);
+      }, 1000);
 
     } catch (err) {
       console.error(err);

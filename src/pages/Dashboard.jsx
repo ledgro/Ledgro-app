@@ -75,11 +75,13 @@ export default function Dashboard() {
       ]);
 
       const processBills = (snap) => {
-        let cash = 0, upi = 0, rev = 0;
+        let cash = 0, upi = 0, rev = 0, transactionCount = 0;
         const staff = {};
         snap.forEach(doc => {
           const b = doc.data();
           if (b.type === 'reversal' || b.isVoided) return;
+
+          if (b.type !== 'return') transactionCount++;
 
           let mult = b.type === 'return' ? -1 : 1;
           const total = (b.grandTotal || 0) * mult;
@@ -99,7 +101,7 @@ export default function Dashboard() {
              staff[b.creatorId] = (staff[b.creatorId] || 0) + 1;
           }
         });
-        return { cash, upi, rev, staff };
+        return { cash, upi, rev, staff, transactionCount };
       };
 
       const processExp = (snap) => {
@@ -147,6 +149,7 @@ export default function Dashboard() {
         cashSplit: today.cash,
         upiSplit: today.upi,
         staffCount: today.staff,
+        transactionCount: today.transactionCount,
         weekData: sparkData
       }));
 
