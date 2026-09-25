@@ -34,13 +34,13 @@ export const AuthProvider = ({ children }) => {
           if (!adminSnap.empty) {
             setHasShop(true);
             setShopId(adminSnap.docs[0].id);
-            setShopAdminId(adminSnap.docs[0].data({ serverTimestamps: 'estimate' }).ownerId);
-            setShopName(adminSnap.docs[0].data({ serverTimestamps: 'estimate' }).name);
+            setShopAdminId(adminSnap.docs[0].data().ownerId);
+            setShopName(adminSnap.docs[0].data().name);
           } else if (!memberSnap.empty) {
             setHasShop(true);
             setShopId(memberSnap.docs[0].id);
-            setShopAdminId(memberSnap.docs[0].data({ serverTimestamps: 'estimate' }).ownerId);
-            setShopName(memberSnap.docs[0].data({ serverTimestamps: 'estimate' }).name);
+            setShopAdminId(memberSnap.docs[0].data().ownerId);
+            setShopName(memberSnap.docs[0].data().name);
           } else {
             setHasShop(false);
             setShopId(null);

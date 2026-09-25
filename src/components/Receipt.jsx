@@ -1,5 +1,4 @@
 import React, { forwardRef } from 'react';
-import { sanitizeText } from '../lib/utils';
 
 const Receipt = forwardRef(({ billData }, ref) => {
   if (!billData) return null;
@@ -45,7 +44,7 @@ const Receipt = forwardRef(({ billData }, ref) => {
         {items.map((item, i) => (
           <div key={i} style={{ display: 'flex', fontSize: '18px', marginBottom: '12px' }}>
             <div style={{ flex: 2 }}>
-              <span style={{ display: 'block', fontWeight: '500' }}>{sanitizeText(item.name)}</span>
+              <span style={{ display: 'block', fontWeight: '500' }}>{item.name}</span>
               <span style={{ fontSize: '14px', color: '#666666' }}>@ ₹{item.unitPrice}</span>
             </div>
             <span style={{ flex: 1, textAlign: 'center' }}>{item.qty}</span>

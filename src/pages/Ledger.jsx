@@ -1,4 +1,3 @@
-import { toast } from 'sonner';
 import { useState, useEffect, useCallback, useMemo, useDeferredValue, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { collection, query, orderBy, limit, startAfter, getDocs, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
@@ -55,7 +54,7 @@ const fetchBills = useCallback(async (isNextPage = false) => {
         setHasMore(false);
       } else {
         const newBills = snap.docs.map(doc => {
-           const data = doc.data({ serverTimestamps: 'estimate' });
+           const data = doc.data();
            return { id: doc.id, ...data, createdAt: data.createdAt ? { toDate: () => data.createdAt.toDate() } : { toDate: () => new Date() } };
         });
         setLastDoc(snap.docs[snap.docs.length - 1]);
@@ -78,8 +77,10 @@ const fetchBills = useCallback(async (isNextPage = false) => {
   }, [shopId, lastDoc, hasMore]); // Removed 'loading' from dependencies
 
   useEffect(() => {
-    if (shopId) fetchBills();
-  }, [shopId, fetchBills]);
+    if (shopId && bills.length === 0) {
+      fetchBills();
+    }
+  }, [shopId, fetchBills, bills.length]);
 
   useEffect(() => {
     if (inView && hasMore && !loading) {
@@ -130,7 +131,7 @@ const fetchBills = useCallback(async (isNextPage = false) => {
     } catch (err) {
       console.error(err);
       if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate([100, 50, 100]);
-      toast.error("Failed to void bill.");
+      alert("Failed to void bill.");
     } finally {
       setReversingId(null);
     }
@@ -196,7 +197,7 @@ const fetchBills = useCallback(async (isNextPage = false) => {
       if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate([50, 30, 50]);
     } catch (e) {
       console.error(e);
-      toast.error("Failed to process return");
+      alert("Failed to process return");
       if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate([100, 50, 100]);
     }
   };

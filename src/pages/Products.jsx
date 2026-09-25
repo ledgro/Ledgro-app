@@ -1,4 +1,3 @@
-import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
@@ -117,12 +116,12 @@ export default function Products() {
       const alertNum = lowStockAlert !== '' ? parseFloat(lowStockAlert) : null;
 
       const payload = {
-        name: sanitizeText(name.trim()),
+        name: name.trim(),
         lastUsedPrice: unitPrice,
         unit: unit,
         stockCount: stockNum,
         lowStockAlert: alertNum,
-        category: sanitizeText(category.trim()),
+        category: category.trim(),
         description: description.trim(),
         isActive: isActive,
         updatedAt: serverTimestamp(),
@@ -157,7 +156,7 @@ export default function Products() {
       setIsDrawerOpen(false);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save product");
+      alert("Failed to save product");
     } finally {
       setSubmitting(false);
     }

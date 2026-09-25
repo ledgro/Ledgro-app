@@ -15,7 +15,6 @@ import Settings from './pages/Settings';
 import PLScreen from './pages/PLScreen';
 import Legal from './pages/Legal';
 import SplashScreen from './components/SplashScreen';
-import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Protected Route wrapper
 const ProtectedRoute = ({ children, requireNoShop = false }) => {
@@ -120,9 +119,7 @@ const router = createHashRouter([
 export default function App() {
   return (
     <AuthProvider>
-      <ErrorBoundary>
-        <RouterProvider router={router} />
-      </ErrorBoundary>
+      <RouterProvider router={router} />
     </AuthProvider>
   );
 }

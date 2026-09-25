@@ -1,4 +1,3 @@
-import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { collection, query, orderBy, getDocs, addDoc, serverTimestamp, deleteDoc, doc, limit } from 'firebase/firestore';
@@ -38,7 +37,7 @@ export default function Expenses() {
         // Optimize to only fetch recent expenses to prevent unbounded scans
         const q = query(collection(db, `shops/${shopId}/expenses`), orderBy('createdAt', 'desc'), limit(50));
         const snap = await getDocs(q);
-        setExpenses(snap.docs.map(doc => ({ id: doc.id, ...doc.data({ serverTimestamps: 'estimate' }) })));
+        setExpenses(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (err) {
         console.error("Failed to fetch expenses", err);
       } finally {
@@ -74,7 +73,7 @@ export default function Expenses() {
       setIsOpen(false);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to add expense");
+      alert("Failed to add expense");
     } finally {
       setSubmitting(false);
     }
@@ -92,7 +91,7 @@ export default function Expenses() {
       console.error("Failed to delete expense", err);
       // Rollback on failure
       setExpenses(previousExpenses);
-      toast.error("Failed to delete expense. Reverted.");
+      alert("Failed to delete expense. Reverted.");
     }
   };
 

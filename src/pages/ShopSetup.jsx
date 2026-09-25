@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, addDoc, doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 
@@ -61,39 +61,33 @@ const ShopSetup = () => {
         throw new Error("Invalid or expired code.");
       }
 
-      const data = inviteSnap.data({ serverTimestamps: 'estimate' });
+      const data = inviteSnap.data();
       if (new Date() > data.expiresAt.toDate()) {
         throw new Error("This code has expired.");
       }
 
-// Update the invite document to signal the creator's client
+      // Update the invite document to signal the creator's client
       await updateDoc(inviteRef, {
-        claimedBy: user.uid,
-        claimed: true
+        claimedBy: user.uid
       });
 
-      // Polling waiting for the Admin (who generated the invite) to add us
+
       let retries = 0;
       const poll = setInterval(async () => {
         retries++;
-        try {
-          const shopSnap = await getDoc(doc(db, 'shops', data.shopId));
-          if (shopSnap.exists() && shopSnap.data({ serverTimestamps: 'estimate' }).members?.[user.uid]) {
-            clearInterval(poll);
-            setShopId(data.shopId);
-            setHasShop(true);
-            navigate('/dashboard');
-          }
-        } catch (pollErr) {
-          // Ignore permission errors while waiting
-        }
-
-        if (retries > 15) {
+        const shopSnap = await getDoc(doc(db, 'shops', data.shopId));
+        if (shopSnap.exists() && shopSnap.data().members?.[user.uid]) {
           clearInterval(poll);
-          setError("Timeout waiting for shop creator to approve. Ensure the creator's app is open.");
+          setShopId(data.shopId);
+          setHasShop(true);
+          navigate('/dashboard');
+        } else if (retries > 10) {
+          clearInterval(poll);
+          setError("Timeout waiting for shop creator to process. Please try logging in again.");
           setLoading(false);
         }
-      }, 2000);
+      }, 1000);
+
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to join shop.');

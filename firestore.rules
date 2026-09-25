@@ -6,159 +6,78 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isAdmin(shopId) {
-      return isAuthenticated() &&
-        get(/databases/$(database)/documents/shops/$(shopId)).data.members[request.auth.uid] == 'admin';
-    }
-
     function isMember(shopId) {
       return isAuthenticated() &&
         get(/databases/$(database)/documents/shops/$(shopId)).data.members[request.auth.uid] != null;
     }
 
-    function isToday(timestamp) {
-      return timestamp.date() == request.time.date();
+    function isAdmin(shopId) {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/shops/$(shopId)).data.members[request.auth.uid] == 'admin';
     }
 
     match /shops/{shopId} {
       allow read: if isAuthenticated() &&
         resource.data.members[request.auth.uid] != null;
 
-      // Only allow create if creator sets themselves as admin
-      // and members map contains ONLY their own UID at creation
-      allow create: if isAuthenticated()
-        && request.resource.data.members[request.auth.uid] == 'admin'
-        && request.resource.data.members.size() == 1;
+      allow create: if isAuthenticated() &&
+        request.resource.data.members[request.auth.uid] == 'admin';
 
-      // Admin can update shop profile fields only
-      // Cannot change members map except through invite flow
       allow update: if isAdmin(shopId)
         && request.resource.data.diff(resource.data)
-          .affectedKeys().hasOnly([
-            'name', 'phone', 'address', 'tagline', 'updatedAt'
-          ]);
-
-      // Separate rule for admin managing members map
-      allow update: if isAdmin(shopId)
-        && request.resource.data.diff(resource.data)
-          .affectedKeys().hasOnly(['members']);
+          .affectedKeys().hasOnly(['name', 'members', 'phone', 'address', 'tagline', 'updatedAt']);
 
       allow delete: if isAdmin(shopId);
 
-      // Bills — strictly append only
       match /bills/{billId} {
-        // Split get and list rules — request.query.limit only exists on list
-        allow get: if isMember(shopId);
-        allow list: if isMember(shopId)
+        allow read: if isMember(shopId)
           && request.query.limit <= 100;
-
         allow create: if isMember(shopId)
-          && request.resource.data.createdBy == request.auth.uid
-          && request.resource.data.shopId == shopId;
-
-        // Only allow voiding — and ONLY on bills created today
+          && request.resource.data.creatorId == request.auth.uid;
         allow update: if isMember(shopId)
-          && resource.data.status != 'voided'
-          && isToday(resource.data.createdAt)
+          && resource.data.type != 'reversal'
           && request.resource.data.diff(resource.data)
-            .affectedKeys().hasOnly(['status', 'replacedBy'])
-          && request.resource.data.status == 'voided';
-
+            .affectedKeys().hasOnly(['type', 'originalBillId', 'creatorId', 'grandTotal', 'createdAt']);
         allow delete: if false;
       }
 
-      // Expenses
       match /expenses/{expenseId} {
-        allow get: if isMember(shopId);
-        allow list: if isMember(shopId)
+        allow read: if isMember(shopId)
           && request.query.limit <= 100;
         allow create: if isMember(shopId);
         allow update, delete: if isAdmin(shopId)
-          || resource.data.createdBy == request.auth.uid;
+          || resource.data.creatorId == request.auth.uid;
       }
 
-      // Products catalog
-      match /products/{productId} {
-        allow get: if isMember(shopId);
-        allow list: if isMember(shopId)
-          && request.query.limit <= 100;
-        allow create: if isMember(shopId);
-
-        // Only admin can change prices — any member can update stock
-        allow update: if isMember(shopId)
-          && request.resource.data.diff(resource.data)
-            .affectedKeys().hasOnly([
-              'stockCount', 'updatedAt'
-            ])
-          || (isAdmin(shopId)
-            && request.resource.data.diff(resource.data)
-              .affectedKeys().hasOnly([
-                'name', 'lastUsedPrice', 'unit', 'stockCount',
-                'lowStockAlert', 'category', 'description',
-                'isActive', 'updatedAt'
-              ])
-            && request.resource.data.lastUsedPrice >= 0
-            && request.resource.data.stockCount >= 0);
-
-        allow delete: if false;
-      }
-
-      // Since catalog is subcollection named catalog in app code, let's also match /catalog/
-      // The prompt specified "Products catalog match /products/{productId}" but the app uses "catalog".
-      // I will add match /catalog/ to be safe and avoid breaking the app.
       match /catalog/{productId} {
-        allow get: if isMember(shopId);
-        allow list: if isMember(shopId)
-          && request.query.limit <= 100;
+        allow read: if isMember(shopId);
         allow create: if isMember(shopId);
-
         allow update: if isMember(shopId)
           && request.resource.data.diff(resource.data)
-            .affectedKeys().hasOnly([
-              'stockCount', 'updatedAt', 'frequency'
-            ])
-          || (isAdmin(shopId)
-            && request.resource.data.diff(resource.data)
-              .affectedKeys().hasOnly([
-                'name', 'lastUsedPrice', 'unit', 'stockCount',
-                'lowStockAlert', 'category', 'description',
-                'isActive', 'updatedAt', 'frequency'
-              ])
-            && request.resource.data.lastUsedPrice >= 0
-            && request.resource.data.stockCount >= 0);
-
+            .affectedKeys().hasOnly(['name', 'lastUsedPrice', 'unit', 'stockCount',
+              'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency']);
         allow delete: if false;
       }
     }
 
-    // Invite codes
     match /invites/{code} {
-      // App uses 'invites' not 'inviteCodes'
-      allow get: if isAuthenticated();
-
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated()
         && isAdmin(request.resource.data.shopId)
-        && request.resource.data.expiresAt > request.time
-        && request.resource.data.claimedBy == null;
-
+        && request.resource.data.expiresAt > request.time;
       allow update: if isAuthenticated()
         && resource.data.claimedBy == null
         && request.time < resource.data.expiresAt
-        && request.resource.data.claimedBy == request.auth.uid
         && request.resource.data.diff(resource.data)
           .affectedKeys().hasOnly(['claimedBy']);
-
       allow delete: if isAuthenticated()
         && isAdmin(resource.data.shopId);
     }
-
-    // Admin recovery requests
 match /adminRecovery/{shopId} {
       allow read: if isMember(shopId);
       allow create: if isMember(shopId) && request.resource.data.requestedBy == request.auth.uid;
       allow update: if isMember(shopId) && (isAdmin(shopId) || request.resource.data.requestedBy == request.auth.uid);
       allow delete: if isAdmin(shopId);
     }
-
   }
 }

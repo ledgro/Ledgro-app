@@ -1,11 +1,10 @@
-import { toast } from 'sonner';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Share2, Download, ChevronLeft } from 'lucide-react';
-import { formatCurrency, cn, sanitizeText } from '../lib/utils';
+import { formatCurrency, cn } from '../lib/utils';
 import { DayPicker } from 'react-day-picker';
 import { Drawer } from 'vaul';
 import { Skeleton } from '../components/Skeleton';
@@ -45,17 +44,17 @@ export default function PLScreen() {
       const toDate = range.to ? endOfDay(range.to) : endOfDay(range.from);
 
       const billsRef = collection(db, `shops/${shopId}/bills`);
-      const qBills = query(billsRef, where('createdAt', '>=', range.from), where('createdAt', '<=', toDate), limit(100));
+      const qBills = query(billsRef, where('createdAt', '>=', range.from), where('createdAt', '<=', toDate));
 
       const expRef = collection(db, `shops/${shopId}/expenses`);
-      const qExp = query(expRef, where('createdAt', '>=', range.from), where('createdAt', '<=', toDate), limit(100));
+      const qExp = query(expRef, where('createdAt', '>=', range.from), where('createdAt', '<=', toDate));
 
       const [billsSnap, expSnap] = await Promise.all([getDocs(qBills), getDocs(qExp)]);
 
       let rev = { total: 0, cash: 0, upi: 0, splitCash: 0, splitUpi: 0 };
 
       billsSnap.forEach(doc => {
-        const b = doc.data({ serverTimestamps: 'estimate' });
+        const b = doc.data();
         if (b.type === 'reversal' || b.isVoided) return;
 
         let multiplier = b.type === 'return' ? -1 : 1;
@@ -77,7 +76,7 @@ export default function PLScreen() {
       let expTotal = 0;
       let expCats = {};
       expSnap.forEach(doc => {
-        const e = doc.data({ serverTimestamps: 'estimate' });
+        const e = doc.data();
         const amt = parseFloat(e.amount) || 0;
         expTotal += amt;
         const cat = e.category || 'other';
@@ -171,7 +170,7 @@ export default function PLScreen() {
       }, 'image/png');
     } catch (err) {
       console.error(err);
-      toast('Failed to share.');
+      alert('Failed to share.');
     } finally {
       setIsExporting(false);
     }
@@ -281,7 +280,7 @@ export default function PLScreen() {
                 <h3 className="font-bold text-slate-900 border-b border-slate-100 pb-3 mb-3">Expenses Breakdown</h3>
                 <div className="space-y-3 text-sm font-medium">
                    {Object.entries(data.expenses.byCategory).map(([cat, amt]) => (
-                     <div key={sanitizeText(cat)} className="flex justify-between text-slate-600"><span className="capitalize">{sanitizeText(cat)}</span><span>{formatCurrency(amt)}</span></div>
+                     <div key={cat} className="flex justify-between text-slate-600"><span className="capitalize">{cat}</span><span>{formatCurrency(amt)}</span></div>
                    ))}
                    {Object.keys(data.expenses.byCategory).length === 0 && <div className="text-slate-400 italic">No expenses recorded</div>}
                    <div className="flex justify-between font-black text-slate-900 pt-2 border-t border-slate-100 text-lg"><span>Total Expenses</span><span>{formatCurrency(data.expenses.total)}</span></div>

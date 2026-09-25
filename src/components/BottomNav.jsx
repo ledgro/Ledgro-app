@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, PlusCircle, FileText, Menu } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Drawer } from 'vaul';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Receipt, Users, PackagePlus, Settings } from 'lucide-react';
 import { useBodyLock } from '../hooks/useBodyLock';
 
