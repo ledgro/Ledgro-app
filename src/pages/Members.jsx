@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 
 export default function Members() {
   const { user, shopId, shopAdminId, signOut } = useAuth();
-const [members, setMembers] = useState([]);
+  const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -18,10 +18,12 @@ const [members, setMembers] = useState([]);
   const [recoveryDoc, setRecoveryDoc] = useState(null);
   const [isRequestingRecovery, setIsRequestingRecovery] = useState(false);
 
-  const navigate = useNavigate();
   const isCreator = user?.uid === shopAdminId;
 
+
+
   useEffect(() => {
+
     if (!shopId) return;
     const unsubscribe = onSnapshot(doc(db, 'shops', shopId), (docSnap) => {
       // existing logic
