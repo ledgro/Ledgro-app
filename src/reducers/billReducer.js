@@ -4,7 +4,14 @@ export const initialBillState = {
 };
 
 // Generates a UUID for list reconciliation
-const generateId = () => crypto.randomUUID();
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  const arr = new Uint8Array(8);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+};
 
 export function billReducer(state = initialBillState, action) {
   switch (action.type) {

@@ -7,10 +7,10 @@ const Receipt = forwardRef(({ billData }, ref) => {
   const dateStr = new Date().toLocaleString();
 
   // Use billNo from billData if present, otherwise fallback to generating it securely
-  const billNo = billData.billNo || (() => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    const suffix = Array.from(crypto.getRandomValues(new Uint8Array(4)))
-      .map(b => chars[b % chars.length]).join('');
+  const billNo = billData.id || billData.billNo || (() => {
+    const arr = new Uint8Array(3);
+    crypto.getRandomValues(arr);
+    const suffix = Array.from(arr, b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
     return `${new Date().toLocaleDateString('en-GB').replace(/\//g, '')}-${suffix}`;
   })();
 

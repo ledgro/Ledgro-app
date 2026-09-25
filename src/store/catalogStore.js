@@ -8,7 +8,7 @@ class TrieNode {
   }
 }
 
-class PrefixTrie {
+export class PrefixTrie {
   constructor() {
     this.root = new TrieNode();
   }
