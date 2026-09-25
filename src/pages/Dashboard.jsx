@@ -1,6 +1,7 @@
+import { toast } from 'sonner';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Cloud, CloudOff, RefreshCcw } from 'lucide-react';
@@ -77,15 +78,15 @@ export default function Dashboard() {
       const expRef = collection(db, `shops/${shopId}/expenses`);
 
       // Today's Bills
-      const qTodayBills = query(billsRef, where('createdAt', '>=', todayStart), where('createdAt', '<=', todayEnd));
-      const qTodayExp = query(expRef, where('createdAt', '>=', todayStart), where('createdAt', '<=', todayEnd));
+      const qTodayBills = query(billsRef, where('createdAt', '>=', todayStart), where('createdAt', '<=', todayEnd), limit(100));
+      const qTodayExp = query(expRef, where('createdAt', '>=', todayStart), where('createdAt', '<=', todayEnd), limit(100));
 
       // Yesterday's Bills (for vs comparison)
-      const qYestBills = query(billsRef, where('createdAt', '>=', yesterdayStart), where('createdAt', '<=', yesterdayEnd));
-      const qYestExp = query(expRef, where('createdAt', '>=', yesterdayStart), where('createdAt', '<=', yesterdayEnd));
+      const qYestBills = query(billsRef, where('createdAt', '>=', yesterdayStart), where('createdAt', '<=', yesterdayEnd), limit(100));
+      const qYestExp = query(expRef, where('createdAt', '>=', yesterdayStart), where('createdAt', '<=', yesterdayEnd), limit(100));
 
       // Week Bills for Sparkline
-      const qWeekBills = query(billsRef, where('createdAt', '>=', weekStart), where('createdAt', '<=', todayEnd));
+      const qWeekBills = query(billsRef, where('createdAt', '>=', weekStart), where('createdAt', '<=', todayEnd), limit(100));
 
       const [todayBSnap, todayESnap, yestBSnap, yestESnap, weekBSnap] = await Promise.all([
         getDocs(qTodayBills), getDocs(qTodayExp), getDocs(qYestBills), getDocs(qYestExp), getDocs(qWeekBills)
@@ -95,7 +96,7 @@ export default function Dashboard() {
         let cash = 0, upi = 0, rev = 0, transactionCount = 0;
         const staff = {};
         snap.forEach(doc => {
-          const b = doc.data();
+          const b = doc.data({ serverTimestamps: 'estimate' });
           if (b.type === 'reversal' || b.isVoided) return;
 
           if (b.type !== 'return') transactionCount++;
@@ -123,7 +124,7 @@ export default function Dashboard() {
 
       const processExp = (snap) => {
         let exp = 0;
-        snap.forEach(doc => { exp += (parseFloat(doc.data().amount) || 0); });
+        snap.forEach(doc => { exp += (parseFloat(doc.data({ serverTimestamps: 'estimate' }).amount) || 0); });
         return exp;
       };
 
@@ -146,7 +147,7 @@ export default function Dashboard() {
         dailyEarn[format(subDays(todayStart, i), 'yyyy-MM-dd')] = 0;
       }
       weekBSnap.forEach(doc => {
-        const b = doc.data();
+        const b = doc.data({ serverTimestamps: 'estimate' });
         if (b.type === 'reversal' || b.isVoided) return;
         const dtStr = b.createdAt ? format(b.createdAt.toDate(), 'yyyy-MM-dd') : null;
         if (dtStr && dailyEarn[dtStr] !== undefined) {
@@ -179,7 +180,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [fetchDashboardData]);
+  }, [shopId, fetchDashboardData]);
 
   useEffect(() => {
     const checkSync = () => {
@@ -213,11 +214,11 @@ export default function Dashboard() {
           createdAt: serverTimestamp()
         });
       }
-      alert("Day locked and summary saved!");
+      toast("Day locked and summary saved!");
       setIsCloseDrawerOpen(false);
       fetchDashboardData();
     } catch (_err) {
-      alert("Failed to close register.");
+      toast.error("Failed to close register.");
     } finally {
       setIsClosingRecord(false);
     }

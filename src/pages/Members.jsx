@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot, clearIndexedDbPersistence, serverTimestamp, terminate } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Trash2, UserPlus, LogOut, ArrowUpCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { hapticVibrate } from '../lib/utils';
 
 export default function Members() {
@@ -27,14 +28,14 @@ export default function Members() {
     const unsubscribe = onSnapshot(doc(db, 'shops', shopId), (docSnap) => {
       // existing logic
       if (docSnap.exists()) {
-        const data = docSnap.data();
+        const data = docSnap.data({ serverTimestamps: 'estimate' });
         const membersMap = data.members || {};
         const memberList = Object.keys(membersMap).map(uid => ({
           uid,
           role: membersMap[uid] === 'admin' || uid === data.ownerId ? 'Admin (Hidden)' : 'Member',
           name: uid === user.uid ? 'You' : `Member ${uid.substring(0, 4)}`
         }));
-        memberList.sort((a, b) => (a.uid === user.uid ? -1 : 1));
+        memberList.sort((a) => (a.uid === user.uid ? -1 : 1));
         setMembers(memberList);
       }
       setLoading(false);
@@ -43,7 +44,7 @@ export default function Members() {
     // Listen to adminRecovery doc
     const unsubRecovery = onSnapshot(doc(db, 'adminRecovery', shopId), (snap) => {
       if (snap.exists()) {
-        const data = snap.data();
+        const data = snap.data({ serverTimestamps: 'estimate' });
         if (data.status === 'pending') {
           // Check auto-elevation
           const reqTime = data.requestedAt?.toDate ? data.requestedAt.toDate() : new Date();
@@ -71,16 +72,16 @@ export default function Members() {
        const shopRef = doc(db, 'shops', currentShopId);
        const shopSnap = await getDoc(shopRef);
        if (shopSnap.exists()) {
-          const oldAdmin = shopSnap.data().ownerId;
+          const oldAdmin = shopSnap.data({ serverTimestamps: 'estimate' }).ownerId;
           await updateDoc(shopRef, {
              [`members.${data.requestedBy}`]: 'admin',
              [`members.${oldAdmin}`]: 'member',
              ownerId: data.requestedBy
           });
           await updateDoc(doc(db, 'adminRecovery', currentShopId), { status: 'approved' });
-          alert("14 days have passed. You are now the admin.");
+          toast("14 days have passed. You are now the admin.");
        }
-     } catch (_err) { console.error(_err); }
+     } catch (_error) { console.error(_err); }
   }
 
   const handleRequestRecovery = async () => {
@@ -96,9 +97,9 @@ export default function Members() {
         status: 'pending',
         expiresAt: expiresAt
       });
-      alert("Request submitted.");
-    } catch (_err) {
-      alert("Failed to submit request.");
+      toast("Request submitted.");
+    } catch (_error) {
+      toast.error("Failed to submit request.");
     } finally {
       setIsRequestingRecovery(false);
     }
@@ -115,17 +116,23 @@ export default function Members() {
           ownerId: targetUid
        });
        await updateDoc(doc(db, 'adminRecovery', shopId), { status: 'approved' });
-       alert("Admin transferred successfully.");
-     } catch (_err) {
-       alert("Failed to transfer admin role.");
+       toast("Admin transferred successfully.");
+     } catch (_error) {
+       toast.error("Failed to transfer admin role.");
      }
   };
 
   const handleRejectRecovery = async () => {
      try {
        await deleteDoc(doc(db, 'adminRecovery', shopId));
-     } catch (_err) {}
+     } catch (_error) {}
   };
+
+  useEffect(() => {
+    return () => {
+      if (inviteListenerRef.current) inviteListenerRef.current();
+    };
+  }, []);
 
   const handleGenerateInvite = async () => {
     setIsGenerating(true);
@@ -136,31 +143,34 @@ export default function Members() {
       const expiresAt = new Date();
       expiresAt.setMinutes(expiresAt.getMinutes() + 30);
       const inviteRef = doc(db, 'invites', code);
-      await setDoc(inviteRef, { shopId, expiresAt, claimedBy: null });
+      await setDoc(inviteRef, { shopId, expiresAt, claimedBy: null, claimed: false });
       setInviteCode(code);
 
-      const unsubscribe = onSnapshot(inviteRef, async (snap) => {
+      if (inviteListenerRef.current) inviteListenerRef.current();
+
+      inviteListenerRef.current = onSnapshot(inviteRef, async (snap) => {
         if (!snap.exists()) return;
-        const data = snap.data();
-        if (data.claimedBy) {
+        const data = snap.data({ serverTimestamps: 'estimate' });
+        if (data.claimedBy || data.claimed) {
           try {
             const shopRef = doc(db, 'shops', shopId);
             const shopSnap = await getDoc(shopRef);
             if (shopSnap.exists()) {
-              const currentMembers = shopSnap.data().members || {};
-              if (!currentMembers[data.claimedBy]) {
-                await updateDoc(shopRef, { [`members.${data.claimedBy}`]: 'member' });
+              const currentMembers = shopSnap.data({ serverTimestamps: 'estimate' }).members || {};
+              if (!currentMembers[data.claimedBy || data.claimed]) {
+                await updateDoc(shopRef, { [`members.${data.claimedBy || data.claimed}`]: 'member' });
               }
             }
             await deleteDoc(inviteRef);
             setInviteCode(null);
-            unsubscribe();
-            alert("New member joined successfully!");
-          } catch (_err) {}
+            if (inviteListenerRef.current) inviteListenerRef.current();
+            toast.success("New member joined successfully!");
+          } catch (_error) {}
         }
       });
-    } catch (_err) {
-      alert("Failed to generate invite code");
+
+    } catch (_error) {
+      toast.error("Failed to generate invite code");
     } finally {
       setIsGenerating(false);
     }
@@ -175,13 +185,13 @@ export default function Members() {
       const shopRef = doc(db, 'shops', shopId);
       const shopSnap = await getDoc(shopRef);
       if (shopSnap.exists()) {
-        const currentMembers = { ...shopSnap.data().members };
+        const currentMembers = { ...shopSnap.data({ serverTimestamps: 'estimate' }).members };
         delete currentMembers[targetUid];
         await updateDoc(shopRef, { members: currentMembers });
         if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate([50, 30, 50]);
       }
-    } catch (_err) {
-      alert("Failed to remove member.");
+    } catch (_error) {
+      toast.error("Failed to remove member.");
     }
   };
 
@@ -195,10 +205,10 @@ export default function Members() {
               [`members.${user.uid}`]: 'member',
               ownerId: targetUid
            });
-           alert("Admin transferred successfully.");
-        } catch (_err) {
+           toast("Admin transferred successfully.");
+        } catch (_error) {
            console.error(_err);
-           alert("Failed to transfer admin role.");
+           toast.error("Failed to transfer admin role.");
         }
      }
   };
@@ -208,15 +218,15 @@ export default function Members() {
 
     if (isCreator) {
        if (members.length > 1) {
-          alert("You are the admin. Transfer admin role to another member before leaving, or remove all members first.");
+          toast("You are the admin. Transfer admin role to another member before leaving, or remove all members first.");
           return;
        }
        if (window.confirm("You are the only member. This will permanently delete the shop. Continue?")) {
           try {
              await deleteDoc(doc(db, 'shops', shopId));
              await handleWipeAndExit();
-          } catch (_err) {
-             alert("Failed to delete shop.");
+          } catch (_error) {
+             toast.error("Failed to delete shop.");
           }
        }
     } else {
@@ -225,13 +235,13 @@ export default function Members() {
              const shopRef = doc(db, 'shops', shopId);
              const shopSnap = await getDoc(shopRef);
              if (shopSnap.exists()) {
-                const currentMembers = { ...shopSnap.data().members };
+                const currentMembers = { ...shopSnap.data({ serverTimestamps: 'estimate' }).members };
                 delete currentMembers[user.uid];
                 await updateDoc(shopRef, { members: currentMembers });
                 await handleWipeAndExit();
              }
-          } catch (_err) {
-             alert("Failed to leave shop.");
+          } catch (_error) {
+             toast.error("Failed to leave shop.");
           }
        }
     }

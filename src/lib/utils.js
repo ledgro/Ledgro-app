@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify';
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -17,4 +18,12 @@ export function hapticVibrate(pattern) {
     // pattern can be a number (ms) or array of numbers
     navigator.vibrate(pattern);
   }
+}
+
+export function sanitizeText(input) {
+  if (!input) return '';
+  return DOMPurify.sanitize(String(input), {
+    ALLOWED_TAGS: [],
+    ALLOWED_ATTR: []
+  });
 }
