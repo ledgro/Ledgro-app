@@ -4,6 +4,9 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  build: {
+    sourcemap: false,
+  },
   base: '/Ledgro-app/',
   plugins: [
     react(),
