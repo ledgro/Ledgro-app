@@ -6,14 +6,18 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function getShop(shopId) {
+      return get(/databases/$(database)/documents/shops/$(shopId)).data;
+    }
+
     function isMember(shopId) {
       return isAuthenticated() &&
-        get(/databases/$(database)/documents/shops/$(shopId)).data.members[request.auth.uid] != null;
+        getShop(shopId).members[request.auth.uid] != null;
     }
 
     function isAdmin(shopId) {
       return isAuthenticated() &&
-        get(/databases/$(database)/documents/shops/$(shopId)).data.members[request.auth.uid] == 'admin';
+        getShop(shopId).members[request.auth.uid] == 'admin';
     }
 
     match /shops/{shopId} {
@@ -21,7 +25,8 @@ service cloud.firestore {
         resource.data.members[request.auth.uid] != null;
 
       allow create: if isAuthenticated() &&
-        request.resource.data.members[request.auth.uid] == 'admin';
+        request.resource.data.members[request.auth.uid] == 'admin' &&
+        request.resource.data.members.size() == 1;
 
       allow update: if isAdmin(shopId)
         && request.resource.data.diff(resource.data)
@@ -30,20 +35,26 @@ service cloud.firestore {
       allow delete: if isAdmin(shopId);
 
       match /bills/{billId} {
-        allow read: if isMember(shopId)
-          && request.query.limit <= 100;
+        allow get: if isMember(shopId);
+        allow list: if isMember(shopId) && request.query.limit <= 100;
+
         allow create: if isMember(shopId)
           && request.resource.data.creatorId == request.auth.uid;
+
         allow update: if isMember(shopId)
           && resource.data.type != 'reversal'
+          && request.resource.data.type == 'reversal'
+          && request.resource.data.grandTotal == resource.data.grandTotal
+          && request.resource.data.creatorId == resource.data.creatorId
           && request.resource.data.diff(resource.data)
-            .affectedKeys().hasOnly(['type', 'originalBillId', 'creatorId', 'grandTotal', 'createdAt']);
+            .affectedKeys().hasOnly(['type', 'originalBillId', 'reversedAt', 'reversedBy']);
+
         allow delete: if false;
       }
 
       match /expenses/{expenseId} {
-        allow read: if isMember(shopId)
-          && request.query.limit <= 100;
+        allow get: if isMember(shopId);
+        allow list: if isMember(shopId) && request.query.limit <= 100;
         allow create: if isMember(shopId);
         allow update, delete: if isAdmin(shopId)
           || resource.data.creatorId == request.auth.uid;
@@ -54,29 +65,39 @@ service cloud.firestore {
         allow create: if isMember(shopId);
         allow update: if isMember(shopId)
           && request.resource.data.diff(resource.data)
-            .affectedKeys().hasOnly(['name', 'lastUsedPrice', 'unit', 'stockCount',
-              'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency']);
+            .affectedKeys().hasOnly([
+              'name', 'lastUsedPrice', 'unit', 'stockCount',
+              'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency'
+            ]);
         allow delete: if false;
       }
     }
 
     match /invites/{code} {
-      allow read: if isAuthenticated();
+      allow get: if isAuthenticated();
+      allow list: if false; // Blocks brute-force enumeration of active invite codes
+
       allow create: if isAuthenticated()
         && isAdmin(request.resource.data.shopId)
         && request.resource.data.expiresAt > request.time;
+
       allow update: if isAuthenticated()
         && resource.data.claimedBy == null
         && request.time < resource.data.expiresAt
+        && request.resource.data.claimedBy == request.auth.uid
         && request.resource.data.diff(resource.data)
-          .affectedKeys().hasOnly(['claimedBy']);
+          .affectedKeys().hasOnly(['claimedBy', 'claimedAt']);
+
       allow delete: if isAuthenticated()
         && isAdmin(resource.data.shopId);
     }
-match /adminRecovery/{shopId} {
-      allow read: if isMember(shopId);
-      allow create: if isMember(shopId) && request.resource.data.requestedBy == request.auth.uid;
-      allow update: if isMember(shopId) && (isAdmin(shopId) || request.resource.data.requestedBy == request.auth.uid);
+
+    match /adminRecovery/{shopId} {
+      allow read: if isAdmin(shopId) || (isMember(shopId) && resource.data.requestedBy == request.auth.uid);
+      allow create: if isMember(shopId)
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if isAdmin(shopId);
       allow delete: if isAdmin(shopId);
     }
   }
