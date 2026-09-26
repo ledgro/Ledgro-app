@@ -192,10 +192,11 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
         });
       }
 
-      // Update catalog: Decrement stock (if tracked) and increment frequency
+// Update catalog: Decrement stock (if tracked) and increment frequency
+      const catalogMap = new Map(useCatalogStore.getState().items.map(i => [i.id, i]));
       state.items.forEach(item => {
         if (item.catalogId) {
-           const catalogItem = useCatalogStore.getState().items.find(i => i.id === item.catalogId);
+           const catalogItem = catalogMap.get(item.catalogId);
            if (catalogItem) {
               const catalogRef = doc(db, `shops/${shopId}/catalog`, item.catalogId);
               const updates = { frequency: increment(1) };

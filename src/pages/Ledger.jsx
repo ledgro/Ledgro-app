@@ -8,7 +8,6 @@ import BottomNav from '../components/BottomNav';
 import { CheckCircle2, XCircle, RefreshCcw, Share2, Search, ArrowLeftRight } from 'lucide-react';
 import { Drawer } from 'vaul';
 import { formatCurrency, cn, hapticVibrate } from '../lib/utils';
-import { useNavigate } from 'react-router-dom';
 import { useBodyLock } from '../hooks/useBodyLock';
 
 export default function Ledger() {
