@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
+import { sessionGuard } from '../lib/SessionGuard';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../firebase';
 import SplashScreen from '../components/SplashScreen';
@@ -11,6 +12,8 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isLocked, setIsLocked] = useState(false);
+  const [clockOffset, setClockOffset] = useState(0);
   const [hasShop, setHasShop] = useState(null);
   const [shopId, setShopId] = useState(null);
   const [shopAdminId, setShopAdminId] = useState(null);
@@ -19,6 +22,9 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if(currentUser) {
+        sessionGuard.bindSession(currentUser.uid);
+      }
 
       if (currentUser) {
         try {
@@ -60,8 +66,22 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+  return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().then(granted => {
+        if (!granted) {
+          console.warn("Storage will not be persisted. Running in best-effort mode.");
+        }
+      });
+    }
+  }, []);
+
+  if (isLocked) {
+    return <div className="min-h-screen flex items-center justify-center bg-red-50 text-red-900 font-bold p-6 text-center">SESSION LOCKED. Please refresh the page.</div>;
+  }
 
   const signInWithGoogle = () => {
     return signInWithPopup(auth, googleProvider);

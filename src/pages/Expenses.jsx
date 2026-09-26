@@ -55,7 +55,7 @@ export default function Expenses() {
     setSubmitting(true);
     try {
       const payload = {
-        amount: parseFloat(amount),
+        amount: parseFloat(amount) * 100,
         description,
         categoryId: category,
         creatorId: user.uid,

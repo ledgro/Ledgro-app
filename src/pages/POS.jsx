@@ -142,7 +142,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
     try {
       // Calculate split amounts if applicable
       const cashReceived = parseFloat(splitCash) || 0;
-      const upiAmount = Math.max(0, grandTotal - cashReceived);
+      const upiAmount = Math.max(0, grandTotal - (cashReceived * 100));
 
 
       const paymentData = {
@@ -484,7 +484,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
                       <input
                         type="number"
                         disabled
-                        value={Math.max(0, grandTotal - (parseFloat(splitCash) || 0))}
+                        value={Math.max(0, (grandTotal / 100) - (parseFloat(splitCash) || 0))}
                         className="w-full pl-7 pr-3 h-12 border border-slate-200 bg-slate-100 rounded-xl font-bold text-slate-500"
                       />
                     </div>
@@ -494,7 +494,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
 
               <button
                 onClick={handleCheckout}
-                disabled={isCheckingOut || (paymentMethod === 'split' && (!splitCash || parseFloat(splitCash) >= grandTotal))}
+                disabled={isCheckingOut || (paymentMethod === 'split' && (!splitCash || (parseFloat(splitCash) * 100) >= grandTotal))}
                 className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-all active:scale-[0.98] shadow-sm mt-1"
               >
                 {isCheckingOut ? 'Processing...' : 'Confirm Checkout'} <ArrowRight size={20} />
