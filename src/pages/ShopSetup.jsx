@@ -61,7 +61,7 @@ const ShopSetup = () => {
         throw new Error("Invalid or expired code.");
       }
 
-      const data = inviteSnap.data();
+      const data = inviteSnap.data({ serverTimestamps: 'estimate' });
       if (new Date() > data.expiresAt.toDate()) {
         throw new Error("This code has expired.");
       }
@@ -76,7 +76,7 @@ const ShopSetup = () => {
       const poll = setInterval(async () => {
         retries++;
         const shopSnap = await getDoc(doc(db, 'shops', data.shopId));
-        if (shopSnap.exists() && shopSnap.data().members?.[user.uid]) {
+        if (shopSnap.exists() && shopSnap.data({ serverTimestamps: 'estimate' }).members?.[user.uid]) {
           clearInterval(poll);
           setShopId(data.shopId);
           setHasShop(true);

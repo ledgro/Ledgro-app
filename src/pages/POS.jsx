@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { useReducer, useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
@@ -85,7 +86,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
         // Querying the specific shop's subcollection for catalog items
         const catalogRef = collection(db, `shops/${shopId}/catalog`);
         const snap = await getDocs(catalogRef);
-        const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data({ serverTimestamps: 'estimate' }) }));
         hydrateCatalog(items);
       } catch (err) {
         console.error("Failed to load catalog", err);
@@ -156,7 +157,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
       const payload = {
         creatorId: user.uid,
         items: items.map(i => ({
-          name: i.name,
+          name: sanitizeText(i.name),
           unitPrice: i.unitPrice,
           qty: i.qty,
           rawTotal: i.rawTotal,
@@ -222,7 +223,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
       if (localStorage.getItem('ledgro_haptic') !== 'false') {
         hapticVibrate([100, 50, 100]);
       }
-      alert("Checkout failed. Check console.");
+      toast("Checkout failed. Check console.");
     } finally {
       setIsCheckingOut(false);
     }
@@ -231,7 +232,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
   const generateReceiptImage = async () => {
     if (!receiptRef.current) return null;
     const canvas = await html2canvas(receiptRef.current, {
-      scale: 2,
+      scale: window.devicePixelRatio || 2,
       useCORS: true,
       backgroundColor: '#ffffff',
       width: 720,

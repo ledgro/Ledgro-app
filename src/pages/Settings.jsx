@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -8,6 +9,11 @@ import { useNavigate } from 'react-router-dom';
 import { hapticVibrate } from '../lib/utils';
 import { getDocs, collection } from 'firebase/firestore';
 import { format } from 'date-fns';
+
+function csvEscape(value) {
+  if (value === null || value === undefined) return '';
+  return String(value).replace(/"/g, '""');
+}
 
 export default function Settings() {
   const billCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
@@ -37,7 +43,7 @@ export default function Settings() {
         const docRef = doc(db, 'shops', shopId);
         const snap = await getDoc(docRef);
         if (snap.exists()) {
-          const data = snap.data();
+          const data = snap.data({ serverTimestamps: 'estimate' });
           setShopName(data.name || '');
           setAddress(data.address || '');
           setPhone(data.phone || '');
@@ -83,11 +89,11 @@ export default function Settings() {
         updatedAt: new Date()
       });
       if (hapticFeedback) hapticVibrate([50, 30, 50]);
-      alert("Shop profile saved!");
+      toast("Shop profile saved!");
     } catch (err) {
       console.error(err);
       if (hapticFeedback) hapticVibrate([100, 50, 100]);
-      alert("Failed to save profile.");
+      toast.error("Failed to save profile.");
     } finally {
       setSavingProfile(false);
     }
@@ -106,7 +112,7 @@ export default function Settings() {
 
       const rawBills = [];
       billsSnap.forEach(doc => {
-         const data = doc.data();
+         const data = doc.data({ serverTimestamps: 'estimate' });
          rawBills.push({...data, id: doc.id});
 
          const date = data.createdAt?.toDate ? format(data.createdAt.toDate(), 'yyyy-MM-dd') : '';
@@ -127,7 +133,7 @@ export default function Settings() {
 
          const status = data.isVoided ? 'voided' : (data.type || 'active');
 
-         billRows.push(`"${data.billNo || data.id}","${date}","${time}","${items}",${data.subtotal || 0},${data.globalDiscountAmt || 0},${data.grandTotal || 0},"${pMethod}",${cashAmt},${upiAmt},"${data.creatorId}","${status}"`);
+         billRows.push(`"${csvEscape(data.billNo || data.id)}","${date}","${time}","${csvEscape(items)}",${data.subtotal || 0},${data.globalDiscountAmt || 0},${data.grandTotal || 0},"${csvEscape(pMethod)}",${cashAmt},${upiAmt},"${csvEscape(data.creatorId)}","${csvEscape(status)}"`);
       });
 
       // 2. Expenses CSV
@@ -135,10 +141,10 @@ export default function Settings() {
       const expRows = [expHeaders];
       const rawExp = [];
       expSnap.forEach(doc => {
-         const data = doc.data();
+         const data = doc.data({ serverTimestamps: 'estimate' });
          rawExp.push({...data, id: doc.id});
          const date = data.createdAt?.toDate ? format(data.createdAt.toDate(), 'yyyy-MM-dd HH:mm') : '';
-         expRows.push(`"${date}","${data.description || ''}","${data.category || ''}",${data.amount || 0},"${data.creatorId || ''}"`);
+         expRows.push(`"${date}","${csvEscape(data.description || '')}","${csvEscape(data.category || '')}",${data.amount || 0},"${csvEscape(data.creatorId || '')}"`);
       });
 
       const downloadFile = (content, filename, type) => {
@@ -167,7 +173,7 @@ export default function Settings() {
 
     } catch (err) {
       console.error(err);
-      alert("Failed to export data.");
+      toast.error("Failed to export data.");
     }
   };
 
