@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import { forwardRef } from 'react';
 import { sanitizeText } from '../lib/utils';
 
 const Receipt = forwardRef(({ billData }, ref) => {
