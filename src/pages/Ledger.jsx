@@ -94,25 +94,22 @@ const fetchBills = useCallback(async (isNextPage = false) => {
     if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate(20);
 
     setReversingId(originalBill.id);
-    try {
+try {
       const batch = writeBatch(db);
-      const payload = {
+
+      const billRef = doc(db, `shops/${shopId}/bills`, originalBill.id);
+
+      batch.update(billRef, {
         type: 'reversal',
         originalBillId: originalBill.id,
-        creatorId: user.uid,
-        grandTotal: -Math.abs(originalBill.grandTotal),
-        createdAt: serverTimestamp()
-      };
-
-      const reversalDocRef = doc(collection(db, `shops/${shopId}/bills`));
-      batch.set(reversalDocRef, payload);
+        reversedAt: serverTimestamp(),
+        reversedBy: user.uid
+      });
 
       if (originalBill.items && Array.isArray(originalBill.items)) {
         originalBill.items.forEach(item => {
           if (item.name && item.catalogId) {
              const catalogRef = doc(db, `shops/${shopId}/catalog`, item.catalogId);
-             // We can only increment stock if we actually kept the state.
-             // We'll increment frequency down at least.
              batch.update(catalogRef, { frequency: increment(-1) });
           }
         });
@@ -120,13 +117,7 @@ const fetchBills = useCallback(async (isNextPage = false) => {
 
       await batch.commit();
 
-      const optimisticReversal = {
-        id: reversalDocRef.id,
-        ...payload,
-        createdAt: { toDate: () => new Date() }
-      };
-
-      setBills(prev => [optimisticReversal, ...prev]);
+      setBills(prev => prev.map(b => b.id === originalBill.id ? { ...b, type: 'reversal', reversedBy: user.uid, reversedAt: new Date() } : b));
       if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate([50, 30, 50]);
     } catch (err) {
       console.error(err);
