@@ -1,6 +1,9 @@
 import { createHashRouter, RouterProvider, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useState, useEffect } from 'react';
+import { getAllData, deleteData } from './lib/idb';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from './firebase';
 import { AnimatePresence, motion } from 'framer-motion';
 
 import SignIn from './pages/SignIn';
@@ -21,6 +24,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 const ProtectedRoute = ({ children, requireNoShop = false }) => {
   const { user, hasShop } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
+  if (hasShop === null) return null; // Wait for resolving shop status
   if (requireNoShop && hasShop) return <Navigate to="/dashboard" replace />;
   if (!requireNoShop && hasShop === false) return <Navigate to="/setup" replace />;
   return children;
