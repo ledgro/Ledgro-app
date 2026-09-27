@@ -166,7 +166,7 @@ export default function PLScreen() {
             return;
           } catch (_err) { return null; }
         }
-        const text = encodeURIComponent(`P&L Report from ${shopName || 'Shop'}\nNet Earnings: ₹${data.netEarnings}`);
+        const text = encodeURIComponent(`Trading and P&L Account from ${shopName || 'Shop'}\nNet Earnings: ₹${data.netEarnings}`);
         window.open(`https://wa.me/?text=${text}`, '_blank');
       }, 'image/png');
     } catch (err) {
@@ -180,7 +180,7 @@ export default function PLScreen() {
   const handleExportPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(20);
-    doc.text(`${shopName || 'Ledgro Shop'} - P&L Report`, 20, 20);
+    doc.text(`${shopName || 'Ledgro Shop'} - Trading & P&L Account`, 20, 20);
 
     doc.setFontSize(12);
     const dateStr = dateRangeType === 'custom' && dateRange.from
@@ -212,7 +212,7 @@ export default function PLScreen() {
            <Link to="/dashboard" className="p-1 -ml-1 text-slate-500 hover:text-slate-900 rounded-full hover:bg-slate-100 transition-colors">
               <ChevronLeft size={24} />
            </Link>
-           <h1 className="text-xl font-bold text-slate-900">Profit & Loss</h1>
+           <h1 className="text-xl font-bold text-slate-900">Trading & P&L Account</h1>
         </div>
         <div className="flex gap-2">
           <button onClick={handleShare} disabled={loading || isExporting} className="p-2 text-blue-600 bg-blue-50 rounded-full"><Share2 size={18} /></button>
