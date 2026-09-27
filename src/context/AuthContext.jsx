@@ -6,6 +6,7 @@ import { auth, googleProvider, db } from '../firebase';
 import SplashScreen from '../components/SplashScreen';
 
 const AuthContext = createContext();
+const SESSION_DURATION = 3 * 24 * 60 * 60 * 1000; // 3 days in ms
 
 export const useAuth = () => useContext(AuthContext);
 
@@ -21,6 +22,16 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        const loginTime = localStorage.getItem('lastLoginTime');
+        if (loginTime && Date.now() - parseInt(loginTime) > SESSION_DURATION) {
+          firebaseSignOut(auth);
+          localStorage.removeItem('lastLoginTime');
+          return;
+        } else if (!loginTime) {
+          localStorage.setItem('lastLoginTime', Date.now().toString());
+        }
+      }
       setUser(currentUser);
       if(currentUser) {
         sessionGuard.bindSession(currentUser.uid);

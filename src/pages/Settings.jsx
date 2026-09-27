@@ -16,8 +16,7 @@ function csvEscape(value) {
 }
 
 export default function Settings() {
-  const billCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
-  const { user, shopId, signOut } = useAuth();
+    const { user, shopId, signOut } = useAuth();
   const navigate = useNavigate();
 
   // Shop Profile State
@@ -30,8 +29,7 @@ export default function Settings() {
   // App Preferences State (localStorage)
   const [defaultPayment, setDefaultPayment] = useState(() => localStorage.getItem('ledgro_defaultPayment') || 'cash');
   const [hapticFeedback, setHapticFeedback] = useState(() => localStorage.getItem('ledgro_haptic') !== 'false');
-  const [theme, setTheme] = useState(() => localStorage.getItem('ledgro-theme') || 'system');
-  const [autoReset, setAutoReset] = useState(() => localStorage.getItem('ledgro_autoReset') !== 'false');
+    const [autoReset, setAutoReset] = useState(() => localStorage.getItem('ledgro_autoReset') !== 'false');
 
 
 

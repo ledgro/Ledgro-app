@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { collection, addDoc, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 
@@ -54,39 +55,15 @@ const ShopSetup = () => {
       setLoading(true);
       setError('');
 
-      const inviteRef = doc(db, 'invites', code);
-      const inviteSnap = await getDoc(inviteRef);
+      const functions = getFunctions();
+      const acceptInvite = httpsCallable(functions, 'acceptInviteCallable');
+      const result = await acceptInvite({ inviteCode: code });
 
-      if (!inviteSnap.exists()) {
-        throw new Error("Invalid or expired code.");
+      if (result.data.success) {
+         setShopId(result.data.shopId);
+         setHasShop(true);
+         navigate('/dashboard');
       }
-
-      const data = inviteSnap.data({ serverTimestamps: 'estimate' });
-      if (new Date() > data.expiresAt.toDate()) {
-        throw new Error("This code has expired.");
-      }
-
-      // Update the invite document to signal the creator's client
-      await updateDoc(inviteRef, {
-        claimedBy: user.uid
-      });
-
-
-      let retries = 0;
-      const poll = setInterval(async () => {
-        retries++;
-        const shopSnap = await getDoc(doc(db, 'shops', data.shopId));
-        if (shopSnap.exists() && shopSnap.data({ serverTimestamps: 'estimate' }).members?.[user.uid]) {
-          clearInterval(poll);
-          setShopId(data.shopId);
-          setHasShop(true);
-          navigate('/dashboard');
-        } else if (retries > 10) {
-          clearInterval(poll);
-          setError("Timeout waiting for shop creator to process. Please try logging in again.");
-          setLoading(false);
-        }
-      }, 1000);
 
     } catch (err) {
       console.error(err);
