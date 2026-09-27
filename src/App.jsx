@@ -118,6 +118,34 @@ const router = createHashRouter([
 ]);
 
 export default function App() {
+  useEffect(() => {
+    const handleOnline = async () => {
+       const pending = await getAllData('pendingBills');
+       for (const bill of pending) {
+          try {
+             await setDoc(doc(db, bill.path), bill.data);
+             await deleteData('pendingBills', bill.id);
+          } catch(e) { console.error('Failed to sync bill', e); }
+       }
+    };
+
+    window.addEventListener('online', handleOnline);
+
+    // Aggressive sync if not persisted
+    let intervalId;
+    if (navigator.storage && navigator.storage.persist) {
+       navigator.storage.persist().then(granted => {
+          if(!granted) {
+             intervalId = setInterval(handleOnline, 15000); // Aggressive 15s sync
+          }
+       });
+    }
+
+    return () => {
+       window.removeEventListener('online', handleOnline);
+       if (intervalId) clearInterval(intervalId);
+    };
+  }, []);
   return (
     <AuthProvider>
       <ErrorBoundary>

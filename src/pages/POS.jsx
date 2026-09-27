@@ -208,7 +208,11 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
         }
       });
 
-      await batch.commit();
+      if (!navigator.onLine) {
+          await putData('pendingBills', { id: newBillRef.id, path: `shops/${shopId}/bills/${newBillRef.id}`, data: newBill });
+      } else {
+          await batch.commit();
+      }
 
       if (localStorage.getItem('ledgro_haptic') !== 'false') {
         hapticVibrate([50, 30, 50]);
