@@ -7,6 +7,7 @@ export function cn(...inputs) {
 }
 
 export function formatCurrency(amount) {
+  amount = amount / 100;
   return '₹' + (amount || 0).toLocaleString('en-IN', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2

@@ -118,7 +118,7 @@ export default function Products() {
 
       const payload = {
         name: sanitizeText(name.trim()),
-        lastUsedPrice: unitPrice,
+        lastUsedPrice: unitPrice * 100,
         unit: unit,
         stockCount: stockNum,
         lowStockAlert: alertNum,

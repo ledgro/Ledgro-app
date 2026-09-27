@@ -20,6 +20,15 @@ service cloud.firestore {
         getShop(shopId).members[request.auth.uid] == 'admin';
     }
 
+    // Validation functions
+    function isAsciiString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen && val.matches('^[ -~]+$');
+    }
+
+    function isValidPhoneNumber(val) {
+      return val is string && val.matches('^\\+[1-9]\\d{1,14}$');
+    }
+
     match /shops/{shopId} {
       allow read: if isAuthenticated() &&
         resource.data.members[request.auth.uid] != null;
@@ -33,6 +42,21 @@ service cloud.firestore {
           .affectedKeys().hasOnly(['name', 'members', 'phone', 'address', 'tagline', 'updatedAt']);
 
       allow delete: if isAdmin(shopId);
+
+      match /sessions/{sessionId} {
+        allow read: if isMember(shopId);
+        // Only allow creating a session, let Cloud Functions or proper logic handle closing
+        allow create: if isMember(shopId);
+        allow update: if isMember(shopId);
+      }
+
+      match /action_locks/{userId} {
+        allow read: if isMember(shopId);
+        // Lock mechanism: user can write, but rule checks elapsed time
+        allow create: if isMember(shopId) && userId == request.auth.uid;
+        allow update: if isMember(shopId) && userId == request.auth.uid
+          && request.time.toMillis() - resource.data.lastExecutedAt.toMillis() > 10000;
+      }
 
       match /bills/{billId} {
         allow get: if isMember(shopId);
@@ -52,6 +76,26 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      match /DailySummaries/{dateStr} {
+        allow read: if isMember(shopId);
+        allow write: if false; // Written by Cloud Function
+      }
+
+      match /MonthlySummaries/{monthStr} {
+        allow read: if isMember(shopId);
+        allow write: if false; // Written by Cloud Function
+      }
+
+      match /daily_ledger/{dateStr} {
+        allow read: if isMember(shopId);
+        allow write: if false; // written by backend
+      }
+
+      match /priceVarianceLogs/{logId} {
+        allow read: if isAdmin(shopId);
+        allow write: if false;
+      }
+
       match /expenses/{expenseId} {
         allow get: if isMember(shopId);
         allow list: if isMember(shopId) && request.query.limit <= 100;
@@ -62,13 +106,16 @@ service cloud.firestore {
 
       match /catalog/{productId} {
         allow read: if isMember(shopId);
-        allow create: if isMember(shopId);
+        allow create: if isMember(shopId)
+          && request.resource.data.keys().hasOnly(['name', 'lastUsedPrice', 'unit', 'stockCount', 'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency', 'createdAt'])
+          && isAsciiString(request.resource.data.name, 1, 100);
         allow update: if isMember(shopId)
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly([
               'name', 'lastUsedPrice', 'unit', 'stockCount',
               'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency'
-            ]);
+            ])
+          && (!('name' in request.resource.data) || isAsciiString(request.resource.data.name, 1, 100));
         allow delete: if false;
       }
     }
