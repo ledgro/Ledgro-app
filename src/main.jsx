@@ -1,3 +1,29 @@
+// Stash cart to localStorage on preload error
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault();
+
+  // Save current cart state before reload
+  const cartState = window.__LEDGRO_CART_STATE__;
+  if (cartState && cartState.items?.length > 0) {
+    localStorage.setItem('ledgro-cart-recovery', JSON.stringify({
+      items: cartState.items,
+      globalDiscount: cartState.globalDiscount,
+      savedAt: new Date().toISOString()
+    }));
+  }
+
+  // Defer reload — don't interrupt if checkout is in progress
+  const isCheckingOut = window.__LEDGRO_CHECKOUT_ACTIVE__;
+  if (!isCheckingOut) {
+    window.location.reload();
+  } else {
+    // Wait for checkout to complete then reload
+    window.addEventListener('ledgro:checkout-complete', () => {
+      window.location.reload();
+    }, { once: true });
+  }
+});
+
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'

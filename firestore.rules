@@ -46,7 +46,9 @@ service cloud.firestore {
       match /sessions/{sessionId} {
         allow read: if isMember(shopId);
         // Only allow creating a session, let Cloud Functions or proper logic handle closing
-        allow create: if isMember(shopId);
+        allow create: if isMember(shopId)
+          && request.resource.data.amount >= 0
+          && request.resource.data.description.size() <= 200;
         allow update: if isMember(shopId);
       }
 
@@ -63,7 +65,8 @@ service cloud.firestore {
         allow list: if isMember(shopId) && request.query.limit <= 100;
 
         allow create: if isMember(shopId)
-          && request.resource.data.creatorId == request.auth.uid;
+          && request.resource.data.creatorId == request.auth.uid
+          && request.resource.data.items.size() <= 100;
 
         allow update: if isMember(shopId)
           && resource.data.type != 'reversal'
@@ -110,12 +113,15 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['name', 'lastUsedPrice', 'unit', 'stockCount', 'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency', 'createdAt'])
           && isAsciiString(request.resource.data.name, 1, 100);
         allow update: if isMember(shopId)
+          && request.resource.data.stockCount >= 0
+          && request.resource.data.lastUsedPrice >= 0
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 100
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly([
               'name', 'lastUsedPrice', 'unit', 'stockCount',
               'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency'
-            ])
-          && (!('name' in request.resource.data) || isAsciiString(request.resource.data.name, 1, 100));
+            ]);
         allow delete: if false;
       }
     }

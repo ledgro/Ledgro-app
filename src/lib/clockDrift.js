@@ -1,3 +1,4 @@
+// Measure clock drift
 export async function measureClockDrift() {
   try {
     const start = Date.now();

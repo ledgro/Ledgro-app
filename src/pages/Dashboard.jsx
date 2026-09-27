@@ -185,6 +185,16 @@ export default function Dashboard() {
   }, [fetchDashboardData]);
 
   useEffect(() => {
+    checkStorageHealth().then(health => {
+      if (health?.isCritical) {
+        toast.error(`Storage almost full (${health.usagePercent.toFixed(0)}% used). Export your data soon.`);
+      } else if (health?.isWarning) {
+        toast.warning(`Storage at ${health.usagePercent.toFixed(0)}%. Consider exporting data.`);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
     const checkSync = () => {
       setSyncStatus(prev => ({ ...prev, online: navigator.onLine }));
       // Normally we'd use onSnapshot metadata.hasPendingWrites, but since we're using REST/Promises we check basic connectivity.

@@ -134,20 +134,50 @@ export const calculateBillTotals = (state) => {
     };
   });
 
-  // Calculate global discount
+  // Calculate global discount (everything is in paise)
   let globalDiscountAmt = 0;
   if (state.globalDiscount.type === 'percent') {
-    globalDiscountAmt = (subtotal * state.globalDiscount.value) / 100;
+    globalDiscountAmt = Math.round((subtotal * state.globalDiscount.value) / 100);
   } else {
-    globalDiscountAmt = state.globalDiscount.value;
+    globalDiscountAmt = state.globalDiscount.value; // Already in paise via UI
+  }
+
+  // Allocate global discount across line items using Largest Remainder Method
+  let allocatedItems = [...processedItems];
+  if (globalDiscountAmt > 0 && subtotal > 0) {
+      const exact = processedItems.map(item => ({
+        ...item,
+        exactDiscount: (item.finalLineTotal / subtotal) * globalDiscountAmt
+      }));
+
+      allocatedItems = exact.map(item => ({
+        ...item,
+        allocatedGlobalDiscount: Math.floor(item.exactDiscount)
+      }));
+
+      const allocatedSum = allocatedItems.reduce((sum, item) => sum + item.allocatedGlobalDiscount, 0);
+      let remainder = globalDiscountAmt - allocatedSum;
+
+      const withFractions = allocatedItems
+        .map((item, i) => ({ ...item, fraction: exact[i].exactDiscount - Math.floor(exact[i].exactDiscount), index: i }))
+        .sort((a, b) => b.fraction - a.fraction);
+
+      for (let i = 0; i < remainder; i++) {
+        if(withFractions[i]) allocatedItems[withFractions[i].index].allocatedGlobalDiscount += 1;
+      }
+
+      allocatedItems = allocatedItems.map(item => ({
+         ...item,
+         finalLineTotal: Math.max(0, item.finalLineTotal - (item.allocatedGlobalDiscount || 0))
+      }));
   }
 
   const grandTotal = Math.max(0, subtotal - globalDiscountAmt);
 
   return {
-    items: processedItems,
+    items: allocatedItems,
     subtotal,
     globalDiscountAmt,
-    grandTotal: Math.round(grandTotal) // Final safeguard rounding
+    grandTotal // already integer
   };
 };
