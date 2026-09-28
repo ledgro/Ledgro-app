@@ -26,7 +26,13 @@ export class ErrorBoundary extends Component {
             Please refresh the app to continue
           </p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              if(window.confirm('Clear local cache? This will reset the app but offline data may be lost.')) {
+                 window.location.reload(true);
+              } else {
+                 window.location.reload();
+              }
+            }}
             className="bg-blue-600 text-white px-6 py-3 rounded-xl font-medium"
           >
             Refresh App
