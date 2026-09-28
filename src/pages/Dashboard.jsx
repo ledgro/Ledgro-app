@@ -38,9 +38,7 @@ export default function Dashboard() {
 
 
   // Stats
-  const [alerts, setAlerts] = useState([]);
-  const [varianceLogs, setVarianceLogs] = useState([]);
-  const [stats, setStats] = useState({
+    const [stats, setStats] = useState({
     expectedCash: 0,
     upiInBank: 0,
     netEarnings: 0,
