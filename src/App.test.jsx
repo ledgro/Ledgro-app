@@ -12,7 +12,9 @@ vi.mock('firebase/auth', () => ({
     return vi.fn(); // return an unsubscribe function
   }),
   signInWithPopup: vi.fn(),
-  signOut: vi.fn()
+  signOut: vi.fn(),
+  setPersistence: vi.fn().mockResolvedValue(),
+  indexedDBLocalPersistence: { type: 'INDEXED_DB' }
 }));
 
 vi.mock('firebase/firestore', () => ({

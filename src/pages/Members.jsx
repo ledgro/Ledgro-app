@@ -215,6 +215,7 @@ export default function Members() {
        if (window.confirm("You are the only member. This will permanently delete the shop. Continue?")) {
           try {
              await deleteDoc(doc(db, 'shops', shopId));
+             broadcastSessionTerminated();
              await handleWipeAndExit();
           } catch (_err) {
              toast.error("Failed to delete shop.");

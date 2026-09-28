@@ -40,6 +40,30 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
   const addCatalogItem = useCatalogStore((state) => state.addItem);
 
   const [state, dispatch] = useReducer(billReducer, initialBillState);
+
+  // Stash state for survival
+  useEffect(() => {
+    window.__LEDGRO_CART_STATE__ = state;
+    window.__LEDGRO_CHECKOUT_ACTIVE__ = isCheckingOut;
+  }, [state, isCheckingOut]);
+
+  // Restore logic
+  useEffect(() => {
+    const recovered = localStorage.getItem('ledgro-cart-recovery');
+    if (recovered) {
+      try {
+        const { items, globalDiscount, savedAt } = JSON.parse(recovered);
+        const ageMs = Date.now() - new Date(savedAt).getTime();
+        if (ageMs < 5 * 60 * 1000) { // Only restore if less than 5 mins old
+          dispatch({ type: 'INIT_FROM_EDIT', payload: { items, globalDiscount } });
+          toast.success('Cart restored after app update');
+        }
+        localStorage.removeItem('ledgro-cart-recovery');
+      } catch (e) {
+        localStorage.removeItem('ledgro-cart-recovery');
+      }
+    }
+  }, []);
   const receiptRef = useRef(null);
   const springTotal = useSpring(grandTotal, { stiffness: 200, damping: 20 });
 

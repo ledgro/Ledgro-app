@@ -7,6 +7,7 @@ import BottomNav from '../components/BottomNav';
 import { Store, Settings2, Database, User, LogOut, ChevronLeft, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { hapticVibrate } from '../lib/utils';
+import { broadcastSessionTerminated } from '../lib/sessionBroadcast';
 import { getDocs, collection } from 'firebase/firestore';
 import { format } from 'date-fns';
 

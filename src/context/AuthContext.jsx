@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
-import { sessionGuard } from '../lib/SessionGuard';
+import { listenForSessionEvents } from '../lib/sessionBroadcast';
+import { terminate } from 'firebase/firestore';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../firebase';
 import SplashScreen from '../components/SplashScreen';
@@ -19,6 +20,23 @@ export const AuthProvider = ({ children }) => {
   const [shopId, setShopId] = useState(null);
   const [shopAdminId, setShopAdminId] = useState(null);
   const [shopName, setShopName] = useState('');
+
+  useEffect(() => {
+    const cleanup = listenForSessionEvents(
+      async () => {
+        try {
+          await firebaseSignOut(auth);
+          window.location.href = '/';
+        } catch(e){}
+      },
+      (uid) => {
+        if (auth.currentUser && auth.currentUser.uid !== uid) {
+          firebaseSignOut(auth);
+        }
+      }
+    );
+    return cleanup;
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -94,8 +112,20 @@ export const AuthProvider = ({ children }) => {
     return <div className="min-h-screen flex items-center justify-center bg-red-50 text-red-900 font-bold p-6 text-center">SESSION LOCKED. Please refresh the page.</div>;
   }
 
-  const signInWithGoogle = () => {
-    return signInWithPopup(auth, googleProvider);
+  const signInWithGoogle = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      if (error.code === 'auth/account-exists-with-different-credential') {
+         throw new Error("An account already exists with this email using a different sign-in method. Please sign in using your original provider.");
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        // User closed popup — silent, no error shown
+      } else if (error.code === 'auth/popup-blocked') {
+        throw new Error('Popup blocked. Please allow popups for this site.');
+      } else {
+        throw new Error('Sign-in failed. Please try again.');
+      }
+    }
   };
 
   const signOut = () => {
