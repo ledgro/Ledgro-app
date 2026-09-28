@@ -7,6 +7,7 @@ import BottomNav from '../components/BottomNav';
 import { Store, Settings2, Database, User, LogOut, ChevronLeft, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { hapticVibrate } from '../lib/utils';
+import { broadcastSessionTerminated } from '../lib/sessionBroadcast';
 import { getDocs, collection } from 'firebase/firestore';
 import { format } from 'date-fns';
 
@@ -55,6 +56,17 @@ export default function Settings() {
   }, [shopId]);
 
   // Sync preferences to localStorage
+
+  const handleThemeChange = (newTheme) => {
+    setTheme(newTheme);
+    localStorage.setItem('ledgro-theme', newTheme);
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (newTheme === 'dark' || (newTheme === 'system' && prefersDark)) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('ledgro_defaultPayment', defaultPayment);

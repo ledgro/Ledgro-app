@@ -38,6 +38,8 @@ export default function Dashboard() {
 
 
   // Stats
+  const [alerts, setAlerts] = useState([]);
+  const [varianceLogs, setVarianceLogs] = useState([]);
   const [stats, setStats] = useState({
     expectedCash: 0,
     upiInBank: 0,
@@ -59,7 +61,6 @@ export default function Dashboard() {
     const isStandalone = window.navigator.standalone === true;
     const hasPrompted = localStorage.getItem('iosInstallPromptDismissed');
     if (isIOS && !isStandalone && !hasPrompted) {
-      // oxlint-disable-next-line react/set-state-in-effect
       setShowIOSPrompt(true);
     }
   }, []);
@@ -180,7 +181,6 @@ export default function Dashboard() {
   }, [shopId]);
 
   useEffect(() => {
-    // oxlint-disable-next-line react/set-state-in-effect
     fetchDashboardData();
   }, [fetchDashboardData]);
 
@@ -229,7 +229,7 @@ export default function Dashboard() {
       toast("Day locked and summary saved!");
       setIsCloseDrawerOpen(false);
       fetchDashboardData();
-    } catch {
+    } catch (_err) {
       toast.error("Failed to close register.");
     } finally {
       setIsClosingRecord(false);

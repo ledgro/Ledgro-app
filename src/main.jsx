@@ -48,7 +48,7 @@ const updateSW = registerSW({
     window.location.reload(true)
   },
   onOfflineReady() {
-    console.info('App ready to work offline')
+    console.log('App ready to work offline')
   },
 })
 
