@@ -69,11 +69,13 @@ export const AuthProvider = ({ children }) => {
           if (!adminSnap.empty) {
             setHasShop(true);
             setShopId(adminSnap.docs[0].id);
+            localStorage.setItem('ledgro_offline_shopId', adminSnap.docs[0].id);
             setShopAdminId(adminSnap.docs[0].data({ serverTimestamps: 'estimate' }).ownerId);
             setShopName(adminSnap.docs[0].data({ serverTimestamps: 'estimate' }).name);
           } else if (!memberSnap.empty) {
             setHasShop(true);
             setShopId(memberSnap.docs[0].id);
+            localStorage.setItem('ledgro_offline_shopId', memberSnap.docs[0].id);
             setShopAdminId(memberSnap.docs[0].data({ serverTimestamps: 'estimate' }).ownerId);
             setShopName(memberSnap.docs[0].data({ serverTimestamps: 'estimate' }).name);
           } else {
@@ -84,8 +86,15 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (error) {
           console.error("Error checking for shop:", error);
-          setHasShop(false);
-          setShopId(null);
+          // If offline and error occurs, check if we have a cached shopId locally to fallback to
+          const cachedShopId = localStorage.getItem('ledgro_offline_shopId');
+          if (cachedShopId && !navigator.onLine) {
+             setHasShop(true);
+             setShopId(cachedShopId);
+          } else {
+             setHasShop(false);
+             setShopId(null);
+          }
         }
       } else {
         setHasShop(null);

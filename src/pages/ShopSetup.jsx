@@ -34,6 +34,7 @@ const ShopSetup = () => {
       });
 
       setShopId(docRef.id);
+      localStorage.setItem('ledgro_offline_shopId', docRef.id);
       setHasShop(true);
       navigate('/dashboard');
     } catch (err) {
@@ -61,6 +62,7 @@ const ShopSetup = () => {
 
       if (result.data.success) {
          setShopId(result.data.shopId);
+         localStorage.setItem('ledgro_offline_shopId', result.data.shopId);
          setHasShop(true);
          navigate('/dashboard');
       }
