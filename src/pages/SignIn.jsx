@@ -19,6 +19,7 @@ const SignIn = () => {
       ua.indexOf('WhatsApp') > -1 ||
       ua.indexOf('Instagram') > -1
     ) {
+      // oxlint-disable-next-line react/set-state-in-effect
       setIsInAppBrowser(true);
 
       // Basic OS detection for better messaging

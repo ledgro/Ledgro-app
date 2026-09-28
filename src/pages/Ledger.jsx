@@ -77,11 +77,13 @@ const fetchBills = useCallback(async (isNextPage = false) => {
   }, [shopId, lastDoc, hasMore]); // Removed 'loading' from dependencies
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect
     if (shopId) fetchBills();
   }, [shopId, fetchBills]);
 
   useEffect(() => {
     if (inView && hasMore && !loading) {
+      // oxlint-disable-next-line react/set-state-in-effect
       fetchBills(true);
     }
   }, [inView, hasMore, loading, fetchBills]);

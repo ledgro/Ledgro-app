@@ -244,7 +244,7 @@ const handleWipeAndExit = async () => {
        await terminate(db);
        await clearIndexedDbPersistence(db);
     } catch(e) {
-       console.log('IndexedDB clear skipped or failed', e);
+       console.warn('IndexedDB clear skipped or failed', e);
     }
     await signOut();
   };
