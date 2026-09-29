@@ -21,7 +21,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-let appCheck = null;
+export let appCheck = null;
 if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
   appCheck = initializeAppCheck(app, {
     provider: new CustomProvider({

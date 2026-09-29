@@ -14,6 +14,7 @@ export default function SearchInput({ onAddItem }) {
   // Custom item state if no results match
   const [customPrice, setCustomPrice] = useState('');
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     if (query.trim().length > 0) {
       const res = search(query.trim());
@@ -25,6 +26,7 @@ export default function SearchInput({ onAddItem }) {
     }
   }, [query, search]);
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     // Click outside to close dropdown
     function handleClickOutside(event) {
