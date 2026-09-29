@@ -333,10 +333,10 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Staff Performance */}
+            {/* Member Performance */}
             {Object.keys(stats.staffCount).length > 0 && (
               <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Staff Performance</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Member Performance</p>
                 <div className="space-y-2">
                   {Object.entries(stats.staffCount).map(([uid, count]) => (
                     <div key={uid} className="flex justify-between items-center text-sm font-semibold">
