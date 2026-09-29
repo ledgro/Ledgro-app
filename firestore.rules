@@ -66,7 +66,14 @@ service cloud.firestore {
 
         allow create: if isMember(shopId)
           && request.resource.data.creatorId == request.auth.uid
-          && request.resource.data.items.size() <= 100;
+          && request.resource.data.items is list
+          && request.resource.data.items.size() <= 100
+          && request.resource.data.subtotal is number
+          && request.resource.data.subtotal >= 0
+          && request.resource.data.grandTotal is number
+          && request.resource.data.grandTotal >= 0
+          && request.resource.data.paymentMethod is string
+          && request.resource.data.paymentMethod in ['cash', 'upi', 'split'];
 
         allow update: if isMember(shopId)
           && resource.data.type != 'reversal'
@@ -102,9 +109,24 @@ service cloud.firestore {
       match /expenses/{expenseId} {
         allow get: if isMember(shopId);
         allow list: if isMember(shopId) && request.query.limit <= 100;
-        allow create: if isMember(shopId);
-        allow update, delete: if isAdmin(shopId)
-          || resource.data.creatorId == request.auth.uid;
+
+        allow create: if isMember(shopId)
+          && request.resource.data.keys().hasAll(['amount', 'category', 'description', 'creatorId'])
+          && request.resource.data.amount is number
+          && request.resource.data.amount >= 0
+          && request.resource.data.category is string
+          && request.resource.data.category.size() <= 50
+          && request.resource.data.description is string
+          && request.resource.data.description.size() <= 200
+          && request.resource.data.creatorId == request.auth.uid;
+
+        allow update: if (isAdmin(shopId) || resource.data.creatorId == request.auth.uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amount', 'category', 'description', 'updatedAt'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount']) || (request.resource.data.amount is number && request.resource.data.amount >= 0))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['category']) || (request.resource.data.category is string && request.resource.data.category.size() <= 50))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['description']) || (request.resource.data.description is string && request.resource.data.description.size() <= 200));
+
+        allow delete: if isAdmin(shopId) || resource.data.creatorId == request.auth.uid;
       }
 
       match /catalog/{productId} {
