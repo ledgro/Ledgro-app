@@ -298,7 +298,7 @@ export default function Products() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 pb-32">
+            <div className="flex-1 overflow-y-auto p-4 pb-48 relative">
               <form id="product-form" onSubmit={handleSaveProduct} className="space-y-6">
 
                 {/* Basic Details */}
@@ -308,8 +308,8 @@ export default function Products() {
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Product Name *</label>
                     <input
-                      type="text" required value={name} onChange={(e) => setName(e.target.value)}
-                      className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium"
+                      type="text" required value={name} onChange={(e) => setName(e.target.value)} maxLength={99}
+                      className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
                       placeholder="e.g. Aashirvaad Atta 5kg"
                       autoFocus
                     />
@@ -320,8 +320,8 @@ export default function Products() {
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
                       <input
-                        type="number" inputMode="decimal" step="0.01" required value={price} onChange={(e) => setPrice(e.target.value)}
-                        className="w-full pl-8 pr-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
+                        type="number" inputMode="decimal" step="0.01" required value={price} onChange={(e) => setPrice(e.target.value.slice(0, 10))} maxLength={99}
+                        className="w-full pl-8 pr-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold text-slate-900"
                         placeholder="0.00"
                       />
                     </div>
@@ -355,8 +355,8 @@ export default function Products() {
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Stock Count</label>
                     <div className="flex gap-2">
                        <input
-                         type="number" inputMode="decimal" step="0.01" value={stockCount} onChange={(e) => setStockCount(e.target.value)}
-                         className="flex-1 px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium"
+                         type="number" inputMode="decimal" step="0.01" value={stockCount} onChange={(e) => setStockCount(e.target.value.slice(0, 10))} maxLength={10}
+                         className="flex-1 px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
                          placeholder="Current exact count"
                        />
                        <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
@@ -372,8 +372,8 @@ export default function Products() {
                       <div className="flex items-center gap-3">
                          <span className="text-sm text-slate-500 font-medium">Alert me when stock falls below</span>
                          <input
-                           type="number" inputMode="decimal" step="1" value={lowStockAlert} onChange={(e) => setLowStockAlert(e.target.value)}
-                           className="w-16 px-2 text-center h-10 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold"
+                           type="number" inputMode="decimal" step="1" value={lowStockAlert} onChange={(e) => setLowStockAlert(e.target.value.slice(0, 10))} maxLength={10}
+                           className="w-16 px-2 text-center h-10 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold text-slate-900"
                            placeholder="0"
                          />
                          <span className="text-sm text-slate-500 font-medium">items</span>
@@ -388,8 +388,8 @@ export default function Products() {
                 <div className="space-y-3">
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Category</h3>
                   <input
-                    type="text" value={category} onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium"
+                    type="text" value={category} onChange={(e) => setCategory(e.target.value)} maxLength={99}
+                    className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
                     placeholder="Enter or select a category"
                   />
                   <div className="flex flex-wrap gap-2">
