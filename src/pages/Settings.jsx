@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { getAllData } from '../lib/idb';
 import BottomNav from '../components/BottomNav';
 import { Store, Settings2, Database, User, LogOut, ChevronLeft, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -48,8 +49,8 @@ export default function Settings() {
           setPhone(data.phone || '');
           setTagline(data.tagline || '');
         }
-      } catch (err) {
-        console.error("Failed to load shop profile", err);
+      } catch (_err) {
+        console.error("Failed to load shop profile", _err);
       }
     };
     fetchShopProfile();
@@ -89,8 +90,8 @@ export default function Settings() {
       });
       if (hapticFeedback) hapticVibrate([50, 30, 50]);
       toast("Shop profile saved!");
-    } catch (err) {
-      console.error(err);
+    } catch (_err) {
+      console.error(_err);
       if (hapticFeedback) hapticVibrate([100, 50, 100]);
       toast.error("Failed to save profile.");
     } finally {
@@ -170,9 +171,31 @@ export default function Settings() {
          downloadFile(rawData, `ledgro_backup_${Date.now()}.json`, 'application/json');
       }, 2000);
 
-    } catch (err) {
-      console.error(err);
+    } catch (_err) {
+      console.error(_err);
       toast.error("Failed to export data.");
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (!navigator.onLine) {
+      toast.error("Cannot sign out while offline. Please connect to the internet to sync.");
+      return;
+    }
+    try {
+      const pending = await getAllData('pendingBills');
+      if (pending && pending.length > 0) {
+        toast.error("Cannot sign out with pending bills. Please connect to the internet to sync.");
+        return;
+      }
+    } catch (e) {
+      console.error("Error checking pending bills", e);
+    }
+
+    try {
+      await signOut();
+    } catch (_err) {
+      toast.error("Failed to sign out.");
     }
   };
 
@@ -300,7 +323,7 @@ export default function Settings() {
                <p className="text-xs text-slate-500">Logged in via Google</p>
              </div>
            </div>
-           <button onClick={signOut} className="w-full bg-red-50 text-red-600 font-bold h-12 rounded-xl flex items-center justify-center gap-2 active:bg-red-100 transition-colors">
+           <button onClick={handleSignOut} className="w-full bg-red-50 text-red-600 font-bold h-12 rounded-xl flex items-center justify-center gap-2 active:bg-red-100 transition-colors">
              <LogOut size={18} /> Sign Out
            </button>
         </section>

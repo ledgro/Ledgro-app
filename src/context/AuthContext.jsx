@@ -63,7 +63,16 @@ export const AuthProvider = ({ children }) => {
             // Fast path: fetch direct doc if we have it to avoid rules blocking full collection queries
             try {
               const shopDocRef = doc(db, 'shops', cachedShopId);
-              const shopSnap = await getDoc(shopDocRef);
+              let shopSnap;
+              try {
+                // Fast path: fetch direct doc from cache first
+                shopSnap = await getDoc(shopDocRef, { source: 'cache' });
+              } catch (cacheError) {
+                console.warn("Cache miss for shop doc, falling back to network getDoc.");
+                // Fallback to network if cache misses
+                shopSnap = await getDoc(shopDocRef);
+              }
+
               if (shopSnap.exists()) {
                 const data = shopSnap.data({ serverTimestamps: 'estimate' });
                 // Check if user is actually a member of this shop
