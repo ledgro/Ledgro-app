@@ -1,6 +1,7 @@
 import { toast } from 'sonner';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { checkStorageHealth } from '../lib/storageHealth';
 import { collection, query, where, getDocs, limit, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
