@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, setPersistence, indexedDBLocalPersistence } from 'firebase/auth';
 import { listenForSessionEvents } from '../lib/sessionBroadcast';
 import { sessionGuard } from '../lib/SessionGuard';
 import { terminate } from 'firebase/firestore';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../firebase';
 import SplashScreen from '../components/SplashScreen';
 
@@ -58,9 +58,30 @@ export const AuthProvider = ({ children }) => {
 
       if (currentUser) {
         try {
+          const cachedShopId = localStorage.getItem('ledgro_offline_shopId');
+          if (cachedShopId) {
+            // Fast path: fetch direct doc if we have it to avoid rules blocking full collection queries
+            try {
+              const shopDocRef = doc(db, 'shops', cachedShopId);
+              const shopSnap = await getDoc(shopDocRef);
+              if (shopSnap.exists()) {
+                const data = shopSnap.data({ serverTimestamps: 'estimate' });
+                // Check if user is actually a member of this shop
+                if (data.ownerId === currentUser.uid || (data.members && data.members[currentUser.uid])) {
+                  setHasShop(true);
+                  setShopId(cachedShopId);
+                  setShopAdminId(data.ownerId);
+                  setShopName(data.name);
+                  setLoading(false);
+                  return; // We're done
+                }
+              }
+            } catch (fastPathError) {
+              console.warn("Direct fetch failed, falling back to query.", fastPathError);
+            }
+          }
+
           const shopsRef = collection(db, 'shops');
-
-
 
           const qAdmin = query(shopsRef, where('ownerId', '==', currentUser.uid));
           const qMember = query(shopsRef, where(`members.${currentUser.uid}`, 'in', ['admin', 'member']));
@@ -124,6 +145,11 @@ export const AuthProvider = ({ children }) => {
 
   const signInWithGoogle = async () => {
     try {
+      try {
+        await setPersistence(auth, indexedDBLocalPersistence);
+      } catch (err) {
+        console.warn('IndexedDB persistence unavailable:', err);
+      }
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       if (error.code === 'auth/account-exists-with-different-credential') {
