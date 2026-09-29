@@ -25,9 +25,7 @@ service cloud.firestore {
       return val is string && val.size() >= minLen && val.size() <= maxLen && val.matches('^[ -~]+$');
     }
 
-    function isValidPhoneNumber(val) {
-      return val is string && val.matches('^\\+[1-9]\\d{1,14}$');
-    }
+
 
     match /shops/{shopId} {
       allow read: if isAuthenticated() &&
@@ -37,27 +35,37 @@ service cloud.firestore {
         request.resource.data.members[request.auth.uid] == 'admin' &&
         request.resource.data.members.size() == 1;
 
-      allow update: if isAdmin(shopId)
-        && request.resource.data.diff(resource.data)
-          .affectedKeys().hasOnly(['name', 'members', 'phone', 'address', 'tagline', 'updatedAt']);
+      allow update: if resource.data.members[request.auth.uid] == 'admin'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'members', 'phone', 'address', 'tagline', 'updatedAt'])
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['members']) || request.resource.data.members.values().hasAny(['admin']));
 
-      allow delete: if isAdmin(shopId);
+      allow delete: if resource.data.members[request.auth.uid] == 'admin';
 
       match /sessions/{sessionId} {
-        allow read: if isMember(shopId);
+        allow get: if isMember(shopId);
+        allow list: if isMember(shopId) && request.query.limit <= 100;
         // Only allow creating a session, let Cloud Functions or proper logic handle closing
         allow create: if isMember(shopId)
+          && request.resource.data.keys().hasOnly(['amount', 'description', 'createdAt', 'creatorId'])
+          && request.resource.data.amount is number
           && request.resource.data.amount >= 0
-          && request.resource.data.description.size() <= 200;
-        allow update: if isMember(shopId);
+          && request.resource.data.description is string
+          && request.resource.data.description.size() <= 200
+          && request.resource.data.creatorId == request.auth.uid;
+        allow update: if isAdmin(shopId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amount', 'description', 'updatedAt'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount']) || (request.resource.data.amount is number && request.resource.data.amount >= 0))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['description']) || (request.resource.data.description is string && request.resource.data.description.size() <= 200));
       }
 
       match /action_locks/{userId} {
         allow read: if isMember(shopId);
         // Lock mechanism: user can write, but rule checks elapsed time
-        allow create: if isMember(shopId) && userId == request.auth.uid;
+        allow create: if isMember(shopId) && userId == request.auth.uid
+          && request.resource.data.lastExecutedAt == request.time;
         allow update: if isMember(shopId) && userId == request.auth.uid
-          && request.time.toMillis() - resource.data.lastExecutedAt.toMillis() > 10000;
+          && request.resource.data.lastExecutedAt == request.time
+          && (resource.data.lastExecutedAt == null || request.time.toMillis() - resource.data.lastExecutedAt.toMillis() > 10000);
       }
 
       match /bills/{billId} {
@@ -75,11 +83,13 @@ service cloud.firestore {
           && request.resource.data.paymentMethod is string
           && request.resource.data.paymentMethod in ['cash', 'upi', 'split'];
 
-        allow update: if isMember(shopId)
+        allow update: if (isAdmin(shopId) || resource.data.creatorId == request.auth.uid)
           && resource.data.type != 'reversal'
           && request.resource.data.type == 'reversal'
           && request.resource.data.grandTotal == resource.data.grandTotal
           && request.resource.data.creatorId == resource.data.creatorId
+          && request.resource.data.reversedBy == request.auth.uid
+          && request.resource.data.reversedAt == request.time
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly(['type', 'originalBillId', 'reversedAt', 'reversedBy']);
 
@@ -111,6 +121,7 @@ service cloud.firestore {
         allow list: if isMember(shopId) && request.query.limit <= 100;
 
         allow create: if isMember(shopId)
+          && request.resource.data.keys().hasOnly(['amount', 'category', 'description', 'creatorId', 'createdAt', 'clientCreatedAt'])
           && request.resource.data.keys().hasAll(['amount', 'category', 'description', 'creatorId'])
           && request.resource.data.amount is number
           && request.resource.data.amount >= 0
@@ -126,7 +137,7 @@ service cloud.firestore {
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['category']) || (request.resource.data.category is string && request.resource.data.category.size() <= 50))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['description']) || (request.resource.data.description is string && request.resource.data.description.size() <= 200));
 
-        allow delete: if isAdmin(shopId) || resource.data.creatorId == request.auth.uid;
+        allow delete: if isAdmin(shopId);
       }
 
       match /catalog/{productId} {
@@ -135,10 +146,9 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['name', 'lastUsedPrice', 'unit', 'stockCount', 'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency', 'createdAt'])
           && isAsciiString(request.resource.data.name, 1, 100);
         allow update: if isMember(shopId)
-          && request.resource.data.stockCount >= 0
-          && request.resource.data.lastUsedPrice >= 0
-          && request.resource.data.name.size() > 0
-          && request.resource.data.name.size() <= 100
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['stockCount']) || (request.resource.data.stockCount is number && request.resource.data.stockCount >= 0))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastUsedPrice']) || (request.resource.data.lastUsedPrice is number && request.resource.data.lastUsedPrice >= 0))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) || isAsciiString(request.resource.data.name, 1, 100))
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly([
               'name', 'lastUsedPrice', 'unit', 'stockCount',

@@ -28,7 +28,7 @@ const [billCount, setBillCount] = useState(0);
   const moreItems = [
     ...(billCount >= 5 ? [{ path: '/expenses', label: 'Expenses', icon: Receipt }] : []),
     { path: '/products', label: 'Add Product', icon: PackagePlus },
-    { path: '/members', label: 'Staff', icon: Users },
+    { path: '/members', label: 'Members', icon: Users },
     { path: '/settings', label: 'Settings', icon: Settings },
   ];
 
