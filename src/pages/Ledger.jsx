@@ -138,7 +138,7 @@ try {
       const returnQty = returnItems[idx] || 0;
       if (returnQty > 0) {
         // Calculate proportional refund amount based on final line total
-        const unitRefund = item.finalLineTotal / item.qty;
+        const unitRefund = (item.finalLineTotal ?? item.lineTotal) / item.qty;
         const lineRefund = unitRefund * returnQty;
         returnTotal += lineRefund;
         returnedItemsList.push({
@@ -373,7 +373,7 @@ try {
                           <p className="text-xs font-medium text-slate-400">{item.qty} x {formatCurrency(item.unitPrice)}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-slate-900">{formatCurrency(item.finalLineTotal || item.lineTotal)}</p>
+                          <p className="font-bold text-slate-900">{formatCurrency(item.finalLineTotal ?? item.lineTotal)}</p>
                         </div>
                       </div>
                     ))}
@@ -422,7 +422,7 @@ try {
                           <div key={idx} className="p-4 flex items-center justify-between">
                             <div className="flex-1">
                                <p className="font-bold text-slate-900">{item.name}</p>
-                               <p className="text-xs text-slate-500">Max qty: {item.qty} • ₹{(item.finalLineTotal / item.qty).toFixed(2)} ea</p>
+                               <p className="text-xs text-slate-500">Max qty: {item.qty} • ₹{((item.finalLineTotal ?? item.lineTotal) / item.qty).toFixed(2)} ea</p>
                             </div>
                             <div className="flex items-center gap-3">
                                <button
