@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
 import { listenForSessionEvents } from '../lib/sessionBroadcast';
+import { sessionGuard } from '../lib/SessionGuard';
 import { terminate } from 'firebase/firestore';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../firebase';

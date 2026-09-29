@@ -15,7 +15,7 @@ import { startOfDay, endOfDay, startOfWeek, startOfMonth, subMonths, format } fr
 import { Link } from 'react-router-dom';
 
 export default function PLScreen() {
-  const { user, shopId, shopName } = useAuth();
+  const { shopId, shopName } = useAuth();
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState('simple'); // 'simple' | 'detailed'
 
@@ -166,7 +166,7 @@ export default function PLScreen() {
           try {
             await navigator.share({ files: [file], title: 'P&L Report' });
             return;
-          } catch (_err) { return null; }
+          } catch { return null; }
         }
         const text = encodeURIComponent(`Profit & Loss Report from ${shopName || 'Shop'}\nNet Earnings: ₹${data.netEarnings}`);
         window.open(`https://wa.me/?text=${text}`, '_blank');

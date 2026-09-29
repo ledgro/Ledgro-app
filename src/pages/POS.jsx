@@ -5,6 +5,9 @@ import { useCatalogStore } from '../store/catalogStore';
 import { collection, addDoc, serverTimestamp, getDocs, writeBatch, doc, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Tag, ArrowRight, Share2, PlusCircle, Download } from 'lucide-react';
+import { Drawer } from 'vaul';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useSpring, animated } from '@react-spring/web';
 
 import SearchInput from '../components/SearchInput';
 import CartItem from '../components/CartItem';
@@ -15,7 +18,7 @@ import BottomNav from '../components/BottomNav';
 import html2canvas from 'html2canvas-pro';
 
 import { useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { hapticVibrate } from '../lib/utils';
 
 function generateBillNumber(uid) {
@@ -128,7 +131,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
       .filter(i => i.isActive !== false)
       .sort((a, b) => (b.frequency || 0) - (a.frequency || 0))
       .slice(0, 8);
-  }, [state.items.length]); // Re-evaluate occasionally or on mount
+  }, [state.items]); // Re-evaluate occasionally or on mount
 
   const handleAddItem = (item) => {
     dispatch({ type: 'ADD_ITEM', payload: item });

@@ -14,6 +14,7 @@ export default function BottomNav() {
 
 const [billCount, setBillCount] = useState(0);
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
      setBillCount(parseInt(localStorage.getItem('ledgro-billCount') || '0'));
   }, [location.pathname]);

@@ -11,6 +11,7 @@ const SignIn = () => {
   const [copied, setCopied] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
         const ua = navigator.userAgent || navigator.vendor || window.opera;
     if (

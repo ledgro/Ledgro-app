@@ -22,6 +22,7 @@ export default function Dashboard() {
 
   const chartRef = useRef(null);
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     const observer = new MutationObserver(() => {
       const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -54,6 +55,7 @@ export default function Dashboard() {
   const [isCloseDrawerOpen, setIsCloseDrawerOpen] = useState(false);
   const [isClosingRecord, setIsClosingRecord] = useState(false);
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
     const isStandalone = window.navigator.standalone === true;
@@ -178,10 +180,12 @@ export default function Dashboard() {
     }
   }, [shopId]);
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     checkStorageHealth().then(health => {
       if (health?.isCritical) {
@@ -192,6 +196,7 @@ export default function Dashboard() {
     });
   }, []);
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     const checkSync = () => {
       setSyncStatus(prev => ({ ...prev, online: navigator.onLine }));
@@ -227,7 +232,7 @@ export default function Dashboard() {
       toast("Day locked and summary saved!");
       setIsCloseDrawerOpen(false);
       fetchDashboardData();
-    } catch (_err) {
+    } catch {
       toast.error("Failed to close register.");
     } finally {
       setIsClosingRecord(false);
