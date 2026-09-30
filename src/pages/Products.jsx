@@ -2,11 +2,11 @@ import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
-import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Drawer } from 'vaul';
-import { PackagePlus, ArrowRight, Search, Plus, Archive, ChevronDown, ChevronUp, AlertCircle, Edit2 } from 'lucide-react';
+import { PackagePlus, ArrowRight, Search, Plus, Archive, ChevronDown, ChevronUp, AlertCircle, Edit2, Trash2 } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
 import { cn } from '../lib/utils';
 import { useBodyLock } from '../hooks/useBodyLock';
@@ -16,6 +16,7 @@ export default function Products() {
   const { user, shopId } = useAuth();
   const catalogItems = useCatalogStore((state) => state.items);
   const addCatalogItem = useCatalogStore((state) => state.addItem);
+  const removeCatalogItem = useCatalogStore((state) => state.removeItem);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showInactive, setShowInactive] = useState(false);
@@ -158,6 +159,28 @@ export default function Products() {
     } catch (err) {
       console.error(err);
       toast.error("Failed to save product");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!editingItem || !editingItem.id || !shopId) return;
+
+    if (!window.confirm(`Are you sure you want to permanently delete "${editingItem.name}"?`)) {
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const docRef = doc(db, `shops/${shopId}/catalog`, editingItem.id);
+      await deleteDoc(docRef);
+      removeCatalogItem(editingItem.id);
+      toast.success('Product deleted');
+      setIsDrawerOpen(false);
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to delete product');
     } finally {
       setSubmitting(false);
     }
@@ -428,7 +451,17 @@ export default function Products() {
             </div>
 
 
-            <div className="p-4 bg-white border-t border-slate-100 pb-safe absolute bottom-0 left-0 right-0">
+            <div className="p-4 bg-white border-t border-slate-100 pb-safe absolute bottom-0 left-0 right-0 flex gap-2">
+              {editingItem && (
+                <button
+                  type="button"
+                  onClick={handleDeleteProduct}
+                  disabled={submitting}
+                  className="w-14 h-14 shrink-0 bg-red-50 text-red-600 rounded-xl flex items-center justify-center active:bg-red-100 disabled:opacity-50 transition-colors shadow-sm"
+                >
+                  <Trash2 size={20} />
+                </button>
+              )}
               <button
                 type="submit"
                 form="product-form"

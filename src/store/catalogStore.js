@@ -97,6 +97,15 @@ export const useCatalogStore = create((set, get) => ({
     });
   },
 
+  removeItem: (itemId) => {
+    set((state) => {
+      const newItems = state.items.filter(i => i.id !== itemId);
+      const newTrie = new PrefixTrie();
+      newItems.forEach(i => newTrie.insert(i));
+      return { items: newItems, trie: newTrie };
+    });
+  },
+
   search: (prefix) => {
     const { trie } = get();
     return trie.searchPrefix(prefix);
