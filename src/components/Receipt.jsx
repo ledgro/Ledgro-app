@@ -46,16 +46,16 @@ const Receipt = forwardRef(({ billData }, ref) => {
           <div key={i} style={{ display: 'flex', fontSize: '18px', marginBottom: '12px' }}>
             <div style={{ flex: 2 }}>
               <span style={{ display: 'block', fontWeight: '500' }}>{sanitizeText(item.name)}</span>
-              <span style={{ fontSize: '14px', color: '#666666' }}>@ ₹{item.unitPrice}</span>
+              <span style={{ fontSize: '14px', color: '#666666' }}>@ ₹{(item.unitPriceAtSale || item.unitPrice) / 100}</span>
             </div>
             <span style={{ flex: 1, textAlign: 'center' }}>{item.qty}</span>
             <div style={{ flex: 1, textAlign: 'right' }}>
               {item.lineDiscount?.value > 0 && (
                 <span style={{ textDecoration: 'line-through', fontSize: '14px', color: '#666666', display: 'block' }}>
-                  ₹{item.rawTotal}
+                  ₹{(item.rawTotal / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                 </span>
               )}
-              <span style={{ fontWeight: '600' }}>₹{item.finalLineTotal}</span>
+              <span style={{ fontWeight: '600' }}>₹{(item.finalLineTotal / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
             </div>
           </div>
         ))}
@@ -63,19 +63,19 @@ const Receipt = forwardRef(({ billData }, ref) => {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', marginBottom: '8px' }}>
         <span style={{ color: '#666666' }}>Subtotal</span>
-        <span style={{ fontWeight: '500' }}>₹{subtotal}</span>
+        <span style={{ fontWeight: '500' }}>₹{(subtotal / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
       </div>
 
       {globalDiscountAmt > 0 && (
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', color: '#000000', marginBottom: '8px' }}>
           <span>Discount</span>
-          <span style={{ fontWeight: '500' }}>-₹{globalDiscountAmt}</span>
+          <span style={{ fontWeight: '500' }}>-₹{(globalDiscountAmt / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
         </div>
       )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '24px', fontWeight: 'bold', marginTop: '16px', paddingTop: '16px', borderTop: '2px solid #e5e5e5' }}>
         <span>Total</span>
-        <span>₹{grandTotal}</span>
+        <span>₹{(grandTotal / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
       </div>
 
       <div style={{ textAlign: 'center', marginTop: '40px', fontSize: '16px' }}>

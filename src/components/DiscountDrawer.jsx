@@ -12,7 +12,9 @@ export default function DiscountDrawer({ isOpen, onClose, targetItem, dispatch }
     if (isOpen) {
       if (targetItem && targetItem.lineDiscount) {
         setDiscountType(targetItem.lineDiscount.type);
-        setDiscountValue(targetItem.lineDiscount.value > 0 ? targetItem.lineDiscount.value.toString() : '');
+        let val = targetItem.lineDiscount.value;
+        if (targetItem.lineDiscount.type === 'flat' && val > 0) val = val / 100;
+        setDiscountValue(val > 0 ? val.toString() : '');
       } else {
         setDiscountType('flat');
         setDiscountValue('');
@@ -21,7 +23,10 @@ export default function DiscountDrawer({ isOpen, onClose, targetItem, dispatch }
   }, [isOpen, targetItem]);
 
   const handleApply = () => {
-    const val = parseFloat(discountValue) || 0;
+    let val = parseFloat(discountValue) || 0;
+    if (discountType === 'flat') {
+      val = Math.round(val * 100);
+    }
 
     if (targetItem) {
       // Line discount

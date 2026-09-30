@@ -55,10 +55,10 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
     const recovered = localStorage.getItem('ledgro-cart-recovery');
     if (recovered) {
       try {
-        const { items, globalDiscount, savedAt } = JSON.parse(recovered);
+        const { cartState, savedAt } = JSON.parse(recovered);
         const ageMs = Date.now() - new Date(savedAt).getTime();
         if (ageMs < 5 * 60 * 1000) { // Only restore if less than 5 mins old
-          dispatch({ type: 'INIT_FROM_EDIT', payload: { items, globalDiscount } });
+          dispatch({ type: 'INIT_FROM_EDIT', payload: { items: cartState.items, globalDiscount: cartState.globalDiscount } });
           toast.success('Cart restored after app update');
         }
         localStorage.removeItem('ledgro-cart-recovery');
@@ -140,14 +140,16 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
     }
 
     // Optimistically add to local catalog store so it's instantly available next time
-    addCatalogItem({ name: item.name, lastUsedPrice: item.unitPrice });
+    addCatalogItem({ name: item.name, lastUsedPrice: item.unitPriceAtSale });
 
     // Asynchronously add to Firestore catalog collection scoped by shopId
-    if (shopId) {
+    if (shopId && !item.catalogId) { // Only add if it doesn't have an ID
       addDoc(collection(db, `shops/${shopId}/catalog`), {
         name: item.name,
-        lastUsedPrice: item.unitPrice,
-        addedBy: user.uid
+        lastUsedPrice: item.unitPriceAtSale,
+        addedBy: user.uid,
+        createdAt: serverTimestamp(),
+        stockCount: 0
       }).catch(console.error); // fire and forget
     }
   };
@@ -199,6 +201,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
         payment: paymentData,
         shopName, // Pass the actual shop name to the receipt
         billNo: generateBillNumber(user.uid),
+        clientCreatedAt: new Date().toISOString(),
         createdAt: serverTimestamp() // critical for offline ledger ordering
       };
 
@@ -344,7 +347,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
             </svg>
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Checkout Successful</h2>
-          <p className="text-gray-500 mb-8 font-medium">₹{lastBill?.grandTotal} collected via {lastBill?.paymentMethod?.toUpperCase()}</p>
+          <p className="text-gray-500 mb-8 font-medium">₹{lastBill?.grandTotal ? (lastBill.grandTotal / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : 0} collected via {lastBill?.paymentMethod?.toUpperCase()}</p>
 
           <div className="space-y-3">
             <button
@@ -397,12 +400,19 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
               {fastAccessItems.map(fItem => (
                 <button
                   key={fItem.id}
-                  onClick={() => handleAddItem({ name: fItem.name, unitPrice: fItem.lastUsedPrice || 0, catalogId: fItem.id, qty: 1 })}
+                  onClick={() => handleAddItem({
+                    name: fItem.name,
+                    unitPriceAtSale: fItem.lastUsedPrice || 0,
+                    catalogVersionTimestamp: fItem.updatedAt?.toMillis?.() || Date.now(),
+                    catalogId: fItem.id,
+                    qty: 1,
+                    unit: fItem.unit || 'unit'
+                  })}
                   className="flex-shrink-0 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2 flex flex-col items-center justify-center active:bg-blue-100 transition-colors shadow-sm"
                   style={{ minWidth: '100px' }}
                 >
                   <span className="font-bold text-slate-800 text-sm truncate w-full text-center">{fItem.name}</span>
-                  <span className="text-blue-600 font-bold text-xs mt-0.5">₹{fItem.lastUsedPrice}</span>
+                  <span className="text-blue-600 font-bold text-xs mt-0.5">₹{(fItem.lastUsedPrice / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
                 </button>
               ))}
             </div>
@@ -459,11 +469,11 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
                 <div className="text-right">
                   {globalDiscountAmt > 0 && (
                     <span className="text-xs text-gray-400 line-through block leading-none mb-0.5">
-                      ₹{subtotal}
+                      ₹{(subtotal / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                     </span>
                   )}
                   <animated.span className="text-2xl font-bold text-gray-900 leading-none">
-                    {springTotal.to(val => `₹${Math.round(val).toLocaleString('en-IN')}`)}
+                    {springTotal.to(val => `₹${(Math.round(val) / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`)}
                   </animated.span>
                 </div>
               </div>

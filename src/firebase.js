@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAppCheck, CustomProvider } from 'firebase/app-check';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, setPersistence, indexedDBLocalPersistence } from 'firebase/auth';
 import {
   initializeFirestore,
   persistentLocalCache,
@@ -40,6 +40,12 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
   });
 }
 const auth = getAuth(app);
+
+// Explicitly set persistence to indexedDB
+setPersistence(auth, indexedDBLocalPersistence).catch((err) => {
+  console.warn('IndexedDB persistence unavailable:', err);
+});
+
 const googleProvider = new GoogleAuthProvider();
 
 const db = initializeFirestore(app, {

@@ -86,7 +86,7 @@ export default function Products() {
     setEditingItem(item);
     if (item) {
       setName(item.name);
-      setPrice(item.lastUsedPrice?.toString() || '');
+      setPrice(item.lastUsedPrice ? (item.lastUsedPrice / 100).toString() : '');
       setUnit(item.unit || 'piece');
       setStockCount(item.stockCount?.toString() || '');
       setLowStockAlert(item.lowStockAlert?.toString() || '');
@@ -114,12 +114,12 @@ export default function Products() {
 
     try {
       const unitPrice = parseFloat(price);
-      const stockNum = stockCount !== '' ? parseFloat(stockCount) : null;
+      const stockNum = stockCount !== '' ? parseFloat(stockCount) : 0;
       const alertNum = lowStockAlert !== '' ? parseFloat(lowStockAlert) : null;
 
       const payload = {
         name: sanitizeText(name.trim()),
-        lastUsedPrice: unitPrice * 100,
+        lastUsedPrice: Math.round(unitPrice * 100),
         unit: unit,
         stockCount: stockNum,
         lowStockAlert: alertNum,
@@ -307,7 +307,7 @@ export default function Products() {
       <Drawer.Root open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
-          <Drawer.Content className="bg-white flex flex-col rounded-t-[20px] mt-24 h-[85vh] fixed bottom-0 left-0 right-0 z-50 focus:outline-none">
+          <Drawer.Content className="bg-white flex flex-col rounded-t-[20px] mt-24 max-h-[85vh] fixed bottom-0 left-0 right-0 z-50 focus:outline-none overflow-hidden">
             <div className="p-4 bg-white rounded-t-[20px] flex-shrink-0 border-b border-slate-100 flex items-center justify-between">
               <Drawer.Title className="font-bold text-slate-900 text-xl flex items-center gap-2">
                 {editingItem ? <Edit2 size={20} className="text-blue-600" /> : <PackagePlus size={20} className="text-blue-600" />}
@@ -321,7 +321,7 @@ export default function Products() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 pb-48 relative">
+            <div className="flex-1 overflow-y-auto p-4 pb-[200px] relative">
               <form id="product-form" onSubmit={handleSaveProduct} className="space-y-6">
 
                 {/* Basic Details */}

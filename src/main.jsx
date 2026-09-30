@@ -6,8 +6,7 @@ window.addEventListener('vite:preloadError', (event) => {
   const cartState = window.__LEDGRO_CART_STATE__;
   if (cartState && cartState.items?.length > 0) {
     localStorage.setItem('ledgro-cart-recovery', JSON.stringify({
-      items: cartState.items,
-      globalDiscount: cartState.globalDiscount,
+      cartState,
       savedAt: new Date().toISOString()
     }));
   }

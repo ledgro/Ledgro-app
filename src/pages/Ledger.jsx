@@ -370,7 +370,7 @@ try {
                       <div key={idx} className="py-2.5 flex justify-between items-start">
                         <div>
                           <p className="font-semibold text-slate-900">{item.name}</p>
-                          <p className="text-xs font-medium text-slate-400">{item.qty} x {formatCurrency(item.unitPrice)}</p>
+                          <p className="text-xs font-medium text-slate-400">{item.qty} x {formatCurrency(item.unitPriceAtSale || item.unitPrice)}</p>
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-slate-900">{formatCurrency(item.finalLineTotal ?? item.lineTotal)}</p>

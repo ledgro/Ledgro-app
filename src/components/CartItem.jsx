@@ -56,17 +56,17 @@ export default function CartItem({ item, dispatch, onOpenDiscount }) {
       <div className="flex justify-between items-start">
         <div className="flex-1 pr-4">
           <h3 className="font-semibold text-gray-900 leading-tight">{item.name}</h3>
-          <p className="text-sm text-gray-500 mt-1">₹{item.unitPrice} per unit</p>
+          <p className="text-sm text-gray-500 mt-1">₹{(item.unitPriceAtSale / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} per unit</p>
         </div>
 
         <div className="text-right">
           {hasDiscount && (
             <span className="text-xs text-gray-400 line-through block mb-1">
-              ₹{item.rawTotal}
+              ₹{(item.rawTotal / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
             </span>
           )}
           <span className="font-bold text-gray-900 text-lg block">
-            ₹{item.finalLineTotal}
+            ₹{(item.finalLineTotal / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
           </span>
         </div>
       </div>
