@@ -37,7 +37,7 @@ service cloud.firestore {
 
       allow update: if (
           resource.data.members[request.auth.uid] == 'admin'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'members', 'phone', 'address', 'tagline', 'updatedAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'members', 'phone', 'address', 'tagline', 'updatedAt', 'ownerId'])
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['members']) || request.resource.data.members.values().hasAny(['admin']))
         ) || (
           // Allow users to remove themselves from the shop when deleting their account
@@ -195,13 +195,5 @@ service cloud.firestore {
         && isAdmin(resource.data.shopId);
     }
 
-    match /adminRecovery/{shopId} {
-      allow read: if isAdmin(shopId) || (isMember(shopId) && resource.data.requestedBy == request.auth.uid);
-      allow create: if isMember(shopId)
-        && request.resource.data.requestedBy == request.auth.uid
-        && request.resource.data.status == 'pending';
-      allow update: if isAdmin(shopId);
-      allow delete: if isAdmin(shopId);
-    }
   }
 }
