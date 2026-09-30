@@ -138,27 +138,6 @@ export default function Members() {
       const inviteRef = doc(db, 'invites', code);
       await setDoc(inviteRef, { shopId, expiresAt, claimedBy: null });
       setInviteCode(code);
-
-      const unsubscribe = onSnapshot(inviteRef, async (snap) => {
-        if (!snap.exists()) return;
-        const data = snap.data({ serverTimestamps: 'estimate' });
-        if (data.claimedBy) {
-          try {
-            const shopRef = doc(db, 'shops', shopId);
-            const shopSnap = await getDoc(shopRef);
-            if (shopSnap.exists()) {
-              const currentMembers = shopSnap.data({ serverTimestamps: 'estimate' }).members || {};
-              if (!currentMembers[data.claimedBy]) {
-                await updateDoc(shopRef, { [`members.${data.claimedBy}`]: 'member' });
-              }
-            }
-            await deleteDoc(inviteRef);
-            setInviteCode(null);
-            unsubscribe();
-            toast("New member joined successfully!");
-          } catch {}
-        }
-      });
     } catch {
       toast.error("Failed to generate invite code");
     } finally {
@@ -287,9 +266,9 @@ const handleWipeAndExit = async () => {
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-center">
             {inviteCode ? (
               <div className="space-y-3">
-                <p className="text-sm font-medium text-slate-500">Show this code to the new member</p>
+                <p className="text-sm font-medium text-slate-500">Share this code with the new member</p>
                 <div className="text-5xl font-black text-blue-600 tracking-[0.2em] py-4 bg-blue-50 rounded-xl">{inviteCode}</div>
-                <p className="text-xs text-orange-600 font-medium">Expires in 30 minutes. Do not close this screen.</p>
+                <p className="text-xs text-orange-600 font-medium">Expires in 30 minutes.</p>
                 <button onClick={() => { deleteDoc(doc(db, 'invites', inviteCode)); setInviteCode(null); }} className="mt-4 text-sm text-slate-500 underline">
                   Cancel Invite
                 </button>

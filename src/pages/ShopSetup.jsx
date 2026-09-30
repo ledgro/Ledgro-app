@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, addDoc } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { collection, addDoc, doc, getDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 
@@ -56,20 +55,60 @@ const ShopSetup = () => {
       setLoading(true);
       setError('');
 
-      const functions = getFunctions();
-      const acceptInvite = httpsCallable(functions, 'acceptInviteCallable');
-      const result = await acceptInvite({ inviteCode: code });
+      const inviteRef = doc(db, 'invites', code);
+      const inviteSnap = await getDoc(inviteRef);
 
-      if (result.data.success) {
-         setShopId(result.data.shopId);
-         localStorage.setItem('ledgro_offline_shopId', result.data.shopId);
-         setHasShop(true);
-         navigate('/dashboard');
+      if (!inviteSnap.exists()) {
+        setError("Invalid invite code.");
+        setLoading(false);
+        return;
       }
+
+      const inviteData = inviteSnap.data();
+
+      if (inviteData.claimedBy) {
+        setError("This invite code has already been claimed.");
+        setLoading(false);
+        return;
+      }
+
+      if (inviteData.expiresAt.toDate() < new Date()) {
+        setError("This invite code has expired.");
+        setLoading(false);
+        return;
+      }
+
+      const shopIdToJoin = inviteData.shopId;
+      const shopRef = doc(db, 'shops', shopIdToJoin);
+
+      const batch = writeBatch(db);
+
+      // Claim the invite
+      batch.update(inviteRef, {
+        claimedBy: user.uid,
+        claimedAt: new Date()
+      });
+
+      // Add user to shop
+      batch.update(shopRef, {
+        [`members.${user.uid}`]: 'member',
+        consumedInviteCode: code
+      });
+
+      await batch.commit();
+
+      setShopId(shopIdToJoin);
+      localStorage.setItem('ledgro_offline_shopId', shopIdToJoin);
+      setHasShop(true);
+      navigate('/dashboard');
 
     } catch (err) {
       console.error(err);
-      setError(err.message || 'Failed to join shop.');
+      if (err.code === 'permission-denied') {
+        setError("Invalid, expired, or already claimed invite code.");
+      } else {
+        setError(err.message || 'Failed to join shop.');
+      }
       setLoading(false);
     }
   };
@@ -172,7 +211,7 @@ const ShopSetup = () => {
                     loading || inviteCode.length !== 6 ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                   } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
                 >
-                  {loading ? 'Waiting for creator...' : 'Join Shop'}
+                  {loading ? 'Joining...' : 'Join Shop'}
                 </button>
               </div>
             </form>
