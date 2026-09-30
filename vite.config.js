@@ -7,7 +7,7 @@ export default defineConfig({
   build: {
     sourcemap: false,
   },
-  base: '/Ledgro-app/',
+  base: '/',
   plugins: [
     react(),
     tailwindcss(),
