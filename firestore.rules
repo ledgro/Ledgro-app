@@ -35,9 +35,16 @@ service cloud.firestore {
         request.resource.data.members[request.auth.uid] == 'admin' &&
         request.resource.data.members.size() == 1;
 
-      allow update: if resource.data.members[request.auth.uid] == 'admin'
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'members', 'phone', 'address', 'tagline', 'updatedAt'])
-        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['members']) || request.resource.data.members.values().hasAny(['admin']));
+      allow update: if (
+          resource.data.members[request.auth.uid] == 'admin'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'members', 'phone', 'address', 'tagline', 'updatedAt'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['members']) || request.resource.data.members.values().hasAny(['admin']))
+        ) || (
+          // Allow users to remove themselves from the shop when deleting their account
+          resource.data.members[request.auth.uid] != null
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt'])
+          && request.resource.data.members[request.auth.uid] == null
+        );
 
       allow delete: if resource.data.members[request.auth.uid] == 'admin';
 
