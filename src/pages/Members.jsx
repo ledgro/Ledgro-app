@@ -130,15 +130,34 @@ export default function Members() {
   const handleGenerateInvite = async () => {
     setIsGenerating(true);
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    const code = Array.from(crypto.getRandomValues(new Uint8Array(6))).map((b) => chars[b % chars.length]).join('');
+
+    let code = '';
+    let inviteRef = null;
+    let isUnique = false;
+    let attempts = 0;
+
 
     try {
+      while (!isUnique && attempts < 5) {
+        code = Array.from(crypto.getRandomValues(new Uint8Array(6))).map((b) => chars[b % chars.length]).join('');
+        inviteRef = doc(db, 'invites', code);
+        const inviteSnap = await getDoc(inviteRef);
+        if (!inviteSnap.exists()) {
+          isUnique = true;
+        }
+        attempts++;
+      }
+
+      if (!isUnique) {
+        throw new Error("Could not generate a unique invite code after multiple attempts.");
+      }
+
       const expiresAt = new Date();
       expiresAt.setMinutes(expiresAt.getMinutes() + 30);
-      const inviteRef = doc(db, 'invites', code);
       await setDoc(inviteRef, { shopId, expiresAt, claimedBy: null });
       setInviteCode(code);
-    } catch {
+    } catch (error) {
+      console.error(error);
       toast.error("Failed to generate invite code");
     } finally {
       setIsGenerating(false);
