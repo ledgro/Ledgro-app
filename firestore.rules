@@ -84,11 +84,13 @@ service cloud.firestore {
           && request.resource.data.items is list
           && request.resource.data.items.size() <= 100
           && request.resource.data.subtotal is number
-          && request.resource.data.subtotal >= 0
           && request.resource.data.grandTotal is number
-          && request.resource.data.grandTotal >= 0
           && request.resource.data.paymentMethod is string
-          && request.resource.data.paymentMethod in ['cash', 'upi', 'split'];
+          && (
+            (request.resource.data.get('type', 'sale') != 'return' && request.resource.data.subtotal >= 0 && request.resource.data.grandTotal >= 0 && request.resource.data.paymentMethod in ['cash', 'upi', 'split'])
+            ||
+            (request.resource.data.type == 'return' && request.resource.data.subtotal <= 0 && request.resource.data.grandTotal <= 0 && request.resource.data.paymentMethod in ['cash', 'upi'])
+          );
 
         allow update: if (isAdmin(shopId) || resource.data.creatorId == request.auth.uid)
           && resource.data.type != 'reversal'
@@ -161,7 +163,7 @@ service cloud.firestore {
               'name', 'lastUsedPrice', 'unit', 'stockCount',
               'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency'
             ]);
-        allow delete: if false;
+        allow delete: if isMember(shopId);
       }
     }
 

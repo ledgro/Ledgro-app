@@ -175,7 +175,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
       const paymentData = {
         method: paymentMethod,
         breakdown: {
-          cash: paymentMethod === 'split' ? cashReceived : (paymentMethod === 'cash' ? grandTotal : 0),
+          cash: paymentMethod === 'split' ? cashReceived * 100 : (paymentMethod === 'cash' ? grandTotal : 0),
           upi: paymentMethod === 'split' ? upiAmount : (paymentMethod === 'upi' ? grandTotal : 0)
         }
       };
@@ -207,15 +207,14 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
       const newBillRef = doc(collection(db, `shops/${shopId}/bills`));
       batch.set(newBillRef, payload);
 
-      // If editing, insert a reversal document for the original bill
+      // If editing, update original bill to type: reversal
       if (editBill) {
-        const reversalRef = doc(collection(db, `shops/${shopId}/bills`));
-        batch.set(reversalRef, {
+        const originalBillRef = doc(db, `shops/${shopId}/bills`, editBill.id);
+        batch.update(originalBillRef, {
           type: 'reversal',
           originalBillId: editBill.id,
-          creatorId: user.uid,
-          grandTotal: -Math.abs(editBill.grandTotal),
-          createdAt: serverTimestamp()
+          reversedBy: user.uid,
+          reversedAt: serverTimestamp()
         });
       }
 
@@ -236,7 +235,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
       });
 
       if (!navigator.onLine) {
-          await putData('pendingBills', { id: newBillRef.id, path: `shops/${shopId}/bills/${newBillRef.id}`, data: newBill });
+          await putData('pendingBills', { id: newBillRef.id, path: `shops/${shopId}/bills/${newBillRef.id}`, data: payload });
       } else {
           await batch.commit();
       }
