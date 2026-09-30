@@ -8,31 +8,28 @@ import { Trash2, UserPlus, LogOut, ArrowUpCircle } from 'lucide-react';
 import { hapticVibrate } from '../lib/utils';
 
 export default function Members() {
-  const { user, shopId, shopAdminId, signOut } = useAuth();
+  const { user, shopId, shopAdminId, setShopAdminId, signOut } = useAuth();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Admin Recovery State
-  const [recoveryDoc, setRecoveryDoc] = useState(null);
-  const [isRequestingRecovery, setIsRequestingRecovery] = useState(false);
-
   const isCreator = user?.uid === shopAdminId;
 
-
-
   useEffect(() => {
-
     if (!shopId) return;
     const unsubscribe = onSnapshot(doc(db, 'shops', shopId), (docSnap) => {
-      // existing logic
       if (docSnap.exists()) {
         const data = docSnap.data({ serverTimestamps: 'estimate' });
         const membersMap = data.members || {};
+
+        if (data.ownerId && data.ownerId !== shopAdminId) {
+          setShopAdminId(data.ownerId);
+        }
+
         const memberList = Object.keys(membersMap).map(uid => ({
           uid,
-          role: membersMap[uid] === 'admin' || uid === data.ownerId ? 'Admin (Hidden)' : 'Member',
+          role: membersMap[uid] === 'admin' || uid === data.ownerId ? 'Admin' : 'Member',
           name: uid === user.uid ? 'You' : `Member ${uid.substring(0, 4)}`
         }));
         memberList.sort((a) => (a.uid === user.uid ? -1 : 1));
@@ -41,91 +38,8 @@ export default function Members() {
       setLoading(false);
     });
 
-    // Listen to adminRecovery doc
-    const unsubRecovery = onSnapshot(doc(db, 'adminRecovery', shopId), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data({ serverTimestamps: 'estimate' });
-        if (data.status === 'pending') {
-          // Check auto-elevation
-          const reqTime = data.requestedAt?.toDate ? data.requestedAt.toDate() : new Date();
-          const daysPassed = (new Date() - reqTime) / (1000 * 60 * 60 * 24);
-          if (daysPassed >= 14 && data.requestedBy === user.uid) {
-             // Auto-elevate
-          } else {
-             setRecoveryDoc({ id: snap.id, ...data });
-          }
-        } else {
-          setRecoveryDoc(null);
-        }
-      } else {
-        setRecoveryDoc(null);
-      }
-    });
-
-    return () => { unsubscribe(); unsubRecovery(); };
-  }, [shopId, user.uid]);
-
-  async function autoElevateAdmin(data, currentShopId) {
-     try {
-       if (!currentShopId) return;
-       const shopRef = doc(db, 'shops', currentShopId);
-       const shopSnap = await getDoc(shopRef);
-       if (shopSnap.exists()) {
-          const oldAdmin = shopSnap.data({ serverTimestamps: 'estimate' }).ownerId;
-          await updateDoc(shopRef, {
-             [`members.${data.requestedBy}`]: 'admin',
-             [`members.${oldAdmin}`]: 'member',
-             ownerId: data.requestedBy
-          });
-          await updateDoc(doc(db, 'adminRecovery', currentShopId), { status: 'approved' });
-          toast("14 days have passed. You are now the admin.");
-       }
-     } catch { console.error(_err); }
-  }
-
-  const handleRequestRecovery = async () => {
-    if (!window.confirm("Request admin access? If the current admin does not respond in 14 days, you will automatically become the admin.")) return;
-    setIsRequestingRecovery(true);
-    try {
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 14);
-      await setDoc(doc(db, 'adminRecovery', shopId), {
-        requestedBy: user.uid,
-        requestedAt: serverTimestamp(),
-        shopId: shopId,
-        status: 'pending',
-        expiresAt: expiresAt
-      });
-      toast("Request submitted.");
-    } catch {
-      toast.error("Failed to submit request.");
-    } finally {
-      setIsRequestingRecovery(false);
-    }
-  };
-
-  const handleApproveRecovery = async () => {
-     if (!recoveryDoc) return;
-     try {
-       const targetUid = recoveryDoc.requestedBy;
-       const shopRef = doc(db, 'shops', shopId);
-       await updateDoc(shopRef, {
-          [`members.${targetUid}`]: 'admin',
-          [`members.${user.uid}`]: 'member',
-          ownerId: targetUid
-       });
-       await updateDoc(doc(db, 'adminRecovery', shopId), { status: 'approved' });
-       toast("Admin transferred successfully.");
-     } catch {
-       toast.error("Failed to transfer admin role.");
-     }
-  };
-
-  const handleRejectRecovery = async () => {
-     try {
-       await deleteDoc(doc(db, 'adminRecovery', shopId));
-     } catch {}
-  };
+    return () => unsubscribe();
+  }, [shopId, user.uid, shopAdminId, setShopAdminId]);
 
   const handleGenerateInvite = async () => {
     setIsGenerating(true);
@@ -253,34 +167,6 @@ const handleWipeAndExit = async () => {
       </header>
 
 <main className="p-4 space-y-6">
-        {recoveryDoc && recoveryDoc.requestedBy !== user.uid && isCreator && (
-          <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl shadow-sm">
-            <h3 className="font-bold text-amber-900 mb-1">Admin Access Requested</h3>
-            <p className="text-sm text-amber-700 mb-4">Member {recoveryDoc.requestedBy.substring(0,4)} has requested to become the admin. If you do not respond within 14 days, they will automatically be elevated.</p>
-            <div className="flex gap-2">
-              <button onClick={handleApproveRecovery} className="flex-1 bg-amber-600 text-white font-bold py-2 rounded-lg">Approve</button>
-              <button onClick={handleRejectRecovery} className="flex-1 bg-white border border-amber-300 text-amber-700 font-bold py-2 rounded-lg">Reject</button>
-            </div>
-          </div>
-        )}
-
-        {recoveryDoc && recoveryDoc.requestedBy === user.uid && (
-          <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl shadow-sm text-center">
-            <h3 className="font-bold text-blue-900 mb-1">Request Pending</h3>
-            <p className="text-sm text-blue-700">Your request for admin access is pending. If the admin does not respond within 14 days, you will automatically be elevated.</p>
-          </div>
-        )}
-
-        {!isCreator && !recoveryDoc && (
-          <button
-            onClick={handleRequestRecovery}
-            disabled={isRequestingRecovery}
-            className="w-full bg-slate-100 text-slate-700 font-bold py-4 rounded-xl active:bg-slate-200"
-          >
-            {isRequestingRecovery ? 'Requesting...' : 'Request Admin Access'}
-          </button>
-        )}
-
         {isCreator && (
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-center">
             {inviteCode ? (
@@ -314,7 +200,7 @@ const handleWipeAndExit = async () => {
                     </div>
                     <div>
                       <p className="font-semibold text-slate-900">{member.name}</p>
-                      <p className="text-xs text-slate-500">Shop Member</p>
+                      <p className="text-xs text-slate-500">{member.role}</p>
                     </div>
                   </div>
                   <div className="flex gap-2">

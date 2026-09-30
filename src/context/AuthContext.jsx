@@ -233,7 +233,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, hasShop, shopId, shopAdminId, shopName, setHasShop, setShopId, loading, signInWithGoogle, signOut, deleteAccount }}>
+    <AuthContext.Provider value={{ user, hasShop, shopId, shopAdminId, setShopAdminId, shopName, setHasShop, setShopId, loading, signInWithGoogle, signOut, deleteAccount }}>
       {loading ? <SplashScreen /> : children}
     </AuthContext.Provider>
   );
