@@ -48,6 +48,7 @@ service cloud.firestore {
           // Allow a new user to join if they consumed a valid invite in a batched write
           !(request.auth.uid in resource.data.members)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'consumedInviteCode', 'updatedAt'])
+          && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.auth.uid])
           && request.resource.data.members[request.auth.uid] == 'member'
           && 'consumedInviteCode' in request.resource.data
           && getAfter(/databases/$(database)/documents/invites/$(request.resource.data.consumedInviteCode)).data.claimedBy == request.auth.uid

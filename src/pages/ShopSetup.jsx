@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, addDoc, doc, getDoc, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, doc, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 
@@ -56,46 +56,44 @@ const ShopSetup = () => {
       setError('');
 
       const inviteRef = doc(db, 'invites', code);
-      const inviteSnap = await getDoc(inviteRef);
+      let shopIdToJoin = null;
 
-      if (!inviteSnap.exists()) {
-        setError("Invalid invite code.");
-        setLoading(false);
-        return;
-      }
+      await runTransaction(db, async (transaction) => {
+        const inviteSnap = await transaction.get(inviteRef);
 
-      const inviteData = inviteSnap.data();
+        if (!inviteSnap.exists()) {
+          throw new Error("Invalid invite code.");
+        }
 
-      if (inviteData.claimedBy) {
-        setError("This invite code has already been claimed.");
-        setLoading(false);
-        return;
-      }
+        const inviteData = inviteSnap.data();
 
-      if (inviteData.expiresAt.toDate() < new Date()) {
-        setError("This invite code has expired.");
-        setLoading(false);
-        return;
-      }
+        if (inviteData.claimedBy) {
+          throw new Error("This invite code has already been claimed.");
+        }
 
-      const shopIdToJoin = inviteData.shopId;
-      const shopRef = doc(db, 'shops', shopIdToJoin);
+        if (inviteData.expiresAt.toDate() < new Date()) {
+          throw new Error("This invite code has expired.");
+        }
 
-      const batch = writeBatch(db);
+        shopIdToJoin = inviteData.shopId;
+        const shopRef = doc(db, 'shops', shopIdToJoin);
 
-      // Claim the invite
-      batch.update(inviteRef, {
-        claimedBy: user.uid,
-        claimedAt: new Date()
+        // Claim the invite
+        transaction.update(inviteRef, {
+          claimedBy: user.uid,
+          claimedAt: new Date()
+        });
+
+        // Add user to shop
+        transaction.update(shopRef, {
+          [`members.${user.uid}`]: 'member',
+          consumedInviteCode: code
+        });
       });
 
-      // Add user to shop
-      batch.update(shopRef, {
-        [`members.${user.uid}`]: 'member',
-        consumedInviteCode: code
-      });
-
-      await batch.commit();
+      if (!shopIdToJoin) {
+        throw new Error("Failed to resolve shop ID.");
+      }
 
       setShopId(shopIdToJoin);
       localStorage.setItem('ledgro_offline_shopId', shopIdToJoin);
@@ -106,6 +104,8 @@ const ShopSetup = () => {
       console.error(err);
       if (err.code === 'permission-denied') {
         setError("Invalid, expired, or already claimed invite code.");
+      } else if (err.message === "Invalid invite code." || err.message === "This invite code has already been claimed." || err.message === "This invite code has expired.") {
+        setError(err.message);
       } else {
         setError(err.message || 'Failed to join shop.');
       }
