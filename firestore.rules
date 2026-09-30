@@ -21,8 +21,8 @@ service cloud.firestore {
     }
 
     // Validation functions
-    function isAsciiString(val, minLen, maxLen) {
-      return val is string && val.size() >= minLen && val.size() <= maxLen && val.matches('^[ -~]+$');
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
     }
 
 
@@ -37,7 +37,7 @@ service cloud.firestore {
 
       allow update: if (
           resource.data.members[request.auth.uid] == 'admin'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'members', 'phone', 'address', 'tagline', 'updatedAt', 'ownerId'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'members', 'phone', 'address', 'tagline', 'updatedAt'])
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['members']) || request.resource.data.members.values().hasAny(['admin']))
         ) || (
           // Allow users to remove themselves from the shop when deleting their account
@@ -57,29 +57,12 @@ service cloud.firestore {
 
       allow delete: if resource.data.members[request.auth.uid] == 'admin';
 
-      match /sessions/{sessionId} {
-        allow get: if isMember(shopId);
-        allow list: if isMember(shopId) && request.query.limit <= 100;
-        // Only allow creating a session, let Cloud Functions or proper logic handle closing
-        allow create: if isMember(shopId)
-          && request.resource.data.keys().hasOnly(['amount', 'description', 'createdAt', 'creatorId'])
-          && request.resource.data.amount is number
-          && request.resource.data.amount >= 0
-          && request.resource.data.description is string
-          && request.resource.data.description.size() <= 200
-          && request.resource.data.creatorId == request.auth.uid;
-        allow update: if isAdmin(shopId)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amount', 'description', 'updatedAt'])
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount']) || (request.resource.data.amount is number && request.resource.data.amount >= 0))
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['description']) || (request.resource.data.description is string && request.resource.data.description.size() <= 200));
-      }
-
-      match /action_locks/{userId} {
+      match /action_locks/{lockId} {
         allow read: if isMember(shopId);
         // Lock mechanism: user can write, but rule checks elapsed time
-        allow create: if isMember(shopId) && userId == request.auth.uid
+        allow create: if isMember(shopId) && lockId == 'bill_' + request.auth.uid
           && request.resource.data.lastExecutedAt == request.time;
-        allow update: if isMember(shopId) && userId == request.auth.uid
+        allow update: if isMember(shopId) && lockId == 'bill_' + request.auth.uid
           && request.resource.data.lastExecutedAt == request.time
           && (resource.data.lastExecutedAt == null || request.time.toMillis() - resource.data.lastExecutedAt.toMillis() > 10000);
       }
@@ -114,26 +97,6 @@ service cloud.firestore {
         allow delete: if false;
       }
 
-      match /DailySummaries/{dateStr} {
-        allow read: if isMember(shopId);
-        allow write: if false; // Written by Cloud Function
-      }
-
-      match /MonthlySummaries/{monthStr} {
-        allow read: if isMember(shopId);
-        allow write: if false; // Written by Cloud Function
-      }
-
-      match /daily_ledger/{dateStr} {
-        allow read: if isMember(shopId);
-        allow write: if false; // written by backend
-      }
-
-      match /priceVarianceLogs/{logId} {
-        allow read: if isAdmin(shopId);
-        allow write: if false;
-      }
-
       match /expenses/{expenseId} {
         allow get: if isMember(shopId);
         allow list: if isMember(shopId) && request.query.limit <= 100;
@@ -142,7 +105,7 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['amount', 'category', 'description', 'creatorId', 'createdAt', 'clientCreatedAt'])
           && request.resource.data.keys().hasAll(['amount', 'category', 'description', 'creatorId'])
           && request.resource.data.amount is number
-          && request.resource.data.amount >= 0
+          && request.resource.data.amount > 0
           && request.resource.data.category is string
           && request.resource.data.category.size() <= 50
           && request.resource.data.description is string
@@ -151,7 +114,7 @@ service cloud.firestore {
 
         allow update: if (isAdmin(shopId) || resource.data.creatorId == request.auth.uid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amount', 'category', 'description', 'updatedAt'])
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount']) || (request.resource.data.amount is number && request.resource.data.amount >= 0))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount']) || (request.resource.data.amount is number && request.resource.data.amount > 0))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['category']) || (request.resource.data.category is string && request.resource.data.category.size() <= 50))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['description']) || (request.resource.data.description is string && request.resource.data.description.size() <= 200));
 
@@ -162,17 +125,17 @@ service cloud.firestore {
         allow read: if isMember(shopId);
         allow create: if isMember(shopId)
           && request.resource.data.keys().hasOnly(['name', 'lastUsedPrice', 'unit', 'stockCount', 'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency', 'createdAt'])
-          && isAsciiString(request.resource.data.name, 1, 100);
+          && isValidString(request.resource.data.name, 1, 100);
         allow update: if isMember(shopId)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['stockCount']) || (request.resource.data.stockCount is number && request.resource.data.stockCount >= 0))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastUsedPrice']) || (request.resource.data.lastUsedPrice is number && request.resource.data.lastUsedPrice >= 0))
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) || isAsciiString(request.resource.data.name, 1, 100))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) || isValidString(request.resource.data.name, 1, 100))
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly([
               'name', 'lastUsedPrice', 'unit', 'stockCount',
               'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency'
             ]);
-        allow delete: if isMember(shopId);
+        allow delete: if false;
       }
     }
 
