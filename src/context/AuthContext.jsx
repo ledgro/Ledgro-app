@@ -174,6 +174,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signOut = () => {
+    localStorage.removeItem('ledgro_offline_shopId');
+    localStorage.removeItem('lastLoginTime');
     return firebaseSignOut(auth);
   };
 
