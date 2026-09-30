@@ -5,7 +5,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getAllData } from '../lib/idb';
 import BottomNav from '../components/BottomNav';
-import { Store, Settings2, Database, User, LogOut, ChevronLeft, Save } from 'lucide-react';
+import { Store, Settings2, Database, User, LogOut, ChevronLeft, Save, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { hapticVibrate } from '../lib/utils';
 // import { broadcastSessionTerminated } from '../lib/sessionBroadcast';
@@ -18,7 +18,7 @@ function csvEscape(value) {
 }
 
 export default function Settings() {
-    const { user, shopId, signOut } = useAuth();
+    const { user, shopId, signOut, deleteAccount } = useAuth();
   const navigate = useNavigate();
 
   // Shop Profile State
@@ -177,6 +177,29 @@ export default function Settings() {
     }
   };
 
+
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    if (!navigator.onLine) {
+      toast.error("Cannot delete account while offline. Please connect to the internet.");
+      return;
+    }
+    const confirmDelete = window.confirm(
+      "Are you absolutely sure you want to delete your account? This action is permanent and cannot be undone."
+    );
+    if (!confirmDelete) return;
+
+    setIsDeletingAccount(true);
+    try {
+      await deleteAccount();
+    } catch (err) {
+      toast.error(err.message || "Failed to delete account.");
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
   const handleSignOut = async () => {
     if (!navigator.onLine) {
       toast.error("Cannot sign out while offline. Please connect to the internet to sync.");
@@ -323,9 +346,22 @@ export default function Settings() {
                <p className="text-xs text-slate-500">Logged in via Google</p>
              </div>
            </div>
-           <button onClick={handleSignOut} className="w-full bg-red-50 text-red-600 font-bold h-12 rounded-xl flex items-center justify-center gap-2 active:bg-red-100 transition-colors">
+           <button onClick={handleSignOut} className="w-full bg-slate-100 text-slate-700 font-bold h-12 rounded-xl flex items-center justify-center gap-2 active:bg-slate-200 transition-colors">
              <LogOut size={18} /> Sign Out
            </button>
+
+           <hr className="border-slate-100 my-4" />
+
+           <div className="space-y-2">
+             <p className="text-xs font-semibold text-red-600">Danger Zone</p>
+             <button
+               onClick={handleDeleteAccount}
+               disabled={isDeletingAccount}
+               className="w-full border border-red-200 text-red-600 font-bold h-12 rounded-xl flex items-center justify-center gap-2 active:bg-red-50 transition-colors disabled:opacity-50"
+             >
+               <Trash2 size={18} /> {isDeletingAccount ? 'Deleting...' : 'Delete Account Permanently'}
+             </button>
+           </div>
         </section>
 
         <div className="text-center text-xs text-slate-400 font-medium py-4">

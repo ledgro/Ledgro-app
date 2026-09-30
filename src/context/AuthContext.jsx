@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, setPersistence, indexedDBLocalPersistence } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, setPersistence, indexedDBLocalPersistence, deleteUser } from 'firebase/auth';
 import { listenForSessionEvents } from '../lib/sessionBroadcast';
 import { sessionGuard } from '../lib/SessionGuard';
 import { terminate } from 'firebase/firestore';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteField, deleteDoc } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../firebase';
 import SplashScreen from '../components/SplashScreen';
 
@@ -177,8 +177,63 @@ export const AuthProvider = ({ children }) => {
     return firebaseSignOut(auth);
   };
 
+
+  const deleteAccount = async () => {
+    if (!auth.currentUser) return;
+
+    // Check shop status if they are in a shop
+    if (shopId) {
+      try {
+        const shopDocRef = doc(db, 'shops', shopId);
+        const shopSnap = await getDoc(shopDocRef);
+        if (shopSnap.exists()) {
+          const shopData = shopSnap.data();
+          const members = shopData.members || {};
+
+          if (members[auth.currentUser.uid] === 'admin') {
+            // Check if they are the ONLY admin
+            const adminCount = Object.values(members).filter(role => role === 'admin').length;
+            if (adminCount <= 1) {
+              // If they are the ONLY person in the shop, let them delete the shop entirely
+              if (Object.keys(members).length === 1) {
+                await deleteDoc(shopDocRef);
+              } else {
+                throw new Error("You are the only Admin. You must promote another member to Admin before deleting your account to prevent locking the shop.");
+              }
+            } else {
+               // Safe to remove admin from shop
+              await updateDoc(shopDocRef, {
+                [`members.${auth.currentUser.uid}`]: deleteField()
+              });
+            }
+          } else {
+            // Safe to remove regular member from shop
+            await updateDoc(shopDocRef, {
+              [`members.${auth.currentUser.uid}`]: deleteField()
+            });
+          }
+        }
+      } catch (err) {
+        if (err.message.includes("only Admin")) throw err; // Pass custom error up
+        console.error("Error removing member from shop:", err);
+        throw new Error("Failed to remove account from shop. Please check your internet connection.");
+      }
+    }
+
+    try {
+      await deleteUser(auth.currentUser);
+      localStorage.removeItem('ledgro_offline_shopId');
+      window.location.href = '/';
+    } catch (error) {
+      if (error.code === 'auth/requires-recent-login') {
+        throw new Error("For security reasons, please sign out and sign back in before deleting your account.");
+      }
+      throw new Error("Failed to delete account. Please try again.");
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, hasShop, shopId, shopAdminId, shopName, setHasShop, setShopId, loading, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, hasShop, shopId, shopAdminId, shopName, setHasShop, setShopId, loading, signInWithGoogle, signOut, deleteAccount }}>
       {loading ? <SplashScreen /> : children}
     </AuthContext.Provider>
   );
