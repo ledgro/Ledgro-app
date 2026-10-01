@@ -39,7 +39,13 @@ export default function SearchInput({ onAddItem }) {
   }, [wrapperRef]);
 
   const handleSelectResult = (item) => {
-    onAddItem({ name: item.name, unitPrice: item.lastUsedPrice || 0, catalogId: item.id });
+    onAddItem({
+      name: item.name,
+      unitPriceAtSale: item.lastUsedPrice || 0,
+      catalogVersionTimestamp: item.updatedAt?.toMillis?.() || Date.now(),
+      catalogId: item.id,
+      unit: item.unit
+    });
     setQuery('');
     setShowDropdown(false);
   };
@@ -51,7 +57,12 @@ export default function SearchInput({ onAddItem }) {
     const priceNum = parseFloat(customPrice);
     if (isNaN(priceNum)) return;
 
-    onAddItem({ name: query.trim(), unitPrice: priceNum });
+    onAddItem({
+      name: query.trim(),
+      unitPriceAtSale: Math.round(priceNum * 100), // convert rupees to paise
+      catalogVersionTimestamp: Date.now(),
+      unit: 'unit'
+    });
     setQuery('');
     setCustomPrice('');
     setShowDropdown(false);

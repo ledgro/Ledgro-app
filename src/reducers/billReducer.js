@@ -17,7 +17,7 @@ export function billReducer(state = initialBillState, action) {
   switch (action.type) {
     case 'ADD_ITEM': {
       const existingItemIndex = state.items.findIndex(
-        (item) => item.name === action.payload.name && item.unitPrice === action.payload.unitPrice
+        (item) => item.name === action.payload.name && item.unitPriceAtSale === action.payload.unitPriceAtSale
       );
 
       if (existingItemIndex > -1) {
@@ -38,8 +38,10 @@ export function billReducer(state = initialBillState, action) {
           {
             id: generateId(),
             name: action.payload.name,
-            unitPrice: action.payload.unitPrice,
+            unitPriceAtSale: action.payload.unitPriceAtSale,
+            catalogVersionTimestamp: action.payload.catalogVersionTimestamp || Date.now(),
             qty: action.payload.qty || 1,
+            unit: action.payload.unit || 'unit',
             lineDiscount: { type: 'flat', value: 0 },
             catalogId: action.payload.catalogId || null,
           },
@@ -105,79 +107,87 @@ export function billReducer(state = initialBillState, action) {
 }
 
 // Selectors for complex mathematical derivations
+export function allocateDiscount(lineItems, totalDiscountPaise) {
+  if (!lineItems.length || totalDiscountPaise <= 0) return lineItems;
+
+  const totalGross = lineItems.reduce((sum, item) => sum + (item.finalLineTotal || 0), 0);
+  if (totalGross === 0) return lineItems;
+
+  let distributedSum = 0;
+  const itemsWithDiscount = lineItems.map((item) => {
+    const exactShare = (item.finalLineTotal / totalGross) * totalDiscountPaise;
+    const floorShare = Math.floor(exactShare);
+    distributedSum += floorShare;
+    return {
+      ...item,
+      allocatedDiscount: floorShare,
+      fraction: exactShare - floorShare,
+    };
+  });
+
+  let remainder = totalDiscountPaise - distributedSum;
+  const sortedIndices = [...itemsWithDiscount.keys()].sort(
+    (a, b) => itemsWithDiscount[b].fraction - itemsWithDiscount[a].fraction
+  );
+
+  for (let i = 0; i < remainder; i++) {
+    itemsWithDiscount[sortedIndices[i]].allocatedDiscount += 1;
+  }
+
+  return itemsWithDiscount.map(({ fraction, ...item }) => item);
+}
+
+// Selectors for complex mathematical derivations
 export const calculateBillTotals = (state) => {
   let subtotal = 0;
 
-  const processedItems = state.items.map(item => {
-    // 1. Raw total
-    let rawTotal = item.unitPrice * item.qty;
-    // 2. Round to nearest whole rupee BEFORE discount as per business logic requirement
-    let roundedBaseTotal = Math.round(rawTotal);
+  let processedItems = state.items.map(item => {
+    // 1. Raw total strictly in paise
+    let rawTotalPaise = Math.round(item.unitPriceAtSale * item.qty);
 
-    // 3. Apply line discount
-    let discountAmt = 0;
+    // 2. Apply line discount (ensure discount is in paise)
+    let discountAmtPaise = 0;
     if (item.lineDiscount.type === 'percent') {
-      discountAmt = (roundedBaseTotal * item.lineDiscount.value) / 100;
+      discountAmtPaise = Math.round((rawTotalPaise * item.lineDiscount.value) / 100);
     } else {
-      discountAmt = item.lineDiscount.value;
+      discountAmtPaise = Math.round(item.lineDiscount.value); // should already be in paise, but ensuring integer
     }
 
-    let finalLineTotal = Math.max(0, roundedBaseTotal - discountAmt);
+    let finalLineTotal = Math.max(0, rawTotalPaise - discountAmtPaise);
 
     subtotal += finalLineTotal;
 
     return {
       ...item,
-      rawTotal: roundedBaseTotal,
-      discountAmt,
+      rawTotal: rawTotalPaise,
+      discountAmt: discountAmtPaise,
       finalLineTotal
     };
   });
 
   // Calculate global discount (everything is in paise)
-  let globalDiscountAmt = 0;
+  let globalDiscountAmtPaise = 0;
   if (state.globalDiscount.type === 'percent') {
-    globalDiscountAmt = Math.round((subtotal * state.globalDiscount.value) / 100);
+    globalDiscountAmtPaise = Math.round((subtotal * state.globalDiscount.value) / 100);
   } else {
-    globalDiscountAmt = state.globalDiscount.value; // Already in paise via UI
+    globalDiscountAmtPaise = Math.round(state.globalDiscount.value); // Already in paise via UI, but ensuring integer
   }
 
   // Allocate global discount across line items using Largest Remainder Method
-  let allocatedItems = [...processedItems];
-  if (globalDiscountAmt > 0 && subtotal > 0) {
-      const exact = processedItems.map(item => ({
-        ...item,
-        exactDiscount: (item.finalLineTotal / subtotal) * globalDiscountAmt
-      }));
-
-      allocatedItems = exact.map(item => ({
-        ...item,
-        allocatedGlobalDiscount: Math.floor(item.exactDiscount)
-      }));
-
-      const allocatedSum = allocatedItems.reduce((sum, item) => sum + item.allocatedGlobalDiscount, 0);
-      let remainder = globalDiscountAmt - allocatedSum;
-
-      const withFractions = allocatedItems
-        .map((item, i) => ({ ...item, fraction: exact[i].exactDiscount - Math.floor(exact[i].exactDiscount), index: i }))
-        .sort((a, b) => b.fraction - a.fraction);
-
-      for (let i = 0; i < remainder; i++) {
-        if(withFractions[i]) allocatedItems[withFractions[i].index].allocatedGlobalDiscount += 1;
-      }
-
-      allocatedItems = allocatedItems.map(item => ({
-         ...item,
-         finalLineTotal: Math.max(0, item.finalLineTotal - (item.allocatedGlobalDiscount || 0))
-      }));
+  if (globalDiscountAmtPaise > 0 && subtotal > 0) {
+    processedItems = allocateDiscount(processedItems, globalDiscountAmtPaise).map(item => ({
+      ...item,
+      allocatedGlobalDiscount: item.allocatedDiscount,
+      finalLineTotal: Math.max(0, item.finalLineTotal - (item.allocatedDiscount || 0))
+    }));
   }
 
-  const grandTotal = Math.max(0, subtotal - globalDiscountAmt);
+  const grandTotal = Math.max(0, subtotal - globalDiscountAmtPaise);
 
   return {
-    items: allocatedItems,
+    items: processedItems,
     subtotal,
-    globalDiscountAmt,
+    globalDiscountAmt: globalDiscountAmtPaise,
     grandTotal // already integer
   };
 };

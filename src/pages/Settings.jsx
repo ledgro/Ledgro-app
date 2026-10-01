@@ -11,6 +11,7 @@ import { hapticVibrate } from '../lib/utils';
 // import { broadcastSessionTerminated } from '../lib/sessionBroadcast';
 import { getDocs, collection } from 'firebase/firestore';
 import { format } from 'date-fns';
+import { checkStorageHealth } from '../lib/storageHealth';
 
 function csvEscape(value) {
   if (value === null || value === undefined) return '';
@@ -31,10 +32,15 @@ export default function Settings() {
   // App Preferences State (localStorage)
   const [defaultPayment, setDefaultPayment] = useState(() => localStorage.getItem('ledgro_defaultPayment') || 'cash');
   const [hapticFeedback, setHapticFeedback] = useState(() => localStorage.getItem('ledgro_haptic') !== 'false');
-    const [autoReset, setAutoReset] = useState(() => localStorage.getItem('ledgro_autoReset') !== 'false');
+  const [autoReset, setAutoReset] = useState(() => localStorage.getItem('ledgro_autoReset') !== 'false');
+  const [storageHealth, setStorageHealth] = useState(null);
 
 
 
+
+  useEffect(() => {
+    checkStorageHealth().then(setStorageHealth);
+  }, []);
 
   useEffect(() => {
     const fetchShopProfile = async () => {
@@ -325,6 +331,20 @@ export default function Settings() {
             <h2>Data Management</h2>
           </div>
           <div className="space-y-3">
+            {storageHealth && (
+              <div className="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-semibold text-slate-700">Storage Usage</span>
+                  <span className="text-xs text-slate-500">{storageHealth.usageMB} MB / {storageHealth.quotaMB} MB</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full ${storageHealth.isCritical ? 'bg-red-500' : storageHealth.isWarning ? 'bg-amber-500' : 'bg-blue-500'}`}
+                    style={{ width: `${Math.min(100, storageHealth.usagePercent)}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
             <button onClick={handleExportData} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors">
               Export All Data to CSV
             </button>

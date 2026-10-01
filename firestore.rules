@@ -137,6 +137,12 @@ service cloud.firestore {
       }
     }
 
+    match /users/{userId} {
+      allow read: if request.auth.uid == userId;
+      allow create, update: if request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['consentRecord']);
+    }
+
     match /invites/{code} {
       allow get: if isAuthenticated();
       allow list: if false; // Blocks brute-force enumeration of active invite codes

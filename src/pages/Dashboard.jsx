@@ -1,5 +1,5 @@
 import { toast } from 'sonner';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useDeferredValue } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { checkStorageHealth } from '../lib/storageHealth';
 import { collection, query, where, getDocs, limit, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -8,10 +8,10 @@ import BottomNav from '../components/BottomNav';
 import { Cloud, CloudOff, RefreshCcw } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { Skeleton } from '../components/Skeleton';
-import { startOfDay, endOfDay, subDays, format } from 'date-fns';
 import { Drawer } from 'vaul';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
+import { computeDailyAggregations } from '../lib/aggregations';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
@@ -40,7 +40,7 @@ export default function Dashboard() {
 
 
   // Stats
-    const [stats, setStats] = useState({
+    const [rawStats, setStats] = useState({
     expectedCash: 0,
     upiInBank: 0,
     netEarnings: 0,
@@ -52,6 +52,8 @@ export default function Dashboard() {
     actualCashCounted: '',
     difference: 0
   });
+
+  const stats = useDeferredValue(rawStats);
 
   const [isCloseDrawerOpen, setIsCloseDrawerOpen] = useState(false);
   const [isClosingRecord, setIsClosingRecord] = useState(false);
@@ -71,109 +73,10 @@ export default function Dashboard() {
     setLoading(true);
 
     try {
-      const todayStart = startOfDay(new Date());
-      const todayEnd = endOfDay(new Date());
-      const yesterdayStart = subDays(todayStart, 1);
-      const yesterdayEnd = endOfDay(yesterdayStart);
-      const weekStart = subDays(todayStart, 6);
-
-      const billsRef = collection(db, `shops/${shopId}/bills`);
-      const expRef = collection(db, `shops/${shopId}/expenses`);
-
-      // Today's Bills
-      const qTodayBills = query(billsRef, where('createdAt', '>=', todayStart), where('createdAt', '<=', todayEnd), limit(100));
-      const qTodayExp = query(expRef, where('createdAt', '>=', todayStart), where('createdAt', '<=', todayEnd), limit(100));
-
-      // Yesterday's Bills (for vs comparison)
-      const qYestBills = query(billsRef, where('createdAt', '>=', yesterdayStart), where('createdAt', '<=', yesterdayEnd), limit(100));
-      const qYestExp = query(expRef, where('createdAt', '>=', yesterdayStart), where('createdAt', '<=', yesterdayEnd), limit(100));
-
-      // Week Bills for Sparkline
-      const qWeekBills = query(billsRef, where('createdAt', '>=', weekStart), where('createdAt', '<=', todayEnd), limit(100));
-
-      const [todayBSnap, todayESnap, yestBSnap, yestESnap, weekBSnap] = await Promise.all([
-        getDocs(qTodayBills), getDocs(qTodayExp), getDocs(qYestBills), getDocs(qYestExp), getDocs(qWeekBills)
-      ]);
-
-      const processBills = (snap) => {
-        let cash = 0, upi = 0, rev = 0, transactionCount = 0;
-        const staff = {};
-        snap.forEach(doc => {
-          const b = doc.data({ serverTimestamps: 'estimate' });
-          if (b.type === 'reversal' || b.isVoided) return;
-
-          if (b.type !== 'return') transactionCount++;
-
-          let mult = b.type === 'return' ? -1 : 1;
-          const total = (b.grandTotal || 0) * mult;
-          rev += total;
-
-          const method = b.payment?.method || b.paymentMethod;
-          if (method === 'split' && b.payment?.breakdown) {
-             cash += (b.payment.breakdown.cash || 0) * mult;
-             upi += (b.payment.breakdown.upi || 0) * mult;
-          } else if (method === 'upi' || b.refundMethod === 'upi') {
-             upi += total;
-          } else {
-             cash += total;
-          }
-
-          if (mult > 0 && b.creatorId) {
-             staff[b.creatorId] = (staff[b.creatorId] || 0) + 1;
-          }
-        });
-        return { cash, upi, rev, staff, transactionCount };
-      };
-
-      const processExp = (snap) => {
-        let exp = 0;
-        snap.forEach(doc => { exp += (parseFloat(doc.data({ serverTimestamps: 'estimate' }).amount) || 0); });
-        return exp;
-      };
-
-      const today = processBills(todayBSnap);
-      const todayExpAmt = processExp(todayESnap);
-
-      const yest = processBills(yestBSnap);
-      const yestExpAmt = processExp(yestESnap);
-
-      const todayNet = today.rev - todayExpAmt;
-      const yestNet = yest.rev - yestExpAmt;
-
-      let percentDiff = 0;
-      if (yestNet > 0) percentDiff = ((todayNet - yestNet) / Math.abs(yestNet)) * 100;
-      else if (yestNet === 0 && todayNet > 0) percentDiff = 100;
-
-      // Week Sparkline
-      const dailyEarn = {};
-      for(let i=0; i<7; i++) {
-        dailyEarn[format(subDays(todayStart, i), 'yyyy-MM-dd')] = 0;
+      const data = await computeDailyAggregations(shopId);
+      if (data) {
+        setStats(s => ({ ...s, ...data }));
       }
-      weekBSnap.forEach(doc => {
-        const b = doc.data({ serverTimestamps: 'estimate' });
-        if (b.type === 'reversal' || b.isVoided) return;
-        const dtStr = b.createdAt ? format(b.createdAt.toDate(), 'yyyy-MM-dd') : null;
-        if (dtStr && dailyEarn[dtStr] !== undefined) {
-           dailyEarn[dtStr] += (b.grandTotal || 0) * (b.type === 'return' ? -1 : 1);
-        }
-      });
-      // We don't fetch weekly expenses for sparkline to keep it fast, or we could if needed.
-      // The prompt says "Weekly sparkline: Simple 7-bar mini chart below the earnings card". I'll just map revenue to keep it simple.
-      const sparkData = Object.keys(dailyEarn).sort().map(k => dailyEarn[k]);
-
-      setStats(s => ({
-        ...s,
-        expectedCash: today.cash - todayExpAmt,
-        upiInBank: today.upi,
-        netEarnings: todayNet,
-        vsYesterday: percentDiff,
-        cashSplit: today.cash,
-        upiSplit: today.upi,
-        staffCount: today.staff,
-        transactionCount: today.transactionCount,
-        weekData: sparkData
-      }));
-
     } catch (err) {
       console.error(err);
     } finally {
@@ -220,12 +123,13 @@ export default function Dashboard() {
     if (!stats.actualCashCounted) return;
     setIsClosingRecord(true);
     try {
-      const diff = parseFloat(stats.actualCashCounted) - stats.expectedCash;
-      if (diff !== 0) {
+      const parsedActual = parseFloat(stats.actualCashCounted);
+      const diffPaise = Math.round(parsedActual * 100) - stats.expectedCash;
+      if (diffPaise !== 0) {
         await addDoc(collection(db, `shops/${shopId}/expenses`), {
-          amount: Math.abs(diff),
+          amount: Math.abs(diffPaise),
           category: 'other',
-          description: diff > 0 ? 'Cash Overage' : 'Cash Shortage',
+          description: diffPaise > 0 ? 'Cash Overage' : 'Cash Shortage',
           creatorId: user.uid,
           createdAt: serverTimestamp()
         });
@@ -402,12 +306,12 @@ export default function Dashboard() {
 
                    {stats.actualCashCounted !== '' && (
                      <div className="mt-4">
-                       {parseFloat(stats.actualCashCounted) === stats.expectedCash ? (
+                       {Math.round(parseFloat(stats.actualCashCounted) * 100) === stats.expectedCash ? (
                          <div className="flex items-center gap-2 text-green-600 font-bold bg-green-50 p-3 rounded-lg"><span className="text-xl">✓</span> All balanced</div>
                        ) : (
                          <div className="text-amber-700 font-bold bg-amber-50 p-3 rounded-lg text-sm">
-                           Difference: {formatCurrency(parseFloat(stats.actualCashCounted) - stats.expectedCash)}
-                           <p className="text-xs font-medium mt-1">This will be recorded as a Cash {parseFloat(stats.actualCashCounted) > stats.expectedCash ? 'Overage' : 'Shortage'} expense.</p>
+                           Difference: {formatCurrency(Math.round(parseFloat(stats.actualCashCounted) * 100) - stats.expectedCash)}
+                           <p className="text-xs font-medium mt-1">This will be recorded as a Cash {Math.round(parseFloat(stats.actualCashCounted) * 100) > stats.expectedCash ? 'Overage' : 'Shortage'} expense.</p>
                          </div>
                        )}
                      </div>

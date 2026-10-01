@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { db, auth } from '../firebase';
 
 const SignIn = () => {
   const { signInWithGoogle, user, hasShop } = useAuth();
@@ -10,6 +12,8 @@ const SignIn = () => {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [lang, setLang] = useState('en');
 
   // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
@@ -41,10 +45,30 @@ const SignIn = () => {
 
   const handleSignIn = async () => {
     if (isSigningIn) return;
+    if (!termsAccepted) {
+      setError('Please accept the Terms of Service and Privacy Policy to continue.');
+      return;
+    }
     try {
       setIsSigningIn(true);
       setError('');
       await signInWithGoogle();
+
+      if (auth.currentUser) {
+        // Check if consent record exists, if not, write it
+        const userRef = doc(db, 'users', auth.currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        if (!userSnap.exists()) {
+          await setDoc(userRef, {
+            consentRecord: {
+              termsAccepted: true,
+              policyVersion: '1.0',
+              language: lang,
+              acceptedAt: new Date().toISOString()
+            }
+          });
+        }
+      }
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to sign in. Please try again.');
@@ -82,10 +106,42 @@ const SignIn = () => {
             </button>
           </div>
         ) : (
-          <div className="space-y-4 w-full px-4">
+          <div className="space-y-4 w-full px-4 text-left">
+            <div className="flex justify-end mb-2">
+              <div className="flex bg-slate-100 p-1 rounded-lg">
+                <button onClick={() => setLang('en')} className={`px-2.5 py-1 text-xs font-bold rounded ${lang === 'en' ? "bg-white shadow-sm text-blue-600" : "text-slate-500"}`}>EN</button>
+                <button onClick={() => setLang('ml')} className={`px-2.5 py-1 text-xs font-bold rounded ${lang === 'ml' ? "bg-white shadow-sm text-blue-600" : "text-slate-500"}`}>ML</button>
+              </div>
+            </div>
+
+            <label className="flex items-start gap-3 cursor-pointer p-3 bg-slate-50 border border-slate-200 rounded-xl mb-4">
+              <div className="pt-0.5">
+                <input
+                  type="checkbox"
+                  className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  checked={termsAccepted}
+                  onChange={(e) => {
+                    setTermsAccepted(e.target.checked);
+                    if (e.target.checked) setError('');
+                  }}
+                />
+              </div>
+              <div className="text-sm font-medium text-slate-700 leading-snug">
+                {lang === 'en' ? (
+                  <>I agree to the <Link to="/terms" className="text-blue-600 underline">Terms of Service</Link> and <Link to="/privacy" className="text-blue-600 underline">Privacy Policy</Link>.</>
+                ) : (
+                  <>ഞാൻ <Link to="/terms" className="text-blue-600 underline">സേവന നിബന്ധനകളും</Link> <Link to="/privacy" className="text-blue-600 underline">സ്വകാര്യതാ നയവും</Link> വായിച്ചു സമ്മതിക്കുന്നു.</>
+                )}
+              </div>
+            </label>
+
+            <p className="text-[11px] text-slate-400 font-medium text-center mb-4">
+              We collect your basic profile to manage your shop ledger. Your data remains stored in India.
+            </p>
+
             <button
               onClick={handleSignIn}
-              disabled={isSigningIn}
+              disabled={isSigningIn || !termsAccepted}
               className={`w-full flex items-center justify-center gap-3 h-14 px-4 border border-slate-200 rounded-xl shadow-sm text-base font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all active:scale-[0.98] ${
                 isSigningIn ? 'opacity-70 cursor-not-allowed' : 'hover:bg-slate-50'
               }`}

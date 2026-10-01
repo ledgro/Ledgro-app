@@ -22,8 +22,8 @@ export class ErrorBoundary extends Component {
           <h2 className="text-xl font-semibold text-slate-900 mb-2">
             Something went wrong
           </h2>
-          <p className="text-slate-500 text-sm mb-6">
-            Please refresh the app to continue
+          <p className="text-slate-500 text-sm mb-6 max-w-sm mx-auto overflow-hidden whitespace-pre-wrap">
+            {this.state.error?.message || 'Please refresh the app to continue'}
           </p>
           <button
             onClick={() => {

@@ -6,13 +6,15 @@ export function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount) {
-  amount = amount / 100;
-  return '₹' + (amount || 0).toLocaleString('en-IN', {
+export const toPaise = (rupees) => Math.round(parseFloat(rupees || 0) * 100);
+
+export const toRupees = (paise) => (paise || 0) / 100;
+
+export const formatCurrency = (paise) =>
+  '₹' + ((paise || 0) / 100).toLocaleString('en-IN', {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2
+    maximumFractionDigits: 2,
   });
-}
 
 export function hapticVibrate(pattern) {
   if (typeof navigator !== 'undefined' && navigator.vibrate) {

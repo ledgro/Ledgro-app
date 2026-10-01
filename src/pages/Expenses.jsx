@@ -55,7 +55,7 @@ export default function Expenses() {
     setSubmitting(true);
     try {
       const payload = {
-        amount: parseFloat(amount) * 100,
+        amount: Math.round(parseFloat(amount) * 100),
         description,
         categoryId: category,
         creatorId: user.uid,
@@ -158,7 +158,7 @@ export default function Expenses() {
                         <p className="text-sm text-gray-500">{exp.createdAt?.toDate ? exp.createdAt.toDate().toLocaleDateString() : 'Syncing...'}</p>
                       </div>
                     </div>
-                    <span className="font-bold text-lg text-gray-900">₹{exp.amount}</span>
+                    <span className="font-bold text-lg text-gray-900">₹{(exp.amount / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
                   </motion.div>
                 </div>
               );

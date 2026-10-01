@@ -154,11 +154,6 @@ export const AuthProvider = ({ children }) => {
 
   const signInWithGoogle = async () => {
     try {
-      try {
-        await setPersistence(auth, indexedDBLocalPersistence);
-      } catch (err) {
-        console.warn('IndexedDB persistence unavailable:', err);
-      }
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       if (error.code === 'auth/account-exists-with-different-credential') {

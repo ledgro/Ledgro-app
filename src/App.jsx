@@ -16,7 +16,8 @@ import Members from './pages/Members';
 import Products from './pages/Products';
 import Settings from './pages/Settings';
 import PLScreen from './pages/PLScreen';
-import Legal from './pages/Legal';
+import TermsOfService from './pages/TermsOfService';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import SplashScreen from './components/SplashScreen';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -114,8 +115,8 @@ const router = createHashRouter([
       { path: '/members', element: <ProtectedRoute><Members /></ProtectedRoute> },
       { path: '/settings', element: <ProtectedRoute><Settings /></ProtectedRoute> },
       { path: '/pnl', element: <ProtectedRoute><PLScreen /></ProtectedRoute> },
-      { path: '/privacy', element: <Legal /> },
-      { path: '/terms', element: <Legal /> },
+      { path: '/privacy', element: <PrivacyPolicy /> },
+      { path: '/terms', element: <TermsOfService /> },
       { path: '*', element: <Navigate to="/login" replace /> },
     ]
   }
