@@ -17,7 +17,7 @@ export function billReducer(state = initialBillState, action) {
   switch (action.type) {
     case 'ADD_ITEM': {
       const existingItemIndex = state.items.findIndex(
-        (item) => item.name === action.payload.name && item.unitPriceAtSale === action.payload.unitPriceAtSale
+        (item) => item.name === action.payload.name && (item.unitPriceAtSale || item.unitPrice) === (action.payload.unitPriceAtSale || action.payload.unitPrice)
       );
 
       if (existingItemIndex > -1) {
@@ -143,7 +143,7 @@ export const calculateBillTotals = (state) => {
 
   let processedItems = state.items.map(item => {
     // 1. Raw total strictly in paise
-    let rawTotalPaise = Math.round(item.unitPriceAtSale * item.qty);
+    let rawTotalPaise = Math.round((item.unitPriceAtSale || item.unitPrice) * item.qty);
 
     // 2. Apply line discount (ensure discount is in paise)
     let discountAmtPaise = 0;
