@@ -117,6 +117,19 @@ service cloud.firestore {
         allow delete: if isAdmin(shopId);
       }
 
+      match /dailyClosures/{closureId} {
+        allow get: if isMember(shopId);
+        allow list: if isMember(shopId) && request.query.limit <= 100;
+        allow create: if isMember(shopId)
+          && request.resource.data.creatorId == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.keys().hasOnly(['expectedCash', 'actualCash', 'difference', 'creatorId', 'createdAt'])
+          && request.resource.data.expectedCash is number
+          && request.resource.data.actualCash is number
+          && request.resource.data.difference is number;
+        allow update, delete: if false; // Closures are immutable locks
+      }
+
       match /catalog/{productId} {
         allow read: if isMember(shopId);
         allow create: if isMember(shopId)

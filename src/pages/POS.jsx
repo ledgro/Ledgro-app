@@ -76,7 +76,6 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
 
   // Checkout state
   const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [isFirstBillDrawerOpen, setIsFirstBillDrawerOpen] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const [lastBill, setLastBill] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' | 'upi' | 'split'
@@ -165,19 +164,36 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
   };
 
   const handleCheckout = async () => {
-    if (items.length === 0 || !shopId) return;
+    if (items.length === 0 || !shopId || isSubmittingRef.current) return;
+
+    // Validate stock before continuing
+    const catalogMap = new Map(useCatalogStore.getState().items.map(i => [i.id, i]));
+    for (const item of items) {
+      if (item.catalogId) {
+        const catItem = catalogMap.get(item.catalogId);
+        if (catItem && catItem.stockCount !== undefined && catItem.stockCount !== null) {
+          if (catItem.stockCount - item.qty < 0) {
+            toast.error(`Not enough stock for ${item.name}. Available: ${catItem.stockCount}`);
+            return;
+          }
+        }
+      }
+    }
+
     setIsCheckingOut(true);
+    isSubmittingRef.current = true;
 
     try {
-      // Calculate split amounts if applicable
-      const cashReceived = parseFloat(splitCash) || 0;
-      const upiAmount = Math.max(0, grandTotal - (cashReceived * 100));
+      // Calculate split amounts if applicable safely
+      const parsedSplit = parseFloat(splitCash);
+      const cashReceived = isNaN(parsedSplit) ? 0 : Math.round(parsedSplit * 100);
+      const upiAmount = Math.round(Math.max(0, grandTotal - cashReceived));
 
 
       const paymentData = {
         method: paymentMethod,
         breakdown: {
-          cash: paymentMethod === 'split' ? cashReceived * 100 : (paymentMethod === 'cash' ? grandTotal : 0),
+          cash: paymentMethod === 'split' ? cashReceived : (paymentMethod === 'cash' ? grandTotal : 0),
           upi: paymentMethod === 'split' ? upiAmount : (paymentMethod === 'upi' ? grandTotal : 0)
         }
       };
@@ -221,32 +237,61 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
         });
       }
 
-// Update catalog: Decrement stock (if tracked) and increment frequency
-      const catalogMap = new Map(useCatalogStore.getState().items.map(i => [i.id, i]));
+      // Update catalog: Decrement stock (if tracked) and increment frequency (only on new sale)
       state.items.forEach(item => {
         if (item.catalogId) {
            const catalogItem = catalogMap.get(item.catalogId);
            if (catalogItem) {
               const catalogRef = doc(db, `shops/${shopId}/catalog`, item.catalogId);
-              const updates = { frequency: increment(1) };
+              const updates = {};
+              if (!editBill) {
+                updates.frequency = increment(1);
+              }
               if (catalogItem.stockCount != null) {
                  updates.stockCount = increment(-item.qty);
               }
-              batch.update(catalogRef, updates);
+              if (Object.keys(updates).length > 0) {
+                 batch.update(catalogRef, updates);
+              }
+           }
+        } else {
+           // Dedupe check: prevent duplicate loose items
+           const existingItem = Array.from(catalogMap.values()).find(c => c.name.toLowerCase() === item.name.toLowerCase());
+           if (existingItem) {
+               if (!editBill) {
+                   batch.update(doc(db, `shops/${shopId}/catalog`, existingItem.id), { frequency: increment(1) });
+               }
+               item.catalogId = existingItem.id;
+           } else {
+               const newCatRef = doc(collection(db, `shops/${shopId}/catalog`));
+               batch.set(newCatRef, {
+                 name: item.name,
+                 unitPrice: item.unitPrice,
+                 lastUsedPrice: item.unitPrice,
+                 unit: item.unit || 'unit',
+                 isActive: true,
+                 frequency: editBill ? 0 : 1,
+                 createdAt: serverTimestamp(),
+                 updatedAt: serverTimestamp()
+               });
+               item.catalogId = newCatRef.id;
            }
         }
       });
 
+      // Write to queue if offline, but commit batch regardless so local firestore updates correctly
       if (!navigator.onLine) {
           await putData('pendingBills', { id: newBillRef.id, path: `shops/${shopId}/bills/${newBillRef.id}`, data: payload });
-      } else {
-          await batch.commit();
       }
+      batch.commit().catch(e => console.warn("Batch commit deferred offline", e));
 
       if (localStorage.getItem('ledgro_haptic') !== 'false') {
         hapticVibrate([50, 30, 50]);
       }
 
+      // Reset state correctly
+      dispatch({ type: 'RESET' });
+      setSplitCash('');
       setLastBill(payload);
       setCheckoutSuccess(true);
       const bCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
@@ -257,9 +302,10 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
       if (localStorage.getItem('ledgro_haptic') !== 'false') {
         hapticVibrate([100, 50, 100]);
       }
-      toast("Checkout failed. Check console.");
+      toast.error("Checkout failed. Please try again.");
     } finally {
       setIsCheckingOut(false);
+      isSubmittingRef.current = false;
     }
   };
 
@@ -326,13 +372,14 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
     a.href = url;
     a.download = 'ledgro-receipt.png';
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
   const handleNewBill = () => {
     setCheckoutSuccess(false);
     setLastBill(null);
     dispatch({ type: 'CLEAR_BILL' });
+    navigate('.', { replace: true, state: {} });
   };
 
   if (checkoutSuccess) {
@@ -533,8 +580,9 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
               )}
 
               <button
+                type="button"
                 onClick={handleCheckout}
-                disabled={isCheckingOut || (paymentMethod === 'split' && (!splitCash || (parseFloat(splitCash) * 100) >= grandTotal))}
+                disabled={isCheckingOut || (paymentMethod === 'split' && (!splitCash || Math.round(parseFloat(splitCash) * 100) >= grandTotal))}
                 className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-all active:scale-[0.98] shadow-sm mt-1"
               >
                 {isCheckingOut ? 'Processing...' : 'Confirm Checkout'} <ArrowRight size={20} />
@@ -552,25 +600,6 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
         dispatch={dispatch}
       />
 
-            <Drawer.Root open={isFirstBillDrawerOpen} onOpenChange={setIsFirstBillDrawerOpen}>
-        <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
-          <Drawer.Content className="bg-white flex flex-col rounded-t-[24px] mt-24 h-auto fixed bottom-0 left-0 right-0 z-50 focus:outline-none">
-            <div className="p-8 bg-white rounded-t-[24px] flex flex-col items-center pb-safe">
-              <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-slate-200 mb-6" />
-              <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4 text-3xl">🎉</div>
-              <h2 className="text-2xl font-black text-slate-900 mb-2 text-center">Your first digital bill!</h2>
-              <p className="text-slate-500 font-medium text-center mb-6">Welcome to Ledgro. We're excited to help you grow your business.</p>
-              <button
-                onClick={() => setIsFirstBillDrawerOpen(false)}
-                className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl active:bg-blue-700 transition-colors"
-              >
-                Continue
-              </button>
-            </div>
-          </Drawer.Content>
-        </Drawer.Portal>
-      </Drawer.Root>
       <BottomNav />
     </div>
   );
