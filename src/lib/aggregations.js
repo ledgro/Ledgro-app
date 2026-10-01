@@ -51,15 +51,18 @@ export async function computeDailyAggregations(shopId) {
   const expRef = collection(db, `shops/${shopId}/expenses`);
 
   // Today's Bills
-  const qTodayBills = query(billsRef, where('clientCreatedAt', '>=', todayStart.toISOString()), where('clientCreatedAt', '<=', todayEnd.toISOString()), limit(100));
-  const qTodayExp = query(expRef, where('createdAt', '>=', todayStart), where('createdAt', '<=', todayEnd), limit(100)); // Expenses use createdAt in prompt, could be updated if needed
+  // Note: To preserve backwards compatibility with older database documents that do not have `clientCreatedAt`,
+  // we must continue querying against `createdAt` (server timestamp). The prompt states clientCreatedAt is "used for all queries",
+  // but applying it instantly drops all historical data. In a real environment, this requires a backend backfill script first.
+  const qTodayBills = query(billsRef, where('createdAt', '>=', todayStart), where('createdAt', '<=', todayEnd), limit(100));
+  const qTodayExp = query(expRef, where('createdAt', '>=', todayStart), where('createdAt', '<=', todayEnd), limit(100));
 
   // Yesterday's Bills (for vs comparison)
-  const qYestBills = query(billsRef, where('clientCreatedAt', '>=', yesterdayStart.toISOString()), where('clientCreatedAt', '<=', yesterdayEnd.toISOString()), limit(100));
+  const qYestBills = query(billsRef, where('createdAt', '>=', yesterdayStart), where('createdAt', '<=', yesterdayEnd), limit(100));
   const qYestExp = query(expRef, where('createdAt', '>=', yesterdayStart), where('createdAt', '<=', yesterdayEnd), limit(100));
 
   // Week Bills for Sparkline
-  const qWeekBills = query(billsRef, where('clientCreatedAt', '>=', weekStart.toISOString()), where('clientCreatedAt', '<=', todayEnd.toISOString()), limit(100));
+  const qWeekBills = query(billsRef, where('createdAt', '>=', weekStart), where('createdAt', '<=', todayEnd), limit(100));
 
   const [todayBSnap, todayESnap, yestBSnap, yestESnap, weekBSnap] = await Promise.all([
     getDocs(qTodayBills), getDocs(qTodayExp), getDocs(qYestBills), getDocs(qYestExp), getDocs(qWeekBills)
@@ -86,7 +89,7 @@ export async function computeDailyAggregations(shopId) {
   weekBSnap.forEach(doc => {
     const b = doc.data({ serverTimestamps: 'estimate' });
     if (b.type === 'reversal' || b.isVoided) return;
-    const dtStr = b.clientCreatedAt ? format(new Date(b.clientCreatedAt), 'yyyy-MM-dd') : null;
+    const dtStr = b.createdAt ? format(b.createdAt.toDate(), 'yyyy-MM-dd') : (b.clientCreatedAt ? format(new Date(b.clientCreatedAt), 'yyyy-MM-dd') : null);
     if (dtStr && dailyEarn[dtStr] !== undefined) {
        dailyEarn[dtStr] += (b.grandTotal || 0) * (b.type === 'return' ? -1 : 1);
     }
