@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, addDoc, doc, runTransaction } from 'firebase/firestore';
+import { collection, addDoc, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 
@@ -16,7 +16,7 @@ const ShopSetup = () => {
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    if (!shopName.trim()) return;
+    if (!shopName.trim() || !user?.uid) return;
 
     try {
       setLoading(true);
@@ -45,9 +45,11 @@ const ShopSetup = () => {
 
   const handleJoin = async (e) => {
     e.preventDefault();
+    if (!user?.uid) return;
+
     const code = inviteCode.trim().toUpperCase();
     if (code.length !== 6) {
-      setError("Please enter a valid 6-digit code");
+      setError("Please enter a valid 6-character code");
       return;
     }
 
@@ -71,9 +73,9 @@ const ShopSetup = () => {
           throw new Error("This invite code has already been claimed.");
         }
 
-        if (inviteData.expiresAt.toDate() < new Date()) {
-          throw new Error("This invite code has expired.");
-        }
+        // Note: Client-side clock check removed.
+        // We rely entirely on the Firestore rule: `request.time < resource.data.expiresAt`
+        // to prevent clock drift/manipulation bypasses.
 
         shopIdToJoin = inviteData.shopId;
         const shopRef = doc(db, 'shops', shopIdToJoin);
@@ -81,7 +83,7 @@ const ShopSetup = () => {
         // Claim the invite
         transaction.update(inviteRef, {
           claimedBy: user.uid,
-          claimedAt: new Date()
+          claimedAt: serverTimestamp()
         });
 
         // Add user to shop
@@ -104,10 +106,10 @@ const ShopSetup = () => {
       console.error(err);
       if (err.code === 'permission-denied') {
         setError("Invalid, expired, or already claimed invite code.");
-      } else if (err.message === "Invalid invite code." || err.message === "This invite code has already been claimed." || err.message === "This invite code has expired.") {
+      } else if (err.message === "Invalid invite code." || err.message === "This invite code has already been claimed.") {
         setError(err.message);
       } else {
-        setError(err.message || 'Failed to join shop.');
+        setError('Failed to join shop. Please check the code and try again.');
       }
       setLoading(false);
     }
@@ -129,6 +131,8 @@ const ShopSetup = () => {
 
           <div className="flex bg-slate-100 p-1 rounded-xl mb-8">
             <button
+              type="button"
+              aria-pressed={mode === 'create'}
               onClick={() => { setMode('create'); setError(''); }}
               className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${
                 mode === 'create' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
@@ -137,6 +141,8 @@ const ShopSetup = () => {
               Create New Shop
             </button>
             <button
+              type="button"
+              aria-pressed={mode === 'join'}
               onClick={() => { setMode('join'); setError(''); }}
               className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${
                 mode === 'join' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
@@ -158,6 +164,8 @@ const ShopSetup = () => {
                     name="shopName"
                     type="text"
                     required
+                    maxLength={60}
+                    autoFocus
                     value={shopName}
                     onChange={(e) => setShopName(e.target.value)}
                     className="appearance-none block w-full px-4 h-14 border border-slate-200 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-medium transition-all"
@@ -184,7 +192,7 @@ const ShopSetup = () => {
             <form className="space-y-6" onSubmit={handleJoin}>
               <div>
                 <label htmlFor="inviteCode" className="block text-sm font-medium text-slate-700">
-                  6-Digit Invite Code
+                  6-Character Invite Code
                 </label>
                 <div className="mt-2">
                   <input
@@ -193,6 +201,7 @@ const ShopSetup = () => {
                     type="text"
                     required
                     maxLength={6}
+                    autoFocus
                     value={inviteCode}
                     onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                     className="appearance-none block w-full px-4 h-16 border border-slate-200 rounded-xl shadow-sm placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-3xl font-black tracking-[0.2em] uppercase transition-all"

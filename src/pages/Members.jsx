@@ -6,6 +6,7 @@ import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Trash2, UserPlus, LogOut, ArrowUpCircle } from 'lucide-react';
 import { hapticVibrate } from '../lib/utils';
+import { INVITE_ALPHABET } from '../lib/constants';
 
 export default function Members() {
   const { user, shopId, shopAdminId, setShopAdminId, signOut } = useAuth();
@@ -43,17 +44,17 @@ export default function Members() {
 
   const handleGenerateInvite = async () => {
     setIsGenerating(true);
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
     let code = '';
     let inviteRef = null;
     let isUnique = false;
     let attempts = 0;
 
-
     try {
       while (!isUnique && attempts < 5) {
-        code = Array.from(crypto.getRandomValues(new Uint8Array(6))).map((b) => chars[b % chars.length]).join('');
+        code = Array.from(crypto.getRandomValues(new Uint8Array(6)))
+          .map((b) => INVITE_ALPHABET[b % INVITE_ALPHABET.length])
+          .join('');
         inviteRef = doc(db, 'invites', code);
         const inviteSnap = await getDoc(inviteRef);
         if (!inviteSnap.exists()) {
