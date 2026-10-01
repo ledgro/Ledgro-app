@@ -83,7 +83,19 @@ export const AuthProvider = ({ children }) => {
                   setShopName(data.name);
                   setLoading(false);
                   return; // We're done
+                } else {
+                  // User is no longer a member of this cached shop.
+                  localStorage.removeItem('ledgro_offline_shopId');
+                  setHasShop(false);
+                  setShopId(null);
+                  setShopAdminId(null);
+                  setShopName('');
                 }
+              } else {
+                 // Shop doesn't exist anymore
+                 localStorage.removeItem('ledgro_offline_shopId');
+                 setHasShop(false);
+                 setShopId(null);
               }
             } catch (fastPathError) {
               console.warn("Direct fetch failed, falling back to query.", fastPathError);
@@ -176,6 +188,8 @@ export const AuthProvider = ({ children }) => {
   const signOut = () => {
     localStorage.removeItem('ledgro_offline_shopId');
     localStorage.removeItem('lastLoginTime');
+    setHasShop(null);
+    setShopId(null);
     return firebaseSignOut(auth);
   };
 

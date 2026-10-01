@@ -1,47 +1,57 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
+import { POLICY_VERSION } from '../lib/constants';
 
 const SignIn = () => {
   const { signInWithGoogle, user, hasShop } = useAuth();
   const navigate = useNavigate();
-  const [isInAppBrowser, setIsInAppBrowser] = useState(false);
-  const [browserTarget, setBrowserTarget] = useState('Safari or Chrome');
+  const { isIAB, targetBrowser } = useMemo(() => {
+    const ua = navigator.userAgent || navigator.vendor;
+    const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+    const isAndroid = /android/i.test(ua);
+
+    // Check for common in-app browsers
+    const isIAB = (
+      ua.indexOf('FBAN') > -1 ||
+      ua.indexOf('FBAV') > -1 ||
+      ua.indexOf('WhatsApp') > -1 ||
+      ua.indexOf('Instagram') > -1 ||
+      ua.indexOf('Line') > -1 ||
+      ua.indexOf('FB_IAB') > -1 ||
+      ua.indexOf('Snapchat') > -1 ||
+      ua.indexOf('Twitter') > -1 ||
+      ua.indexOf('LinkedInApp') > -1 ||
+      /; wv\)/.test(ua)
+    );
+
+    let targetBrowser = 'Safari or Chrome';
+    if (isIOS) targetBrowser = 'Safari';
+    else if (isAndroid) targetBrowser = 'Chrome';
+
+    return { isIAB, targetBrowser };
+  }, []);
+
+  const [isInAppBrowser] = useState(isIAB);
+  const [browserTarget] = useState(targetBrowser);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [lang, setLang] = useState('en');
 
-  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
-        const ua = navigator.userAgent || navigator.vendor || window.opera;
-    if (
-      ua.indexOf('FBAN') > -1 ||
-      ua.indexOf('FBAV') > -1 ||
-      ua.indexOf('WhatsApp') > -1 ||
-      ua.indexOf('Instagram') > -1
-    ) {
-      setIsInAppBrowser(true);
-
-      // Basic OS detection for better messaging
-      if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) {
-        setBrowserTarget('Safari');
-      } else if (/android/i.test(ua)) {
-        setBrowserTarget('Chrome');
-      }
-    }
-
-    if (user) {
+    // Wait for the sign-in flow (including the consent setDoc) to complete before navigating away
+    if (user && !isSigningIn) {
       if (hasShop) {
         navigate('/dashboard');
       } else if (hasShop === false) {
         navigate('/setup');
       }
     }
-  }, [user, hasShop, navigate]);
+  }, [user, hasShop, navigate, isSigningIn]);
 
   const handleSignIn = async () => {
     if (isSigningIn) return;
@@ -58,28 +68,58 @@ const SignIn = () => {
         // Check if consent record exists, if not, write it
         const userRef = doc(db, 'users', auth.currentUser.uid);
         const userSnap = await getDoc(userRef);
-        if (!userSnap.exists()) {
+        if (!userSnap.data()?.consentRecord) {
           await setDoc(userRef, {
             consentRecord: {
               termsAccepted: true,
-              policyVersion: '1.0',
+              policyVersion: POLICY_VERSION,
               language: lang,
-              acceptedAt: new Date().toISOString()
+              acceptedAt: serverTimestamp()
             }
-          });
+          }, { merge: true });
         }
       }
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to sign in. Please try again.');
+    } finally {
       setIsSigningIn(false);
     }
   };
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(window.location.href)
+        .then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        })
+        .catch(err => {
+          console.error("Clipboard API failed:", err);
+          fallbackCopyTextToClipboard(window.location.href);
+        });
+    } else {
+      fallbackCopyTextToClipboard(window.location.href);
+    }
+  };
+
+  const fallbackCopyTextToClipboard = (text) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.position = "fixed";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Fallback copy error:', err);
+    }
+    document.body.removeChild(textArea);
   };
 
   return (
@@ -92,25 +132,33 @@ const SignIn = () => {
 
         {isInAppBrowser ? (
           <div className="space-y-4 bg-orange-50 text-orange-800 p-4 rounded-lg border border-orange-100">
+            <div className="flex justify-end mb-2">
+              <div className="flex bg-slate-100 p-1 rounded-lg">
+                <button type="button" aria-pressed={lang === 'en'} onClick={() => setLang('en')} className={`px-2.5 py-1 text-xs font-bold rounded ${lang === 'en' ? "bg-white shadow-sm text-blue-600" : "text-slate-500"}`}>EN</button>
+                <button type="button" aria-pressed={lang === 'ml'} onClick={() => setLang('ml')} className={`px-2.5 py-1 text-xs font-bold rounded ${lang === 'ml' ? "bg-white shadow-sm text-blue-600" : "text-slate-500"}`}>ML</button>
+              </div>
+            </div>
             <p className="font-medium">
-              Open in {browserTarget} to continue.
+              {lang === 'en' ? `Open in ${browserTarget} to continue.` : `തുടരാൻ ${browserTarget}-ൽ തുറക്കുക.`}
             </p>
             <p className="text-sm">
-              Google Sign-In is blocked inside this app's browser.
+              {lang === 'en' ? "Google Sign-In is blocked inside this app's browser." : "ഈ ആപ്പിന്റെ ബ്രൗസറിൽ ഗൂഗിൾ സൈൻ-ഇൻ ബ്ലോക്ക് ചെയ്തിരിക്കുന്നു."}
             </p>
             <button
               onClick={handleCopyLink}
               className="w-full flex justify-center py-3 px-4 border border-orange-300 rounded-lg shadow-sm text-sm font-medium text-orange-700 bg-white hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors"
             >
-              {copied ? 'Link Copied!' : 'Copy Link'}
+              {copied
+                ? (lang === 'en' ? 'Link Copied!' : 'ലിങ്ക് പകർത്തി!')
+                : (lang === 'en' ? 'Copy Link' : 'ലിങ്ക് പകർത്തുക')}
             </button>
           </div>
         ) : (
           <div className="space-y-4 w-full px-4 text-left">
             <div className="flex justify-end mb-2">
               <div className="flex bg-slate-100 p-1 rounded-lg">
-                <button onClick={() => setLang('en')} className={`px-2.5 py-1 text-xs font-bold rounded ${lang === 'en' ? "bg-white shadow-sm text-blue-600" : "text-slate-500"}`}>EN</button>
-                <button onClick={() => setLang('ml')} className={`px-2.5 py-1 text-xs font-bold rounded ${lang === 'ml' ? "bg-white shadow-sm text-blue-600" : "text-slate-500"}`}>ML</button>
+                <button type="button" aria-pressed={lang === 'en'} onClick={() => setLang('en')} className={`px-2.5 py-1 text-xs font-bold rounded ${lang === 'en' ? "bg-white shadow-sm text-blue-600" : "text-slate-500"}`}>EN</button>
+                <button type="button" aria-pressed={lang === 'ml'} onClick={() => setLang('ml')} className={`px-2.5 py-1 text-xs font-bold rounded ${lang === 'ml' ? "bg-white shadow-sm text-blue-600" : "text-slate-500"}`}>ML</button>
               </div>
             </div>
 
@@ -136,7 +184,9 @@ const SignIn = () => {
             </label>
 
             <p className="text-[11px] text-slate-400 font-medium text-center mb-4">
-              We collect your basic profile to manage your shop ledger. Your data remains stored in India.
+              {lang === 'en'
+                ? "We collect your basic profile to manage your shop ledger. Your data remains stored in India."
+                : "നിങ്ങളുടെ ഷോപ്പ് അക്കൗണ്ട് കൈകാര്യം ചെയ്യുന്നതിനായി നിങ്ങളുടെ അടിസ്ഥാന വിവരങ്ങൾ ഞങ്ങൾ ശേഖരിക്കുന്നു. നിങ്ങളുടെ വിവരങ്ങൾ ഇന്ത്യയിൽ സുരക്ഷിതമായി സൂക്ഷിക്കുന്നു."}
             </p>
 
             <button
