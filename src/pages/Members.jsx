@@ -78,9 +78,9 @@ export default function Members() {
 
     try {
       while (!isUnique && attempts < 5) {
-        code = Array.from(crypto.getRandomValues(new Uint8Array(6)))
-          .map((b) => INVITE_ALPHABET[b % INVITE_ALPHABET.length])
-          .join('');
+        // Without functions to rate limit, we must use a sufficiently long code (e.g. 20 chars minimum or UUID)
+        // to completely eliminate brute force viability even if they hit the database directly.
+        code = crypto.randomUUID().replace(/-/g, '').substring(0, 20).toUpperCase();
         inviteRef = doc(db, 'invites', code);
         const inviteSnap = await getDoc(inviteRef);
         if (!inviteSnap.exists()) {
@@ -93,9 +93,15 @@ export default function Members() {
         throw new Error("Could not generate a unique invite code after multiple attempts.");
       }
 
-      const expiresAtMs = Date.now() + (30 * 60 * 1000);
+      const expiresAtMs = Date.now() + (30 * 60 * 1000); // 30 mins from now
       const expiresAt = Timestamp.fromMillis(expiresAtMs);
-      await setDoc(inviteRef, { shopId, expiresAt, claimedBy: null });
+      await setDoc(inviteRef, {
+        shopId,
+        expiresAt,
+        claimedBy: null,
+        claimedAt: null,
+        createdBy: user.uid
+      });
       setInviteCode(code);
     } catch (error) {
       console.error(error);
@@ -199,7 +205,7 @@ export default function Members() {
             {inviteCode ? (
               <div className="space-y-3">
                 <p className="text-sm font-medium text-slate-500">Share this code with the new member</p>
-                <div className="text-5xl font-black text-blue-600 tracking-[0.2em] py-4 bg-blue-50 rounded-xl">{inviteCode}</div>
+                <div className="text-xl md:text-2xl font-black text-blue-600 tracking-[0.1em] py-4 px-2 break-all bg-blue-50 rounded-xl">{inviteCode}</div>
                 <p className="text-xs text-orange-600 font-medium">Expires in 30 minutes.</p>
                 <button onClick={async () => {
                   try {
