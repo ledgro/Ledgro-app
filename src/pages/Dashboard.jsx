@@ -54,6 +54,7 @@ export default function Dashboard() {
 
   const stats = useDeferredValue(rawStats);
   const [actualCashCounted, setActualCashCounted] = useState(''); // Moved out of deferred stats
+  const [closureDate, setClosureDate] = useState(() => new Date().toISOString().split('T')[0]); // Default to today's local date
   const [isCloseDrawerOpen, setIsCloseDrawerOpen] = useState(false);
   const [isClosingRecord, setIsClosingRecord] = useState(false);
 
@@ -117,15 +118,12 @@ export default function Dashboard() {
     setIsClosingRecord(true);
 
     try {
-      // 1. Try to lock the day by creating a unique daily closures doc (e.g., YYYY-MM-DD format)
-      // This enforces rules preventing multiple closures.
-
-      // Fetch server time to strictly match Firestore rules: string(request.time.year()) + '-' + string(request.time.month()) + '-' + string(request.time.day())
-      // Note: Firestore rules extract UTC dates. We MUST match UTC exactly, otherwise rules will block the lock write.
-      const drift = await measureClockDrift();
-      const trueServerTime = new Date(Date.now() + drift);
-
-      const closureDocId = `${trueServerTime.getUTCFullYear()}-${trueServerTime.getUTCMonth() + 1}-${trueServerTime.getUTCDate()}`;
+      // 1. Try to lock the day by creating a unique daily closures doc
+      // The user explicitly selects the date to close, allowing them to close a previous missed day safely.
+      if (!closureDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+         throw new Error("Invalid date format");
+      }
+      const closureDocId = closureDate;
 
       const diffPaise = Math.round(parsedActual * 100) - stats.expectedCash;
       // If shortage, we create an expense. If overage, we don't. We just log it as Income adjustment (handled differently in aggregations)
@@ -138,7 +136,8 @@ export default function Dashboard() {
         actualCash: Math.round(parsedActual * 100),
         difference: diffPaise,
         creatorId: user.uid,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        date: closureDocId
       };
 
       // 1. Create Closure Doc (will fail if rules enforce it already exists today)
@@ -341,17 +340,29 @@ export default function Dashboard() {
                  </div>
 
                  {/* Verification Input */}
-                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                   <label className="block text-sm font-bold text-slate-700 mb-2">Actual cash counted:</label>
-                   <div className="relative">
-                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                   <div>
+                     <label className="block text-sm font-bold text-slate-700 mb-2">Closure Date</label>
                      <input
-                       type="number"
-                       value={actualCashCounted}
-                       onChange={e => setActualCashCounted(e.target.value)}
-                       className="w-full pl-8 pr-4 h-14 border border-slate-200 rounded-xl font-bold text-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                       placeholder="0.00"
+                       type="date"
+                       value={closureDate}
+                       onChange={e => setClosureDate(e.target.value)}
+                       className="w-full px-4 h-12 border border-slate-200 rounded-xl font-bold text-slate-600 focus:ring-2 focus:ring-blue-500 outline-none"
                      />
+                   </div>
+
+                   <div>
+                     <label className="block text-sm font-bold text-slate-700 mb-2">Actual cash counted:</label>
+                     <div className="relative">
+                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                       <input
+                         type="number"
+                         value={actualCashCounted}
+                         onChange={e => setActualCashCounted(e.target.value)}
+                         className="w-full pl-8 pr-4 h-14 border border-slate-200 rounded-xl font-bold text-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                         placeholder="0.00"
+                       />
+                     </div>
                    </div>
 
                    {actualCashCounted !== '' && !isNaN(parseFloat(actualCashCounted)) && (

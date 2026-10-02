@@ -134,13 +134,14 @@ service cloud.firestore {
         allow get: if isMember(shopId);
         allow list: if isMember(shopId) && request.query.limit <= 100;
         allow create: if isMember(shopId)
-          && closureId == string(request.time.year()) + '-' + string(request.time.month()) + '-' + string(request.time.day())
+          && closureId.matches('^\\d{4}-\\d{2}-\\d{2}$')
           && request.resource.data.creatorId == request.auth.uid
           && request.resource.data.createdAt == request.time
-          && request.resource.data.keys().hasOnly(['expectedCash', 'actualCash', 'difference', 'creatorId', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['expectedCash', 'actualCash', 'difference', 'creatorId', 'createdAt', 'date'])
           && request.resource.data.expectedCash is number
           && request.resource.data.actualCash is number
-          && request.resource.data.difference is number;
+          && request.resource.data.difference is number
+          && request.resource.data.date == closureId;
         allow update, delete: if false; // Closures are immutable locks
       }
 
