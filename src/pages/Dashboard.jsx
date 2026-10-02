@@ -2,7 +2,7 @@ import { toast } from 'sonner';
 import { useState, useEffect, useRef, useCallback, useDeferredValue } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { checkStorageHealth } from '../lib/storageHealth';
-import { collection, query, where, getDocs, limit, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Cloud, CloudOff, RefreshCcw } from 'lucide-react';
@@ -118,10 +118,13 @@ export default function Dashboard() {
     try {
       // 1. Try to lock the day by creating a unique daily closures doc (e.g., YYYY-MM-DD format)
       // This enforces rules preventing multiple closures.
-      const todayString = new Date().toISOString().split('T')[0];
-      const diffPaise = Math.round(parsedActual * 100) - stats.expectedCash;
 
-      // Instead of an expense, we simply log the closure
+      // Convert to strict local timezone format string
+      const now = new Date();
+      const localDateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const closureDocId = localDateString;
+
+      const diffPaise = Math.round(parsedActual * 100) - stats.expectedCash;
       // If shortage, we create an expense. If overage, we don't. We just log it as Income adjustment (handled differently in aggregations)
       // Note: The prompt asks to record overage as income, shortage as expense.
       // We will create the closure doc which stores actual values.
@@ -136,7 +139,8 @@ export default function Dashboard() {
       };
 
       // 1. Create Closure Doc (will fail if rules enforce it already exists today)
-      await addDoc(collection(db, `shops/${shopId}/dailyClosures`), closureData);
+      // Explicitly set the doc ID to the date string instead of allowing auto-id
+      await setDoc(doc(db, `shops/${shopId}/dailyClosures`, closureDocId), closureData);
 
     } catch (_e) {
       toast.error("Failed to close register (Already closed today?)");
