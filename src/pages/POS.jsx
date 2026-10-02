@@ -124,13 +124,13 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
   const { items, subtotal, globalDiscountAmt, grandTotal } = useMemo(() => calculateBillTotals(state), [state]);
 
   // Derive top 8 most frequent active items for fast-access grid
+  const storeCatalogItems = useCatalogStore(state => state.items);
   const fastAccessItems = useMemo(() => {
-    const catalogItems = useCatalogStore.getState().items;
-    return catalogItems
+    return storeCatalogItems
       .filter(i => i.isActive !== false)
       .sort((a, b) => (b.frequency || 0) - (a.frequency || 0))
       .slice(0, 8);
-  }, [state.items]); // Re-evaluate occasionally or on mount
+  }, [storeCatalogItems]);
 
   const handleAddItem = (item) => {
     dispatch({ type: 'ADD_ITEM', payload: item });

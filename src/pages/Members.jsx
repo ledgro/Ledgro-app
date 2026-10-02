@@ -6,7 +6,6 @@ import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Trash2, UserPlus, LogOut, ArrowUpCircle } from 'lucide-react';
 import { hapticVibrate } from '../lib/utils';
-import { INVITE_ALPHABET } from '../lib/constants';
 import { broadcastSessionTerminated } from '../lib/sessionBroadcast';
 
 export default function Members() {
