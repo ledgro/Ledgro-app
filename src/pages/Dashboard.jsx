@@ -119,15 +119,6 @@ export default function Dashboard() {
       // 1. Try to lock the day by creating a unique daily closures doc (e.g., YYYY-MM-DD format)
       // This enforces rules preventing multiple closures.
       const todayString = new Date().toISOString().split('T')[0];
-      const closureDocId = `${todayString}`; // Will create `shops/{shopId}/dailyClosures/2023-11-20`
-
-      const closureRef = doc(db, `shops/${shopId}/dailyClosures`, closureDocId);
-
-      // We will perform a write batch to ensure the doc and any discrepancies apply atomically
-      const batch = db._batch ? db._batch() : writeBatch(db); // Fallback standard batch creation if possible, using typical writeBatch:
-
-      // Wait we already import writeBatch.
-
       const diffPaise = Math.round(parsedActual * 100) - stats.expectedCash;
 
       // Instead of an expense, we simply log the closure
@@ -145,9 +136,9 @@ export default function Dashboard() {
       };
 
       // 1. Create Closure Doc (will fail if rules enforce it already exists today)
-      await addDoc(collection(db, `shops/${shopId}/dailyClosures`), closureData); // Wait, unique ID is better for locks but addDoc is easier if we enforce 1 a day via cloud functions or client logic. The user wants rules: we can't check 'exists' easily without a specific ID. Let's use setDoc with a specific ID.
+      await addDoc(collection(db, `shops/${shopId}/dailyClosures`), closureData);
 
-    } catch (e) {
+    } catch (_e) {
       toast.error("Failed to close register (Already closed today?)");
       setIsClosingRecord(false);
       return; // Stop early
@@ -188,7 +179,7 @@ export default function Dashboard() {
        setIsCloseDrawerOpen(false);
        setActualCashCounted(''); // Reset the input!
        fetchDashboardData();
-    } catch (e) {
+    } catch (_e) {
        toast.error("Failed to process discrepancies.");
     } finally {
        setIsClosingRecord(false);

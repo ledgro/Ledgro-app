@@ -1,12 +1,13 @@
 import { toast } from 'sonner';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot, clearIndexedDbPersistence, serverTimestamp, terminate } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot, clearIndexedDbPersistence, terminate, deleteField, collection, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Trash2, UserPlus, LogOut, ArrowUpCircle } from 'lucide-react';
 import { hapticVibrate } from '../lib/utils';
 import { INVITE_ALPHABET } from '../lib/constants';
+import { broadcastSessionTerminated } from '../lib/sessionBroadcast';
 
 export default function Members() {
   const { user, shopId, shopAdminId, setShopAdminId, signOut } = useAuth();
@@ -15,16 +16,36 @@ export default function Members() {
   const [inviteCode, setInviteCode] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  const shopAdminIdRef = useRef(shopAdminId);
+  useEffect(() => { shopAdminIdRef.current = shopAdminId; }, [shopAdminId]);
+
   const isCreator = user?.uid === shopAdminId;
 
   useEffect(() => {
-    if (!shopId) return;
+    if (!shopId || !user?.uid) return;
+
+    const performWipe = async () => {
+      localStorage.removeItem('ledgro_offline_shopId');
+      try {
+         await terminate(db);
+         await clearIndexedDbPersistence(db);
+      } catch(e) {
+         console.info('IndexedDB clear skipped or failed', e);
+      }
+      await signOut();
+    };
+
     const unsubscribe = onSnapshot(doc(db, 'shops', shopId), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data({ serverTimestamps: 'estimate' });
         const membersMap = data.members || {};
 
-        if (data.ownerId && data.ownerId !== shopAdminId) {
+        if (membersMap[user.uid] == null) {
+          performWipe();
+          return;
+        }
+
+        if (data.ownerId && data.ownerId !== shopAdminIdRef.current) {
           setShopAdminId(data.ownerId);
         }
 
@@ -33,14 +54,19 @@ export default function Members() {
           role: membersMap[uid] === 'admin' || uid === data.ownerId ? 'Admin' : 'Member',
           name: uid === user.uid ? 'You' : `Member ${uid.substring(0, 4)}`
         }));
-        memberList.sort((a) => (a.uid === user.uid ? -1 : 1));
+        memberList.sort((a, b) => (a.uid === user.uid ? -1 : b.uid === user.uid ? 1 : 0));
         setMembers(memberList);
+      } else {
+        performWipe();
       }
       setLoading(false);
+    }, (error) => {
+       console.error("Snapshot error (permission denied likely due to removal):", error);
+       performWipe();
     });
 
     return () => unsubscribe();
-  }, [shopId, user.uid, shopAdminId, setShopAdminId]);
+  }, [shopId, user?.uid, setShopAdminId, signOut]);
 
   const handleGenerateInvite = async () => {
     setIsGenerating(true);
@@ -67,8 +93,8 @@ export default function Members() {
         throw new Error("Could not generate a unique invite code after multiple attempts.");
       }
 
-      const expiresAt = new Date();
-      expiresAt.setMinutes(expiresAt.getMinutes() + 30);
+      const expiresAtMs = Date.now() + (30 * 60 * 1000);
+      const expiresAt = Timestamp.fromMillis(expiresAtMs);
       await setDoc(inviteRef, { shopId, expiresAt, claimedBy: null });
       setInviteCode(code);
     } catch (error) {
@@ -80,26 +106,21 @@ export default function Members() {
   };
 
   const handleRemoveMember = async (targetUid) => {
-    if (!isCreator || targetUid === user.uid) return;
+    if (!isCreator || targetUid === user?.uid) return;
     if (!window.confirm("Remove this member?")) return;
     if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate(20);
 
     try {
       const shopRef = doc(db, 'shops', shopId);
-      const shopSnap = await getDoc(shopRef);
-      if (shopSnap.exists()) {
-        const currentMembers = { ...shopSnap.data({ serverTimestamps: 'estimate' }).members };
-        delete currentMembers[targetUid];
-        await updateDoc(shopRef, { members: currentMembers });
-        if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate([50, 30, 50]);
-      }
+      await updateDoc(shopRef, { [`members.${targetUid}`]: deleteField() });
+      if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate([50, 30, 50]);
     } catch {
       toast.error("Failed to remove member.");
     }
   };
 
   const handleMakeAdmin = async (targetUid) => {
-     if (!isCreator || targetUid === user.uid) return;
+     if (!isCreator || targetUid === user?.uid) return;
      if (window.confirm("Make this member the new admin? You will become a regular member.")) {
         try {
            const shopRef = doc(db, 'shops', shopId);
@@ -109,7 +130,7 @@ export default function Members() {
               ownerId: targetUid
            });
            toast("Admin transferred successfully.");
-        } catch {
+        } catch (_err) {
            console.error(_err);
            toast.error("Failed to transfer admin role.");
         }
@@ -117,7 +138,7 @@ export default function Members() {
   };
 
   const handleLeaveShop = async () => {
-    if (!shopId) return;
+    if (!shopId || !user?.uid) return;
 
     if (isCreator) {
        if (members.length > 1) {
@@ -126,6 +147,15 @@ export default function Members() {
        }
        if (window.confirm("You are the only member. This will permanently delete the shop. Continue?")) {
           try {
+             // Delete orphaned subcollections first
+             const collectionsToDelete = ['bills', 'expenses', 'catalog'];
+             for (const collName of collectionsToDelete) {
+               const subColRef = collection(db, `shops/${shopId}/${collName}`);
+               const snapshot = await getDocs(subColRef);
+               const deletePromises = snapshot.docs.map(d => deleteDoc(d.ref));
+               await Promise.all(deletePromises);
+             }
+
              await deleteDoc(doc(db, 'shops', shopId));
              broadcastSessionTerminated();
              await handleWipeAndExit();
@@ -137,13 +167,8 @@ export default function Members() {
        if (window.confirm("Are you sure you want to leave this shop?")) {
           try {
              const shopRef = doc(db, 'shops', shopId);
-             const shopSnap = await getDoc(shopRef);
-             if (shopSnap.exists()) {
-                const currentMembers = { ...shopSnap.data({ serverTimestamps: 'estimate' }).members };
-                delete currentMembers[user.uid];
-                await updateDoc(shopRef, { members: currentMembers });
-                await handleWipeAndExit();
-             }
+             await updateDoc(shopRef, { [`members.${user.uid}`]: deleteField() });
+             await handleWipeAndExit();
           } catch {
              toast.error("Failed to leave shop.");
           }
@@ -151,7 +176,8 @@ export default function Members() {
     }
   };
 
-const handleWipeAndExit = async () => {
+  const handleWipeAndExit = async () => {
+    localStorage.removeItem('ledgro_offline_shopId');
     try {
        await terminate(db);
        await clearIndexedDbPersistence(db);
@@ -175,7 +201,14 @@ const handleWipeAndExit = async () => {
                 <p className="text-sm font-medium text-slate-500">Share this code with the new member</p>
                 <div className="text-5xl font-black text-blue-600 tracking-[0.2em] py-4 bg-blue-50 rounded-xl">{inviteCode}</div>
                 <p className="text-xs text-orange-600 font-medium">Expires in 30 minutes.</p>
-                <button onClick={() => { deleteDoc(doc(db, 'invites', inviteCode)); setInviteCode(null); }} className="mt-4 text-sm text-slate-500 underline">
+                <button onClick={async () => {
+                  try {
+                    await deleteDoc(doc(db, 'invites', inviteCode));
+                    setInviteCode(null);
+                  } catch (e) {
+                    toast.error("Failed to cancel invite.");
+                  }
+                }} className="mt-4 text-sm text-slate-500 underline">
                   Cancel Invite
                 </button>
               </div>
