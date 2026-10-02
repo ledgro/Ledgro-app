@@ -241,6 +241,8 @@ export const AuthProvider = ({ children }) => {
     setShopAdminId(null);
     setShopName('');
 
+    sessionGuard.unbindSession();
+
     try {
       await terminate(db);
       await clearIndexedDbPersistence(db);

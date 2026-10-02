@@ -2,21 +2,22 @@ import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
-import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Drawer } from 'vaul';
 import { PackagePlus, ArrowRight, Search, Plus, Archive, ChevronDown, ChevronUp, AlertCircle, Edit2, Trash2 } from 'lucide-react';
-import { formatCurrency } from '../lib/utils';
-import { cn } from '../lib/utils';
-import { useBodyLock } from '../hooks/useBodyLock';
+import { formatCurrency, sanitizeText, cn } from '../lib/utils';
+import { sessionGuard } from '../lib/SessionGuard';
 
 export default function Products() {
   const billCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
-  const { user, shopId } = useAuth();
+  const { user, shopId, shopAdminId } = useAuth();
   const catalogItems = useCatalogStore((state) => state.items);
   const addCatalogItem = useCatalogStore((state) => state.addItem);
   const removeCatalogItem = useCatalogStore((state) => state.removeItem);
+
+  const isAdmin = user?.uid === shopAdminId;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showInactive, setShowInactive] = useState(false);
@@ -25,8 +26,6 @@ export default function Products() {
   // Bottom Sheet State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null); // null means "Add New"
-
-  useBodyLock(isDrawerOpen);
 
   // Form State
   const [name, setName] = useState('');
@@ -45,7 +44,7 @@ export default function Products() {
   const activeProducts = useMemo(() => {
     let filtered = catalogItems
       .filter(item => item.isActive !== false)
-      .filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      .filter(item => item.name?.toLowerCase().includes(searchQuery.toLowerCase()));
 
 
     filtered = filtered.sort((a, b) => {
@@ -59,12 +58,17 @@ export default function Products() {
       // Standard sorting
       switch (sortBy) {
         case 'a_z':
-          return a.name.localeCompare(b.name);
+          return (a.name || '').localeCompare(b.name || '');
         case 'oldest':
           return (a.createdAt?.toMillis ? a.createdAt.toMillis() : 0) - (b.createdAt?.toMillis ? b.createdAt.toMillis() : 0);
         case 'low_stock':
+          // Put null/untracked items at the bottom
+          if (a.stockCount == null && b.stockCount != null) return 1;
+          if (a.stockCount != null && b.stockCount == null) return -1;
           return (a.stockCount || 0) - (b.stockCount || 0);
         case 'high_stock':
+          if (a.stockCount == null && b.stockCount != null) return 1;
+          if (a.stockCount != null && b.stockCount == null) return -1;
           return (b.stockCount || 0) - (a.stockCount || 0);
         case 'recently_added':
         default:
@@ -79,7 +83,7 @@ export default function Products() {
   const inactiveProducts = useMemo(() => {
     return catalogItems
       .filter(item => item.isActive === false)
-      .filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      .filter(item => item.name?.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [catalogItems, searchQuery]);
 
   const openDrawer = (item = null) => {
@@ -110,49 +114,113 @@ export default function Products() {
     e.preventDefault();
     if (!shopId || !name.trim() || !price) return;
 
+    sessionGuard.assertValidSession(user.uid);
+
+    const unitPrice = parseFloat(price);
+    if (isNaN(unitPrice) || unitPrice < 0) {
+      toast.error("Please enter a valid price");
+      return;
+    }
+
+    const stockNum = stockCount !== '' ? parseFloat(stockCount) : null;
+    const alertNum = lowStockAlert !== '' ? parseFloat(lowStockAlert) : null;
+
+    if (stockNum !== null && (isNaN(stockNum) || stockNum < 0)) {
+      toast.error("Please enter a valid stock count");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      const unitPrice = parseFloat(price);
-      const stockNum = stockCount !== '' ? parseFloat(stockCount) : 0;
-      const alertNum = lowStockAlert !== '' ? parseFloat(lowStockAlert) : null;
+      // Normalize category (Title Case)
+      const cleanCategory = sanitizeText(category.trim());
+      const normalizedCategory = cleanCategory ? cleanCategory.charAt(0).toUpperCase() + cleanCategory.slice(1).toLowerCase() : '';
 
-      const payload = {
+      const basePayload = {
         name: sanitizeText(name.trim()),
         lastUsedPrice: Math.round(unitPrice * 100),
         unit: unit,
-        stockCount: stockNum,
         lowStockAlert: alertNum,
-        category: sanitizeText(category.trim()),
-        description: description.trim(),
+        category: normalizedCategory,
+        description: sanitizeText(description.trim()),
         isActive: isActive,
         updatedAt: serverTimestamp(),
       };
 
       if (editingItem && editingItem.id) {
-        // Update existing
+        // Update existing (Admin stock check done in rules, but UI respects it)
         const docRef = doc(db, `shops/${shopId}/catalog`, editingItem.id);
-        await updateDoc(docRef, payload);
+        const payload = { ...basePayload };
+
+        // For stock, calculate the delta if we are tracking it, rather than overwriting
+        let updatedStockForState = editingItem.stockCount;
+        if (stockNum !== null) {
+           if (editingItem.stockCount == null) {
+             // Starting to track stock for the first time
+             payload.stockCount = stockNum;
+             updatedStockForState = stockNum;
+           } else {
+             // Increment based on the difference to prevent overwriting intermediate sales
+             const diff = stockNum - editingItem.stockCount;
+             if (diff !== 0) {
+               payload.stockCount = increment(diff);
+               updatedStockForState = stockNum;
+             }
+           }
+        } else {
+           payload.stockCount = null;
+           updatedStockForState = null;
+        }
+
+        if (navigator.onLine) {
+           await updateDoc(docRef, payload);
+        } else {
+           updateDoc(docRef, payload).catch(e => console.warn('Offline update deferred'));
+        }
 
         addCatalogItem({
           ...editingItem,
-          ...payload,
+          ...basePayload,
+          stockCount: updatedStockForState,
           updatedAt: new Date() // optimistic local time
         });
+        toast.success('Product updated');
       } else {
+        // Check for duplicates before adding
+        const isDuplicate = catalogItems.some(item => item.name?.toLowerCase() === name.trim().toLowerCase());
+        if (isDuplicate) {
+           toast.error("A product with this exact name already exists.");
+           setSubmitting(false);
+           return;
+        }
+
         // Add new
-        payload.addedBy = user.uid;
+        const payload = { ...basePayload, stockCount: stockNum };
         payload.createdBy = user.uid;
         payload.createdAt = serverTimestamp();
+        payload.frequency = 0;
 
-        const docRef = await addDoc(collection(db, `shops/${shopId}/catalog`), payload);
+        const collectionRef = collection(db, `shops/${shopId}/catalog`);
+        let newId = crypto.randomUUID().replace(/-/g, '').substring(0, 20); // Fallback ID if offline
+
+        if (navigator.onLine) {
+           const docRef = await addDoc(collectionRef, payload);
+           newId = docRef.id;
+        } else {
+           const docRef = doc(db, `shops/${shopId}/catalog`, newId);
+           import('firebase/firestore').then(({ setDoc }) => {
+             setDoc(docRef, payload).catch(e => console.warn('Offline create deferred'));
+           });
+        }
 
         addCatalogItem({
           ...payload,
-          id: docRef.id,
+          id: newId,
           createdAt: new Date(),
           updatedAt: new Date()
         });
+        toast.success('Product added');
       }
 
       setIsDrawerOpen(false);
@@ -167,16 +235,27 @@ export default function Products() {
   const handleDeleteProduct = async () => {
     if (!editingItem || !editingItem.id || !shopId) return;
 
-    if (!window.confirm(`Are you sure you want to permanently delete "${editingItem.name}"?`)) {
+    if (!isAdmin) {
+       toast.error("Only Admins can permanently delete products. You can mark it 'Inactive' instead.");
+       return;
+    }
+
+    if (!window.confirm(`Are you ABSOLUTELY sure you want to permanently delete "${editingItem.name}"? This will not remove it from old bills, but it will be gone from the catalog forever.`)) {
       return;
     }
 
     setSubmitting(true);
     try {
       const docRef = doc(db, `shops/${shopId}/catalog`, editingItem.id);
-      await deleteDoc(docRef);
+
+      if (navigator.onLine) {
+         await deleteDoc(docRef);
+      } else {
+         deleteDoc(docRef).catch(e => console.warn('Offline delete deferred'));
+      }
+
       removeCatalogItem(editingItem.id);
-      toast.success('Product deleted');
+      toast.success('Product permanently deleted');
       setIsDrawerOpen(false);
     } catch (error) {
       console.error(error);
@@ -187,19 +266,20 @@ export default function Products() {
   };
 
   const renderProductRow = (item) => {
-    const isLowStock = item.lowStockAlert != null && item.stockCount != null && item.stockCount < item.lowStockAlert;
+    const isLowStock = item.lowStockAlert != null && item.stockCount != null && item.stockCount <= item.lowStockAlert;
 
     return (
-      <div
+      <button
+        type="button"
         key={item.id}
         onClick={() => openDrawer(item)}
-        className="bg-white p-4 rounded-2xl shadow-subtle border border-slate-100 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform mb-3"
+        className="w-full text-left bg-white p-4 rounded-2xl shadow-subtle border border-slate-100 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform mb-3"
       >
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-bold text-slate-900 text-lg">{item.name}</h3>
+            <h3 className="font-bold text-slate-900 text-lg truncate max-w-[200px]">{item.name}</h3>
             {item.category && (
-              <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-xs font-semibold">
+              <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-xs font-semibold truncate max-w-[80px]">
                 {item.category}
               </span>
             )}
@@ -217,11 +297,11 @@ export default function Products() {
               isLowStock ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700"
             )}>
               {isLowStock && <AlertCircle size={14} />}
-              {item.stockCount} {item.unit}
+              {item.stockCount} {item.unit || 'unit'}
             </div>
           )}
         </div>
-      </div>
+      </button>
     );
   };
 
@@ -314,6 +394,7 @@ export default function Products() {
                 {editingItem ? 'Edit Product' : 'New Product'}
               </Drawer.Title>
               <button
+                aria-label="Close"
                 onClick={() => setIsDrawerOpen(false)}
                 className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200"
               >

@@ -106,6 +106,15 @@ export default function Settings() {
   };
 
   const handleExportData = async () => {
+    const escapeCSV = (val) => {
+      if (val === null || val === undefined) return '';
+      let str = String(val);
+      if (/^[=+\-@]/.test(str)) {
+        str = "'" + str;
+      }
+      str = str.replace(/"/g, '""');
+      return `"${str}"`;
+    };
     if (!shopId) return;
 
     try {
@@ -229,8 +238,17 @@ export default function Settings() {
   };
 
   const handleClearCache = async () => {
+    try {
+      const pending = await getAllData('pendingBills');
+      if (pending && pending.length > 0) {
+        toast.error("Cannot clear cache with pending bills. Please connect to the internet to sync first.");
+        return;
+      }
+    } catch (e) {
+      console.warn("Could not check pending bills", e);
+    }
+
     if (window.confirm("This will clear local app cache and reload the app. Unsaved offline data may be lost. Continue?")) {
-      // Typically indexedDB is managed by Firebase, reloading is the safest cache clear for PWA Service Workers
       if ('serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();
         for (let registration of registrations) {
