@@ -134,7 +134,7 @@ service cloud.firestore {
         allow get: if isMember(shopId);
         allow list: if isMember(shopId) && request.query.limit <= 100;
         allow create: if isMember(shopId)
-          && closureId.matches('^\\d{4}-\\d{2}-\\d{2}$')
+          && closureId == string(request.time.year()) + '-' + string(request.time.month()) + '-' + string(request.time.day())
           && request.resource.data.creatorId == request.auth.uid
           && request.resource.data.createdAt == request.time
           && request.resource.data.keys().hasOnly(['expectedCash', 'actualCash', 'difference', 'creatorId', 'createdAt'])

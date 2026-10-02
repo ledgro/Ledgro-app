@@ -2,6 +2,7 @@ import { toast } from 'sonner';
 import { useState, useEffect, useRef, useCallback, useDeferredValue } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { checkStorageHealth } from '../lib/storageHealth';
+import { measureClockDrift } from '../lib/clockDrift';
 import { collection, query, where, getDocs, limit, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
@@ -119,10 +120,12 @@ export default function Dashboard() {
       // 1. Try to lock the day by creating a unique daily closures doc (e.g., YYYY-MM-DD format)
       // This enforces rules preventing multiple closures.
 
-      // Convert to strict local timezone format string
-      const now = new Date();
-      const localDateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-      const closureDocId = localDateString;
+      // Fetch server time to strictly match Firestore rules: string(request.time.year()) + '-' + string(request.time.month()) + '-' + string(request.time.day())
+      // Note: Firestore rules extract UTC dates. We MUST match UTC exactly, otherwise rules will block the lock write.
+      const drift = await measureClockDrift();
+      const trueServerTime = new Date(Date.now() + drift);
+
+      const closureDocId = `${trueServerTime.getUTCFullYear()}-${trueServerTime.getUTCMonth() + 1}-${trueServerTime.getUTCDate()}`;
 
       const diffPaise = Math.round(parsedActual * 100) - stats.expectedCash;
       // If shortage, we create an expense. If overage, we don't. We just log it as Income adjustment (handled differently in aggregations)
