@@ -3,11 +3,16 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function isAuthenticated() {
-      return request.auth != null;
+      return request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
 
     function getShop(shopId) {
       return get(/databases/$(database)/documents/shops/$(shopId)).data;
+    }
+
+    // Role validation helper (ensures no arbitrary roles are passed into maps)
+    function mapValuesAreRoles(memberMap) {
+      return memberMap.values().hasOnly(['admin', 'member']);
     }
 
     function isMember(shopId) {
@@ -33,13 +38,18 @@ service cloud.firestore {
 
       allow create: if isAuthenticated() &&
         request.resource.data.members[request.auth.uid] == 'admin' &&
-        request.resource.data.members.size() == 1;
+        request.resource.data.members.size() == 1 &&
+        isValidString(request.resource.data.name, 1, 60);
 
       allow update: if (
           resource.data.members[request.auth.uid] == 'admin'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'members', 'phone', 'address', 'tagline', 'updatedAt'])
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['members']) || isAdmin(shopId))
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['members']) || request.resource.data.members.values().hasAny(['admin']))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) || isValidString(request.resource.data.name, 1, 60))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['members']) || (
+               isAdmin(shopId)
+               && request.resource.data.members.values().hasAny(['admin'])
+               && mapValuesAreRoles(request.resource.data.members)
+             ))
         ) || (
           // Allow users to remove themselves from the shop when deleting their account
           (request.auth.uid in resource.data.members)
@@ -54,6 +64,7 @@ service cloud.firestore {
           && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.auth.uid])
           && request.resource.data.members[request.auth.uid] == 'member'
           && 'consumedInviteCode' in request.resource.data
+          && get(/databases/$(database)/documents/invites/$(request.resource.data.consumedInviteCode)).data.claimedBy == null
           && getAfter(/databases/$(database)/documents/invites/$(request.resource.data.consumedInviteCode)).data.claimedBy == request.auth.uid
           && getAfter(/databases/$(database)/documents/invites/$(request.resource.data.consumedInviteCode)).data.shopId == shopId
         );
@@ -65,23 +76,25 @@ service cloud.firestore {
         allow list: if isMember(shopId) && request.query.limit <= 100;
 
         allow create: if isMember(shopId)
+          && request.resource.data.keys().hasOnly(['creatorId', 'items', 'subtotal', 'grandTotal', 'paymentMethod', 'payment', 'shopName', 'billNo', 'clientCreatedAt', 'createdAt', 'globalDiscount', 'globalDiscountAmt', 'type'])
           && request.resource.data.creatorId == request.auth.uid
           && request.resource.data.createdAt == request.time
           && request.resource.data.items is list
           && request.resource.data.items.size() <= 100
           && request.resource.data.subtotal is number
           && request.resource.data.grandTotal is number
+          && request.resource.data.grandTotal <= request.resource.data.subtotal * 2 // Sanity check to prevent massive arbitrary totals relative to subtotal
           && request.resource.data.paymentMethod is string
           && (
             (request.resource.data.get('type', 'sale') != 'return' && request.resource.data.subtotal >= 0 && request.resource.data.grandTotal >= 0 && request.resource.data.paymentMethod in ['cash', 'upi', 'split'])
             ||
-            (request.resource.data.type == 'return' && request.resource.data.subtotal <= 0 && request.resource.data.grandTotal <= 0 && request.resource.data.paymentMethod in ['cash', 'upi'])
+            (request.resource.data.get('type', 'sale') == 'return' && request.resource.data.subtotal <= 0 && request.resource.data.grandTotal <= 0 && request.resource.data.paymentMethod in ['cash', 'upi'])
           );
 
         allow update: if isMember(shopId)
           && (isAdmin(shopId) || resource.data.creatorId == request.auth.uid)
           && request.time < resource.data.createdAt + duration.value(1, 'd')
-          && resource.data.type != 'reversal'
+          && resource.data.get('type', 'sale') != 'reversal'
           && request.resource.data.type == 'reversal'
           && request.resource.data.grandTotal == resource.data.grandTotal
           && request.resource.data.creatorId == resource.data.creatorId
@@ -99,28 +112,29 @@ service cloud.firestore {
 
         allow create: if isMember(shopId)
           && request.resource.data.keys().hasOnly(['amount', 'category', 'description', 'creatorId', 'createdAt', 'clientCreatedAt'])
-          && request.resource.data.keys().hasAll(['amount', 'category', 'description', 'creatorId'])
+          && request.resource.data.keys().hasAll(['amount', 'category', 'description', 'creatorId', 'createdAt'])
+          && request.resource.data.createdAt == request.time
           && request.resource.data.amount is number
           && request.resource.data.amount > 0
-          && request.resource.data.category is string
-          && request.resource.data.category.size() <= 50
-          && request.resource.data.description is string
-          && request.resource.data.description.size() <= 200
+          && isValidString(request.resource.data.category, 1, 50)
+          && isValidString(request.resource.data.description, 1, 200)
           && request.resource.data.creatorId == request.auth.uid;
 
-        allow update: if (isAdmin(shopId) || resource.data.creatorId == request.auth.uid)
+        allow update: if isMember(shopId)
+          && (isAdmin(shopId) || (resource.data.creatorId == request.auth.uid && request.time < resource.data.createdAt + duration.value(1, 'd')))
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amount', 'category', 'description', 'updatedAt'])
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount']) || (request.resource.data.amount is number && request.resource.data.amount > 0))
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['category']) || (request.resource.data.category is string && request.resource.data.category.size() <= 50))
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['description']) || (request.resource.data.description is string && request.resource.data.description.size() <= 200));
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['category']) || isValidString(request.resource.data.category, 1, 50))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['description']) || isValidString(request.resource.data.description, 1, 200));
 
-        allow delete: if isAdmin(shopId);
+        allow delete: if isMember(shopId) && isAdmin(shopId);
       }
 
       match /dailyClosures/{closureId} {
         allow get: if isMember(shopId);
         allow list: if isMember(shopId) && request.query.limit <= 100;
         allow create: if isMember(shopId)
+          && closureId.matches('^\\d{4}-\\d{2}-\\d{2}$')
           && request.resource.data.creatorId == request.auth.uid
           && request.resource.data.createdAt == request.time
           && request.resource.data.keys().hasOnly(['expectedCash', 'actualCash', 'difference', 'creatorId', 'createdAt'])
@@ -138,7 +152,7 @@ service cloud.firestore {
           && request.resource.data.lastUsedPrice is number && request.resource.data.lastUsedPrice >= 0
           && request.resource.data.stockCount is number && request.resource.data.stockCount >= 0;
         allow update: if isMember(shopId)
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['stockCount']) || (request.resource.data.stockCount is number && request.resource.data.stockCount >= 0))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['stockCount']) || (isAdmin(shopId) && request.resource.data.stockCount is number && request.resource.data.stockCount >= 0))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastUsedPrice']) || (request.resource.data.lastUsedPrice is number && request.resource.data.lastUsedPrice >= 0))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) || isValidString(request.resource.data.name, 1, 100))
           && request.resource.data.diff(resource.data)
@@ -162,7 +176,11 @@ service cloud.firestore {
 
       allow create: if isAuthenticated()
         && isAdmin(request.resource.data.shopId)
-        && request.resource.data.expiresAt > request.time;
+        && request.resource.data.keys().hasOnly(['shopId', 'expiresAt', 'claimedBy', 'claimedAt', 'createdBy'])
+        && request.resource.data.claimedBy == null
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt < request.time + duration.value(7, 'd')
+        && request.resource.data.createdBy == request.auth.uid;
 
       allow update: if isAuthenticated()
         && resource.data.claimedBy == null

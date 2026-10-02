@@ -48,8 +48,8 @@ const ShopSetup = () => {
     if (!user?.uid) return;
 
     const code = inviteCode.trim().toUpperCase();
-    if (code.length !== 6) {
-      setError("Please enter a valid 6-character code");
+    if (code.length !== 20) {
+      setError("Please enter a valid 20-character invite code");
       return;
     }
 
@@ -192,7 +192,7 @@ const ShopSetup = () => {
             <form className="space-y-6" onSubmit={handleJoin}>
               <div>
                 <label htmlFor="inviteCode" className="block text-sm font-medium text-slate-700">
-                  6-Character Invite Code
+                  20-Character Invite Code
                 </label>
                 <div className="mt-2">
                   <input
@@ -200,12 +200,12 @@ const ShopSetup = () => {
                     name="inviteCode"
                     type="text"
                     required
-                    maxLength={6}
+                    maxLength={20}
                     autoFocus
                     value={inviteCode}
-                    onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                    className="appearance-none block w-full px-4 h-16 border border-slate-200 rounded-xl shadow-sm placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-3xl font-black tracking-[0.2em] uppercase transition-all"
-                    placeholder="XXXXXX"
+                    onChange={(e) => setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                    className="appearance-none block w-full px-4 h-16 border border-slate-200 rounded-xl shadow-sm placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-lg md:text-2xl font-black tracking-widest uppercase transition-all"
+                    placeholder="ENTER INVITE CODE"
                   />
                 </div>
               </div>
@@ -215,9 +215,9 @@ const ShopSetup = () => {
               <div>
                 <button
                   type="submit"
-                  disabled={loading || inviteCode.length !== 6}
+                  disabled={loading || inviteCode.length !== 20}
                   className={`w-full flex justify-center items-center h-14 px-4 rounded-xl shadow-sm text-base font-bold text-white transition-all active:scale-[0.98] ${
-                    loading || inviteCode.length !== 6 ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                    loading || inviteCode.length !== 20 ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                   } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
                 >
                   {loading ? 'Joining...' : 'Join Shop'}
