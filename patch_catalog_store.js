@@ -1,4 +1,6 @@
-import { create } from 'zustand';
+import fs from 'fs';
+
+let content = `import { create } from 'zustand';
 
 // Drop the prefix trie entirely in favor of a robust array filter, which allows substring/word-start matching, handles duplicates properly, and performs adequately for a few thousand items without expensive rebuilds.
 export const useCatalogStore = create((set, get) => ({
@@ -67,3 +69,6 @@ export const useCatalogStore = create((set, get) => ({
     return matches.sort((a, b) => (b.frequency || 0) - (a.frequency || 0)).slice(0, 20);
   }
 }));
+`;
+
+fs.writeFileSync('src/store/catalogStore.js', content);

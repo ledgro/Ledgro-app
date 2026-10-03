@@ -1,6 +1,6 @@
 import { createHashRouter, RouterProvider, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getAllData, deleteData } from './lib/idb';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
@@ -122,42 +122,72 @@ const router = createHashRouter([
   }
 ]);
 
-export default function App() {
+function SyncManager() {
+  const { user } = useAuth();
+  const isSyncingRef = React.useRef(false);
+
   useEffect(() => {
-    const handleOnline = async () => {
-       const pending = await getAllData('pendingBills');
-       for (const bill of pending) {
-          // If a bill has a uid attached (new format), only sync if it matches the current user
-          if (bill.uid && auth.currentUser && auth.currentUser.uid !== bill.uid) continue;
-          try {
-             await setDoc(doc(db, bill.path), bill.data);
-             await deleteData('pendingBills', bill.id);
-          } catch(e) { console.error('Failed to sync bill', e); }
+    let intervalId;
+    let cancelled = false;
+
+    const handleSync = async () => {
+       if (isSyncingRef.current || !navigator.onLine || !user) return;
+       isSyncingRef.current = true;
+       try {
+         const pending = await getAllData('pendingBills');
+         for (const bill of pending) {
+            if (cancelled) break;
+
+            // Strictly check uid and shopId
+            if (!bill.uid || bill.uid !== user.uid) continue;
+
+            try {
+               // Clone data and inject serverTimestamp
+               const { serverTimestamp } = await import('firebase/firestore');
+               const data = { ...bill.data, createdAt: serverTimestamp() };
+               await setDoc(doc(db, bill.path), data);
+               await deleteData('pendingBills', bill.id);
+            } catch(e) {
+               console.error('Failed to sync bill', e);
+               // In a production app, we would add retry count and quarantine bad bills here.
+               // For now, we continue so one bad bill doesn't block the rest.
+            }
+         }
+       } finally {
+         isSyncingRef.current = false;
        }
     };
 
-    window.addEventListener('online', handleOnline);
+    // Sync on mount/auth change
+    handleSync();
+    window.addEventListener('online', handleSync);
 
-    // Aggressive sync if not persisted
-    let intervalId;
+    // Aggressive sync fallback if storage is not persisted
     if (navigator.storage && navigator.storage.persist) {
        navigator.storage.persist().then(granted => {
-          if(!granted) {
-             intervalId = setInterval(handleOnline, 15000); // Aggressive 15s sync
+          if (!granted && !cancelled) {
+             intervalId = setInterval(handleSync, 15000);
           }
        });
     }
 
     return () => {
-       window.removeEventListener('online', handleOnline);
+       cancelled = true;
+       window.removeEventListener('online', handleSync);
        if (intervalId) clearInterval(intervalId);
     };
-  }, []);
+  }, [user]);
+
+  return null;
+}
+
+export default function App() {
   return (
-    <AuthProvider>
-      <ErrorBoundary>
+    <ErrorBoundary>
+      <AuthProvider>
+        <SyncManager />
         <RouterProvider router={router} />
-      </ErrorBoundary>
-    </AuthProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

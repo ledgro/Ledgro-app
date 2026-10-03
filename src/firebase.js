@@ -1,12 +1,10 @@
-import { initializeApp } from 'firebase/app';
-import { initializeAppCheck, CustomProvider } from 'firebase/app-check';
-import { getAuth, GoogleAuthProvider, setPersistence, indexedDBLocalPersistence } from 'firebase/auth';
 import {
   initializeFirestore,
+  getFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
-  CACHE_SIZE_UNLIMITED,
-  PersistentCacheIndexManager,
+  memoryLocalCache,
+  getPersistentCacheIndexManager,
   enablePersistentCacheIndexAutoCreation
 } from 'firebase/firestore';
 
@@ -19,23 +17,18 @@ const firebaseConfig = {
   appId: "1:238850420032:web:e448f2bc083bcd07b4dea5"
 };
 
-const app = initializeApp(firebaseConfig);
+import { getApp, getApps } from 'firebase/app';
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 export let appCheck = null;
-if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
+if (typeof window !== 'undefined' && import.meta.env.MODE !== 'test') {
+  // If in dev, we can set FIREBASE_APPCHECK_DEBUG_TOKEN flag on window
+  if (import.meta.env.DEV) {
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  }
+
   appCheck = initializeAppCheck(app, {
-    provider: new CustomProvider({
-      getToken: () => {
-        return new Promise((resolve) => {
-          // Cloudflare Turnstile token exchange logic goes here.
-          // For now, we mock a successful token since we don't have the Turnstile widget.
-          resolve({
-            token: 'mock-turnstile-token',
-            expireTimeMillis: Date.now() + 60 * 60 * 1000
-          });
-        });
-      }
-    }),
+    provider: new ReCaptchaEnterpriseProvider('6Ld_REAqAAAAAA9pP2Y4V_T2-V_P9Y9K9Q9V9V9Y'), // Replace with actual site key in console later
     isTokenAutoRefreshEnabled: true
   });
 }
@@ -48,14 +41,26 @@ setPersistence(auth, indexedDBLocalPersistence).catch((err) => {
 
 const googleProvider = new GoogleAuthProvider();
 
-const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager(),
-    cacheSizeBytes: CACHE_SIZE_UNLIMITED
-  })
-});
+let db;
+try {
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+      cacheSizeBytes: 104857600 // 100 MB max to prevent eviction loops
+    })
+  });
 
-const indexManager = new PersistentCacheIndexManager(db);
-enablePersistentCacheIndexAutoCreation(indexManager);
+  const indexManager = getPersistentCacheIndexManager(db);
+  if (indexManager) {
+    enablePersistentCacheIndexAutoCreation(indexManager);
+  }
+} catch (err) {
+  console.warn("Failed to initialize persistent Firestore cache, falling back to memory:", err);
+  if (err.code === 'failed-precondition') {
+    db = getFirestore(app); // Fallback for hot reloads where initialization already happened
+  } else {
+    db = initializeFirestore(app, { localCache: memoryLocalCache() });
+  }
+}
 
 export { auth, googleProvider, db };

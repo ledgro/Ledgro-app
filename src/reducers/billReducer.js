@@ -16,8 +16,12 @@ const generateId = () => {
 export function billReducer(state = initialBillState, action) {
   switch (action.type) {
     case 'ADD_ITEM': {
+      const payloadPrice = action.payload.unitPriceAtSale ?? action.payload.unitPrice;
       const existingItemIndex = state.items.findIndex(
-        (item) => item.name === action.payload.name && (item.unitPriceAtSale || item.unitPrice) === (action.payload.unitPriceAtSale || action.payload.unitPrice)
+        (item) => item.name === action.payload.name &&
+                  (item.unitPriceAtSale ?? item.unitPrice) === payloadPrice &&
+                  item.catalogId === (action.payload.catalogId || null) &&
+                  item.unit === (action.payload.unit || 'unit')
       );
 
       if (existingItemIndex > -1) {
@@ -92,7 +96,7 @@ export function billReducer(state = initialBillState, action) {
     case 'INIT_FROM_EDIT': {
       return {
         ...state,
-        items: action.payload.items.map(item => ({
+        items: (action.payload.items || []).map(item => ({
           ...item,
           id: generateId(), // ensure new UI IDs so editing works
           lineDiscount: item.lineDiscount || { type: 'flat', value: 0 }
@@ -137,28 +141,33 @@ export function allocateDiscount(lineItems, totalDiscountPaise) {
   return itemsWithDiscount.map(({ fraction, ...item }) => item);
 }
 
-// Selectors for complex mathematical derivations
 export const calculateBillTotals = (state) => {
+  if (!state) return { items: [], subtotal: 0, globalDiscountAmt: 0, grandTotal: 0 };
   let subtotal = 0;
 
   let processedItems = state.items.map(item => {
     // 1. Raw total strictly in paise
-    let rawTotalPaise = Math.round((item.unitPriceAtSale || item.unitPrice) * item.qty);
+    const price = item.unitPriceAtSale ?? item.unitPrice ?? 0;
+    let rawTotalPaise = Math.round(price * (item.qty || 1));
 
     // 2. Apply line discount (ensure discount is in paise)
     let discountAmtPaise = 0;
-    if (item.lineDiscount.type === 'percent') {
-      discountAmtPaise = Math.round((rawTotalPaise * item.lineDiscount.value) / 100);
+    const lDiscType = item.lineDiscount?.type || 'flat';
+    const lDiscValue = Number(item.lineDiscount?.value) || 0;
+
+    if (lDiscType === 'percent') {
+      const clampedPct = Math.min(Math.max(0, lDiscValue), 100);
+      discountAmtPaise = Math.round((rawTotalPaise * clampedPct) / 100);
     } else {
-      discountAmtPaise = Math.round(item.lineDiscount.value); // should already be in paise, but ensuring integer
+      discountAmtPaise = Math.min(Math.max(0, Math.round(lDiscValue)), rawTotalPaise);
     }
 
     let finalLineTotal = Math.max(0, rawTotalPaise - discountAmtPaise);
-
     subtotal += finalLineTotal;
 
     return {
       ...item,
+      unitPriceAtSale: price, // Ensure this exists on the output object as it's required by POS
       rawTotal: rawTotalPaise,
       discountAmt: discountAmtPaise,
       finalLineTotal
@@ -167,10 +176,14 @@ export const calculateBillTotals = (state) => {
 
   // Calculate global discount (everything is in paise)
   let globalDiscountAmtPaise = 0;
-  if (state.globalDiscount.type === 'percent') {
-    globalDiscountAmtPaise = Math.round((subtotal * state.globalDiscount.value) / 100);
+  const gDiscType = state.globalDiscount?.type || 'flat';
+  const gDiscValue = Number(state.globalDiscount?.value) || 0;
+
+  if (gDiscType === 'percent') {
+    const clampedPct = Math.min(Math.max(0, gDiscValue), 100);
+    globalDiscountAmtPaise = Math.round((subtotal * clampedPct) / 100);
   } else {
-    globalDiscountAmtPaise = Math.round(state.globalDiscount.value); // Already in paise via UI, but ensuring integer
+    globalDiscountAmtPaise = Math.min(Math.max(0, Math.round(gDiscValue)), subtotal);
   }
 
   // Allocate global discount across line items using Largest Remainder Method
