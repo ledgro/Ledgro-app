@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut as firebaseSignOut, setPersistence, indexedDBLocalPersistence, deleteUser, reauthenticateWithPopup } from 'firebase/auth';
 import { listenForSessionEvents } from '../lib/sessionBroadcast';
+import { clearStore } from '../lib/idb';
 import { sessionGuard } from '../lib/SessionGuard';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteField, deleteDoc, getDocFromCache, terminate, clearIndexedDbPersistence } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../firebase';
@@ -23,7 +24,8 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const cleanup = listenForSessionEvents(
-      async () => {
+      async (broadcastUid) => {
+        if (!auth.currentUser || auth.currentUser.uid !== broadcastUid) return;
         try {
           // Re-use standard sign out logic instead of bypassing it
           localStorage.removeItem('ledgro_offline_shopId');
@@ -33,6 +35,11 @@ export const AuthProvider = ({ children }) => {
           try {
             await terminate(db);
             await clearIndexedDbPersistence(db);
+            try {
+              await clearStore('pendingBills');
+              await clearStore('session');
+              await clearStore('catalogCache');
+            } catch(idbErr) { console.warn('Could not clear IDB', idbErr) }
           } catch(e) { console.error(e) }
 
           await firebaseSignOut(auth);

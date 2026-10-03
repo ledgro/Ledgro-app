@@ -1,4 +1,6 @@
-let dbPromise = null;
+import fs from 'fs';
+
+let content = `let dbPromise = null;
 
 export const initDB = () => {
   if (dbPromise) return dbPromise;
@@ -112,3 +114,6 @@ export const clearStore = async (storeName) => {
     tx.onabort = () => reject(tx.error);
   });
 };
+`;
+
+fs.writeFileSync('src/lib/idb.js', content);

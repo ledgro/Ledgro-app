@@ -353,7 +353,14 @@ export default function Settings() {
               <div className="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-semibold text-slate-700">Storage Usage</span>
-                  <span className="text-xs text-slate-500">{storageHealth.usageMB} MB / {storageHealth.quotaMB} MB</span>
+                  <div className="text-right flex flex-col items-end">
+    <span className="text-xs text-slate-500">{storageHealth.usageMB} MB / {storageHealth.quotaMB} MB</span>
+    {storageHealth.persisted !== undefined && (
+      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mt-1 ${storageHealth.persisted ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+        {storageHealth.persisted ? 'Storage Persisted (Safe)' : 'Temporary Storage (Risk)'}
+      </span>
+    )}
+  </div>
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-2">
                   <div

@@ -127,6 +127,8 @@ export default function App() {
     const handleOnline = async () => {
        const pending = await getAllData('pendingBills');
        for (const bill of pending) {
+          // If a bill has a uid attached (new format), only sync if it matches the current user
+          if (bill.uid && auth.currentUser && auth.currentUser.uid !== bill.uid) continue;
           try {
              await setDoc(doc(db, bill.path), bill.data);
              await deleteData('pendingBills', bill.id);
