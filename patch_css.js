@@ -1,4 +1,9 @@
-@import "tailwindcss";
+import fs from 'fs';
+
+let css = fs.readFileSync('src/index.css', 'utf-8');
+
+// Combine theme blocks, fix font-variant-numeric, safe area inset, color schemes, remove aggressive overscroll blocking causing input hide
+css = `@import "tailwindcss";
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
@@ -62,3 +67,6 @@
     scrollbar-width: none;
   }
 }
+`;
+
+fs.writeFileSync('src/index.css', css);

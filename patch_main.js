@@ -1,4 +1,6 @@
-import { StrictMode } from 'react'
+import fs from 'fs';
+
+let content = `import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
@@ -92,3 +94,6 @@ createRoot(document.getElementById('root')).render(
     <Toaster position="top-center" />
   </StrictMode>,
 )
+`;
+
+fs.writeFileSync('src/main.jsx', content);
