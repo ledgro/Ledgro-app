@@ -235,6 +235,16 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
           reversedBy: user.uid,
           reversedAt: serverTimestamp()
         });
+
+        // Restore original bill's stock quantities so we don't permanently lose stock during an edit
+        if (editBill.items && Array.isArray(editBill.items)) {
+          editBill.items.forEach(oldItem => {
+            if (oldItem.catalogId) {
+              const catalogRef = doc(db, `shops/${shopId}/catalog`, oldItem.catalogId);
+              batch.update(catalogRef, { stockCount: increment(oldItem.qty) });
+            }
+          });
+        }
       }
 
       // Update catalog: Decrement stock (if tracked) and increment frequency (only on new sale)

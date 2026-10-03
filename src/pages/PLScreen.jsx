@@ -144,8 +144,14 @@ export default function PLScreen() {
       clone.style.padding = '24px';
 
       const header = document.createElement('div');
-      header.innerHTML = `<h2 style="font-size:24px; font-weight:bold; color:#0F172A; text-align:center; margin-bottom:4px;">${shopName || 'Shop'} P&L</h2>
-                          <p style="text-align:center; color:#64748B; font-size:14px; margin-bottom:24px;">${dateRangeType.toUpperCase()}</p>`;
+      const h2 = document.createElement('h2');
+      h2.style.cssText = "font-size:24px; font-weight:bold; color:#0F172A; text-align:center; margin-bottom:4px;";
+      h2.textContent = `${shopName || 'Shop'} P&L`;
+      const p = document.createElement('p');
+      p.style.cssText = "font-size:14px; color:#64748B; text-align:center;";
+      p.textContent = (startDate && endDate) ? `${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}` : 'All Time';
+      header.appendChild(h2);
+      header.appendChild(p);
       clone.insertBefore(header, clone.firstChild);
 
       document.body.appendChild(clone);

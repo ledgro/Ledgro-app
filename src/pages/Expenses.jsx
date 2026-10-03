@@ -50,28 +50,44 @@ export default function Expenses() {
 
   const handleAddExpense = async (e) => {
     e.preventDefault();
-    if (!shopId || !amount) return;
+    const parsedAmount = Math.round(parseFloat(amount) * 100);
+    if (!shopId || !parsedAmount || parsedAmount <= 0) {
+      toast.error("Enter a valid amount.");
+      return;
+    }
 
     setSubmitting(true);
     try {
       const payload = {
-        amount: Math.round(parseFloat(amount) * 100),
-        description,
-        categoryId: category,
+        amount: parsedAmount,
+        description: description.trim().slice(0, 200),
+        category: category,
+        paidVia: paidVia,
         creatorId: user.uid,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        clientCreatedAt: new Date().toISOString()
       };
 
-      const docRef = await addDoc(collection(db, `shops/${shopId}/expenses`), payload);
+      const expensesRef = collection(db, `shops/${shopId}/expenses`);
+      // Don't await addDoc for offline responsiveness. Firestore SDK will queue it.
+      let newDocRef;
+      if (navigator.onLine) {
+        newDocRef = await addDoc(expensesRef, payload);
+      } else {
+        // Fire and forget if offline so UI doesn't hang
+        addDoc(expensesRef, payload).catch(err => console.warn('Offline add deferred', err));
+        newDocRef = { id: crypto.randomUUID() }; // Fake ID for optimistic UI
+      }
 
       // Optimistic addition
-      setExpenses(prev => [{ id: docRef.id, ...payload, createdAt: { toDate: () => new Date() } }, ...prev]);
+      setExpenses(prev => [{ id: newDocRef.id, ...payload, createdAt: { toDate: () => new Date() } }, ...prev]);
 
       // Reset form
       setAmount('');
       setDescription('');
       setCategory(CATEGORIES[0].id);
       setIsOpen(false);
+      hapticVibrate(10);
     } catch (err) {
       console.error(err);
       toast.error("Failed to add expense");
@@ -81,6 +97,7 @@ export default function Expenses() {
   };
 
   const handleDeleteExpense = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this expense?")) return;
     // 1. Optimistic UI update (instantly remove from screen)
     const previousExpenses = [...expenses];
     setExpenses(prev => prev.filter(e => e.id !== id));
@@ -98,76 +115,98 @@ export default function Expenses() {
 
   return (
     <div className="h-[100dvh] overflow-y-auto bg-gray-50 flex flex-col overflow-x-hidden">
-      <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex justify-between items-center">
+      <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex justify-between items-center shadow-subtle">
         <h1 className="text-xl font-bold text-gray-900">Expenses</h1>
         <button
+          aria-label="New Expense"
           onClick={() => setIsOpen(true)}
-          className="bg-indigo-50 text-indigo-600 p-2 rounded-full"
+          className="bg-gray-900 hover:bg-gray-800 active:scale-95 transition-all text-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 shadow-sm"
         >
-          <Plus size={20} />
+          <Plus size={16} /> New
         </button>
       </header>
 
-      <main className="flex-1 pb-24">
+      <main className="p-4 flex-1 pb-24">
         {loading ? (
-          <div className="flex flex-col divide-y divide-gray-100">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="bg-white p-4 flex items-center justify-between shadow-sm">
-                <div className="flex items-center gap-4">
-                  <Skeleton className="w-12 h-12 rounded-full" />
-                  <div className="space-y-2">
-                    <Skeleton className="h-5 w-32" />
-                    <Skeleton className="h-4 w-20" />
-                  </div>
-                </div>
-                <Skeleton className="h-6 w-16" />
-              </div>
-            ))}
+          <div className="space-y-4">
+            <Skeleton className="h-20 rounded-2xl" />
+            <Skeleton className="h-20 rounded-2xl" />
+            <Skeleton className="h-20 rounded-2xl" />
+          </div>
+        ) : fetchError ? (
+          <div className="flex flex-col items-center justify-center h-full mt-10">
+            <p className="text-red-500 font-medium mb-4">Failed to load expenses.</p>
+            <button onClick={() => fetchExpenses()} className="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg font-bold">Retry</button>
           </div>
         ) : expenses.length === 0 ? (
-          <div className="text-center text-gray-500 mt-20">No expenses recorded yet.</div>
+          <div className="flex flex-col items-center justify-center h-full mt-10">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 text-gray-300">
+              <Plus size={32} />
+            </div>
+            <p className="text-gray-500 font-medium">No expenses recorded yet.</p>
+          </div>
         ) : (
-          <div className="flex flex-col">
-            {expenses.map(exp => {
-              const CatIcon = CATEGORIES.find(c => c.id === exp.categoryId)?.icon || Package;
+          <div className="space-y-3 relative">
+            <div className="absolute left-[39px] top-6 bottom-6 w-[2px] bg-slate-100 -z-10 rounded-full" />
+
+            {expenses.map(expense => {
+              const cat = CATEGORIES.find(c => c.id === expense.category);
+              const Icon = cat ? cat.icon : Package;
+              const date = expense.createdAt?.toDate ? expense.createdAt.toDate().toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Just now';
+
               return (
-                <div key={exp.id} className="relative border-b border-gray-100 bg-red-50">
-                  {/* Background Delete Button revealed on swipe */}
-                  <div className="absolute inset-y-0 right-0 w-24 flex items-center justify-end pr-6">
-                    <button
-                      onClick={() => handleDeleteExpense(exp.id)}
-                      className="p-3 bg-red-100 text-red-600 rounded-full hover:bg-red-200 active:bg-red-300"
-                    >
-                      <Trash2 size={20} />
-                    </button>
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  key={expense.id}
+                  className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4 relative overflow-hidden group"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm shrink-0">
+                    <Icon size={20} strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-slate-900 truncate pr-2">{expense.description || cat?.label || 'Other'}</h3>
+                    <div className="flex items-center gap-2 mt-0.5">
+                       <p className="text-xs font-semibold text-slate-400">{date}</p>
+                       <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">{expense.paidVia || 'cash'}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-black text-slate-900 text-lg">₹{(expense.amount / 100).toLocaleString('en-IN')}</p>
                   </div>
 
-                  {/* Draggable Foreground Item */}
-                  <motion.div
-                    drag="x"
-                    dragConstraints={{ left: -100, right: 0 }}
-                    dragElastic={0.2}
-                    className="relative bg-white p-4 flex items-center justify-between z-10 shadow-sm"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="bg-gray-50 p-3 rounded-full text-gray-600">
-                        <CatIcon size={24} />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{exp.description || CATEGORIES.find(c => c.id === exp.categoryId)?.label}</h3>
-                        <p className="text-sm text-gray-500">{exp.createdAt?.toDate ? exp.createdAt.toDate().toLocaleDateString() : 'Syncing...'}</p>
-                      </div>
-                    </div>
-                    <span className="font-bold text-lg text-gray-900">₹{(exp.amount / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
-                  </motion.div>
-                </div>
+                  {/* Swipe Actions Overlay (Simplified for Desktop/PWA ease) */}
+                  {isAdmin && (
+                    <button
+                         type="button"
+                         aria-label="Delete Expense"
+                         className="absolute inset-y-0 right-0 bg-red-50 text-red-600 flex items-center justify-center w-0 overflow-hidden group-active:w-20 lg:group-hover:w-20 transition-all duration-300 ease-out z-10 border-l border-red-100 shadow-[-10px_0_15px_-5px_rgba(0,0,0,0.05)] cursor-pointer"
+                         onClick={() => handleDeleteExpense(expense.id)}
+                    >
+                       <Trash2 size={20} strokeWidth={2.5} />
+                    </button>
+                  )}
+                </motion.div>
               );
             })}
+
+            {hasMore && expenses.length > 0 && (
+               <div ref={ref} className="py-8 text-center text-slate-400 font-semibold text-sm">
+                 {loading ? 'Loading more...' : 'Scroll for more'}
+               </div>
+            )}
           </div>
         )}
       </main>
 
-      <Drawer.Root open={isOpen} onOpenChange={setIsOpen}>
+      <Drawer.Root open={isOpen} onOpenChange={(open) => {
+         setIsOpen(open);
+         if (!open) {
+            setAmount('');
+            setDescription('');
+            setCategory(CATEGORIES[0].id);
+         }
+      }}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
           <Drawer.Content className="bg-white flex flex-col rounded-t-[10px] mt-24 h-auto fixed bottom-0 left-0 right-0 z-50 focus:outline-none">
@@ -178,23 +217,38 @@ export default function Expenses() {
                   Add Expense
                 </Drawer.Title>
 
-                <form onSubmit={handleAddExpense} className="space-y-6">
+              <form onSubmit={handleAddExpense} className="space-y-6">
+                <div>
+                  <label htmlFor="expense-amount" className="block text-sm font-semibold text-slate-700 mb-1">Amount *</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                       <span className="text-gray-500 font-medium text-lg">₹</span>
                     </div>
                     <input
+                      id="expense-amount"
                       type="number"
                       inputMode="decimal"
                       required
+                      min="0"
+                      step="0.01"
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      onChange={(e) => setAmount(e.target.value.slice(0, 10))}
                       className="block w-full pl-8 pr-4 py-4 border-2 border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-0 text-xl font-bold"
                       placeholder="0.00"
-                      autoFocus
                     />
                   </div>
+                </div>
 
+                <div>
+                   <label className="block text-sm font-semibold text-slate-700 mb-2">Paid Via</label>
+                   <div className="flex bg-slate-100 p-1 rounded-xl">
+                      <button type="button" onClick={() => setPaidVia('cash')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${paidVia === 'cash' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Drawer Cash</button>
+                      <button type="button" onClick={() => setPaidVia('upi')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${paidVia === 'upi' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Bank / UPI</button>
+                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Category</label>
                   <div className="grid grid-cols-4 gap-2">
                     {CATEGORIES.map(cat => {
                       const Icon = cat.icon;
@@ -212,14 +266,20 @@ export default function Expenses() {
                       );
                     })}
                   </div>
+                </div>
 
+                <div>
+                  <label htmlFor="expense-desc" className="block text-sm font-semibold text-slate-700 mb-1">Description</label>
                   <input
+                    id="expense-desc"
                     type="text"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
+                    maxLength={200}
                     className="block w-full px-4 py-4 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     placeholder="Note or description (optional)"
                   />
+                </div>
 
                   <button
                     type="submit"

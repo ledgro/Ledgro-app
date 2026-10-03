@@ -1,42 +1,6 @@
 import { startOfDay, endOfDay, subDays, format } from 'date-fns';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-
-export const processBills = (snap) => {
-  let cash = 0, upi = 0, rev = 0, transactionCount = 0;
-  const staff = {};
-  snap.forEach(doc => {
-    const b = doc.data({ serverTimestamps: 'estimate' });
-    if (b.type === 'reversal' || b.isVoided) return;
-
-    if (b.type !== 'return') transactionCount++;
-
-    let mult = b.type === 'return' ? -1 : 1;
-    const total = (b.grandTotal || 0) * mult;
-    rev += total;
-
-    const method = b.payment?.method || b.paymentMethod;
-    if (method === 'split' && b.payment?.breakdown) {
-       cash += (b.payment.breakdown.cash || 0) * mult;
-       upi += (b.payment.breakdown.upi || 0) * mult;
-    } else if (method === 'upi' || b.refundMethod === 'upi') {
-       upi += total;
-    } else {
-       cash += total;
-    }
-
-    if (mult > 0 && b.creatorId) {
-       staff[b.creatorId] = (staff[b.creatorId] || 0) + 1;
-    }
-  });
-  return { cash, upi, rev, staff, transactionCount };
-};
-
-export const processExp = (snap) => {
-  let exp = 0;
-  snap.forEach(doc => { exp += (parseFloat(doc.data({ serverTimestamps: 'estimate' }).amount) || 0); });
-  return exp;
-};
 
 export async function computeDailyAggregations(shopId) {
   if (!shopId) return null;
@@ -44,67 +8,130 @@ export async function computeDailyAggregations(shopId) {
   const todayStart = startOfDay(new Date());
   const todayEnd = endOfDay(new Date());
   const yesterdayStart = subDays(todayStart, 1);
-  const yesterdayEnd = endOfDay(yesterdayStart);
   const weekStart = subDays(todayStart, 6);
 
   const billsRef = collection(db, `shops/${shopId}/bills`);
   const expRef = collection(db, `shops/${shopId}/expenses`);
 
-  // Today's Bills
-  // Note: To preserve backwards compatibility with older database documents that do not have `clientCreatedAt`,
-  // we must continue querying against `createdAt` (server timestamp). The prompt states clientCreatedAt is "used for all queries",
-  // but applying it instantly drops all historical data. In a real environment, this requires a backend backfill script first.
-  const qTodayBills = query(billsRef, where('createdAt', '>=', todayStart), where('createdAt', '<=', todayEnd), limit(100));
-  const qTodayExp = query(expRef, where('createdAt', '>=', todayStart), where('createdAt', '<=', todayEnd), limit(100));
+  // Only 2 queries to reduce billing: fetch the whole week without limits
+  const qWeekBills = query(billsRef, where('createdAt', '>=', weekStart), where('createdAt', '<=', todayEnd));
+  const qWeekExp = query(expRef, where('createdAt', '>=', weekStart), where('createdAt', '<=', todayEnd));
 
-  // Yesterday's Bills (for vs comparison)
-  const qYestBills = query(billsRef, where('createdAt', '>=', yesterdayStart), where('createdAt', '<=', yesterdayEnd), limit(100));
-  const qYestExp = query(expRef, where('createdAt', '>=', yesterdayStart), where('createdAt', '<=', yesterdayEnd), limit(100));
-
-  // Week Bills for Sparkline
-  const qWeekBills = query(billsRef, where('createdAt', '>=', weekStart), where('createdAt', '<=', todayEnd), limit(100));
-
-  const [todayBSnap, todayESnap, yestBSnap, yestESnap, weekBSnap] = await Promise.all([
-    getDocs(qTodayBills), getDocs(qTodayExp), getDocs(qYestBills), getDocs(qYestExp), getDocs(qWeekBills)
+  const [weekBSnap, weekESnap] = await Promise.all([
+    getDocs(qWeekBills), getDocs(qWeekExp)
   ]);
 
-  const today = processBills(todayBSnap);
-  const todayExpAmt = processExp(todayESnap);
-
-  const yest = processBills(yestBSnap);
-  const yestExpAmt = processExp(yestESnap);
-
-  const todayNet = today.rev - todayExpAmt;
-  const yestNet = yest.rev - yestExpAmt;
-
-  let percentDiff = 0;
-  if (yestNet > 0) percentDiff = ((todayNet - yestNet) / Math.abs(yestNet)) * 100;
-  else if (yestNet === 0 && todayNet > 0) percentDiff = 100;
-
-  // Week Sparkline
-  const dailyEarn = {};
-  for(let i=0; i<7; i++) {
-    dailyEarn[format(subDays(todayStart, i), 'yyyy-MM-dd')] = 0;
-  }
+  // Build voided map to skip returns that belong to voided original bills
+  const voidedMap = new Set();
+  const allBills = [];
   weekBSnap.forEach(doc => {
     const b = doc.data({ serverTimestamps: 'estimate' });
-    if (b.type === 'reversal' || b.isVoided) return;
-    const dtStr = b.createdAt ? format(b.createdAt.toDate(), 'yyyy-MM-dd') : (b.clientCreatedAt ? format(new Date(b.clientCreatedAt), 'yyyy-MM-dd') : null);
-    if (dtStr && dailyEarn[dtStr] !== undefined) {
-       dailyEarn[dtStr] += (b.grandTotal || 0) * (b.type === 'return' ? -1 : 1);
+    if (b.isVoided || b.type === 'reversal') {
+       if (b.originalBillId) voidedMap.add(b.originalBillId);
+       if (b.id) voidedMap.add(b.id);
+    }
+    allBills.push({ id: doc.id, ...b });
+  });
+
+  const todayStr = format(todayStart, 'yyyy-MM-dd');
+  const yestStr = format(yesterdayStart, 'yyyy-MM-dd');
+
+  // Sparkline buckets
+  const dailyEarn = {};
+  const dailyExp = {};
+  for(let i = 0; i < 7; i++) {
+    const dStr = format(subDays(todayStart, i), 'yyyy-MM-dd');
+    dailyEarn[dStr] = 0;
+    dailyExp[dStr] = 0;
+  }
+
+  // Daily aggregators
+  let todayCash = 0, todayUpi = 0, todayRev = 0, todayExpAmt = 0;
+  let yestRev = 0, yestExpAmt = 0;
+  let todayExpectedCashDeduction = 0;
+
+  // Process Bills
+  allBills.forEach(b => {
+    if (b.isVoided || b.type === 'reversal') return;
+    if (b.type === 'return' && voidedMap.has(b.originalBillId)) return;
+
+    const dtStr = b.createdAt ? format(b.createdAt.toDate(), 'yyyy-MM-dd') : null;
+    if (!dtStr || dailyEarn[dtStr] === undefined) return;
+
+    let mult = b.type === 'return' ? -1 : 1;
+    const total = (b.grandTotal || 0) * mult;
+
+    // Sparkline revenue (we will subtract expense later to get net earnings)
+    dailyEarn[dtStr] += total;
+
+    if (dtStr === todayStr) {
+      todayRev += total;
+
+      const method = b.payment?.method || b.paymentMethod || 'cash'; // Unknowns fall into cash, could explicitly track unknownAmt instead
+      if (method === 'split' && b.payment?.breakdown) {
+         todayCash += (b.payment.breakdown.cash || 0) * mult;
+         todayUpi += (b.payment.breakdown.upi || 0) * mult;
+      } else if (method === 'upi' || b.refundMethod === 'upi') {
+         todayUpi += total;
+      } else {
+         todayCash += total; // includes 'cash' and 'unknown'
+      }
+    } else if (dtStr === yestStr) {
+      yestRev += total;
     }
   });
 
-  const sparkData = Object.keys(dailyEarn).sort().map(k => dailyEarn[k]);
+  // Process Expenses
+  weekESnap.forEach(doc => {
+    const e = doc.data({ serverTimestamps: 'estimate' });
+    const dtStr = e.createdAt ? format(e.createdAt.toDate(), 'yyyy-MM-dd') : null;
+    if (!dtStr || dailyExp[dtStr] === undefined) return;
+
+    const amt = Number(e.amount) || 0;
+
+    // Sparkline expenses
+    // Exclude Cash Overage/Shortage adjustments created by the lock process from Net Earnings logic
+    if (e.description !== 'Cash Shortage' && e.description !== 'Cash Overage') {
+       dailyExp[dtStr] += amt;
+    }
+
+    if (dtStr === todayStr) {
+      if (e.description !== 'Cash Shortage' && e.description !== 'Cash Overage') {
+         todayExpAmt += amt;
+      }
+
+      // Only reduce expected cash drawer if the expense was explicitly paid via cash.
+      // (Older documents without paidVia assumed cash, so we default to cash).
+      const pVia = e.paidVia || 'cash';
+      if (pVia === 'cash') {
+         todayExpectedCashDeduction += amt;
+      }
+    } else if (dtStr === yestStr) {
+      if (e.description !== 'Cash Shortage' && e.description !== 'Cash Overage') {
+         yestExpAmt += amt;
+      }
+    }
+  });
+
+  const todayNet = todayRev - todayExpAmt;
+  const yestNet = yestRev - yestExpAmt;
+
+  let percentDiff = 0;
+  if (yestNet !== 0) {
+     percentDiff = ((todayNet - yestNet) / Math.abs(yestNet)) * 100;
+  } else if (todayNet > 0) {
+     percentDiff = 100;
+  }
+
+  const sparkData = Object.keys(dailyEarn).sort().map(k => dailyEarn[k] - dailyExp[k]);
 
   return {
-    expectedCash: today.cash - todayExpAmt,
-    upiInBank: today.upi,
+    expectedCash: todayCash - todayExpectedCashDeduction,
+    upiInBank: todayUpi,
     netEarnings: todayNet,
     vsYesterday: percentDiff,
-    cashSplit: today.cash,
-    upiSplit: today.upi,
-    staffCount: today.staff,
+    cashSplit: todayCash,
+    upiSplit: todayUpi,
     weekData: sparkData
   };
 }

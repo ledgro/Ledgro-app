@@ -1,7 +1,7 @@
 import { toast } from 'sonner';
 import { useState, useEffect, useCallback, useMemo, useDeferredValue, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, orderBy, limit, startAfter, getDocs, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, startAfter, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useInView } from 'react-intersection-observer';
 import BottomNav from '../components/BottomNav';
@@ -10,12 +10,15 @@ import { Drawer } from 'vaul';
 import { formatCurrency, cn, hapticVibrate } from '../lib/utils';
 import { useBodyLock } from '../hooks/useBodyLock';
 
+import { putData } from '../lib/idb';
+import { useCatalogStore } from '../store/catalogStore';
+
 export default function Ledger() {
   const { user, shopId } = useAuth();
 
   const [bills, setBills] = useState([]);
-  const [lastDoc, setLastDoc] = useState(null);
-  const [hasMore, setHasMore] = useState(true);
+  const lastDoc = useRef(null);
+  const hasMore = useRef(true);
   const [loading, setLoading] = useState(false);
   const [reversingId, setReversingId] = useState(null);
   const [selectedBill, setSelectedBill] = useState(null);
@@ -36,32 +39,31 @@ export default function Ledger() {
   const { ref, inView } = useInView();
   const ledgerListRef = useRef(null);
 
-const fetchBills = useCallback(async (isNextPage = false) => {
-    if (!shopId || (!hasMore && isNextPage)) return;
+  const fetchBills = useCallback(async (isNextPage = false) => {
+    if (!shopId || (!hasMore.current && isNextPage)) return;
 
     setLoading(true);
     try {
       const billsRef = collection(db, `shops/${shopId}/bills`);
-      let q = query(billsRef, orderBy('createdAt', 'desc'), limit(30)); // increased limit to make client-side search richer
+      let q = query(billsRef, orderBy('createdAt', 'desc'), limit(30));
 
-      if (isNextPage && lastDoc) {
-        q = query(billsRef, orderBy('createdAt', 'desc'), startAfter(lastDoc), limit(30));
+      if (isNextPage && lastDoc.current) {
+        q = query(billsRef, orderBy('createdAt', 'desc'), startAfter(lastDoc.current), limit(30));
       }
 
       const snap = await getDocs(q);
 
       if (snap.empty) {
-        setHasMore(false);
+        hasMore.current = false;
       } else {
         const newBills = snap.docs.map(doc => {
            const data = doc.data({ serverTimestamps: 'estimate' });
            return { id: doc.id, ...data, createdAt: data.createdAt ? { toDate: () => data.createdAt.toDate() } : { toDate: () => new Date() } };
         });
-        setLastDoc(snap.docs[snap.docs.length - 1]);
+        lastDoc.current = snap.docs[snap.docs.length - 1];
 
         if (isNextPage) {
           setBills(prev => {
-            // Deduplicate to avoid react key warnings
             const existingIds = new Set(prev.map(b => b.id));
             return [...prev, ...newBills.filter(b => !existingIds.has(b.id))];
           });
@@ -74,43 +76,44 @@ const fetchBills = useCallback(async (isNextPage = false) => {
     } finally {
       setLoading(false);
     }
-  }, [shopId, lastDoc, hasMore]); // Removed 'loading' from dependencies
+  }, [shopId]);
 
-  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
-    if (shopId) fetchBills();
+    if (shopId) {
+      lastDoc.current = null;
+      hasMore.current = true;
+      fetchBills();
+    }
   }, [shopId, fetchBills]);
 
-  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
-    if (inView && hasMore && !loading) {
+    if (inView && hasMore.current && !loading) {
       fetchBills(true);
     }
-  }, [inView, hasMore, loading, fetchBills]);
+  }, [inView, loading, fetchBills]);
 
   const handleVoidBill = async (originalBill) => {
-    if (!shopId || !window.confirm(`Are you sure you want to void bill for ₹${originalBill.grandTotal}?`)) return;
+    if (!shopId || !window.confirm(`Are you sure you want to void this bill?`)) return;
 
     if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate(20);
 
     setReversingId(originalBill.id);
-try {
+    try {
       const batch = writeBatch(db);
 
       const billRef = doc(db, `shops/${shopId}/bills`, originalBill.id);
 
       batch.update(billRef, {
-        type: 'reversal',
-        originalBillId: originalBill.id,
-        reversedAt: serverTimestamp(),
-        reversedBy: user.uid
+        isVoided: true,
+        voidedAt: serverTimestamp(),
+        voidedBy: user.uid
       });
 
       if (originalBill.items && Array.isArray(originalBill.items)) {
         originalBill.items.forEach(item => {
           if (item.name && item.catalogId) {
              const catalogRef = doc(db, `shops/${shopId}/catalog`, item.catalogId);
-             batch.update(catalogRef, { frequency: increment(-1) });
+             batch.update(catalogRef, { frequency: increment(-1), stockCount: increment(item.qty || 1) });
           }
         });
       }
@@ -234,7 +237,30 @@ try {
     });
   }, [bills, deferredQuery, activeFilter, showVoided]);
 
-  const handleExportLedger = async () => { /* Same as before, keeping brevity */ };
+  const handleExportLedger = async () => {
+    if (processedBills.length === 0) return;
+
+    // Very simple CSV export of currently loaded view
+    const headers = "Bill Number,Date,Status,Total,Items";
+    const rows = [headers];
+    processedBills.forEach(b => {
+      const dateStr = b.createdAt?.toDate ? b.createdAt.toDate().toLocaleString() : '';
+      const statusStr = b.isVoided ? 'Voided' : (b.type || 'Sale');
+      const itemsStr = b.items ? b.items.length + ' items' : '0 items';
+      rows.push(`"${b.billNo || b.id}","${dateStr}","${statusStr}",${b.grandTotal / 100},"${itemsStr}"`);
+    });
+
+    const csvContent = rows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "ledgro_ledger_export.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  };
 
   return (
     <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-20">
@@ -263,6 +289,7 @@ try {
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
           {['cash', 'upi', 'split', 'return'].map(f => (
             <button
+              type="button"
               key={f}
               onClick={() => setActiveFilter(activeFilter === f ? '' : f)}
               className={cn("px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-colors border",
@@ -274,10 +301,13 @@ try {
           ))}
         </div>
 
-        <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 pt-1 cursor-pointer">
-           <input type="checkbox" checked={showVoided} onChange={e => setShowVoided(e.target.checked)} className="rounded text-blue-600 focus:ring-blue-500" />
-           Show voided & edited bills
-        </label>
+        <div className="flex justify-between items-center pt-1">
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 cursor-pointer">
+             <input type="checkbox" checked={showVoided} onChange={e => setShowVoided(e.target.checked)} className="rounded text-blue-600 focus:ring-blue-500" />
+             Show voided & edited bills
+          </label>
+          <span className="text-[10px] text-slate-400">Filters apply to loaded bills only</span>
+        </div>
       </header>
 
       <main className="flex-1 p-4">
@@ -302,8 +332,8 @@ try {
               const isReturn = bill.type === 'return';
 
               return (
-                <div key={bill.id} onClick={() => { setSelectedBill(bill); setReturnItems({}); }}
-                  className={cn("p-4 rounded-2xl shadow-subtle border active:scale-[0.98] transition-all cursor-pointer",
+                <button type="button" key={bill.id} onClick={() => { setSelectedBill(bill); setReturnItems({}); }}
+                  className={cn("w-full text-left p-4 rounded-2xl shadow-subtle border active:scale-[0.98] transition-all cursor-pointer block",
                     bill.isVoided ? "bg-slate-50 border-slate-200 opacity-60" : "bg-white border-slate-100"
                   )}
                 >
@@ -324,8 +354,8 @@ try {
                       <span>•</span>
                       {bill.payment?.method === 'split' ? (
                         <div className="flex items-center text-[10px] font-bold bg-slate-100 rounded overflow-hidden">
-                          <span className="px-1.5 py-0.5 bg-green-100 text-green-700">₹{bill.payment.breakdown.cash} C</span>
-                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700">₹{bill.payment.breakdown.upi} U</span>
+                          <span className="px-1.5 py-0.5 bg-green-100 text-green-700">₹{(bill.payment.breakdown.cash / 100).toFixed(0)} C</span>
+                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700">₹{(bill.payment.breakdown.upi / 100).toFixed(0)} U</span>
                         </div>
                       ) : (
                         <span className="uppercase text-xs font-bold bg-slate-100 px-2 py-0.5 rounded">{bill.refundMethod || bill.paymentMethod || bill.payment?.method}</span>
@@ -333,7 +363,7 @@ try {
                     </div>
                     {bill.isVoided && <span className="text-[10px] font-bold bg-slate-200 text-slate-600 px-2 py-0.5 rounded uppercase tracking-wider">Voided</span>}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -422,7 +452,7 @@ try {
                           <div key={idx} className="p-4 flex items-center justify-between">
                             <div className="flex-1">
                                <p className="font-bold text-slate-900">{item.name}</p>
-                               <p className="text-xs text-slate-500">Max qty: {item.qty} • ₹{((item.finalLineTotal ?? item.lineTotal) / item.qty).toFixed(2)} ea</p>
+                               <p className="text-xs text-slate-500">Max qty: {item.qty} • {formatCurrency((item.finalLineTotal ?? item.lineTotal) / item.qty)} ea</p>
                             </div>
                             <div className="flex items-center gap-3">
                                <button

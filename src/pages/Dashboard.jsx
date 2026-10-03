@@ -24,20 +24,6 @@ export default function Dashboard() {
 
   const chartRef = useRef(null);
 
-  // oxlint-disable-next-line react/set-state-in-effect
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-      if (chartRef.current) {
-        chartRef.current.options.scales.x.ticks.color = isDark ? '#94A3B8' : '#64748B';
-        chartRef.current.options.scales.y.ticks.color = isDark ? '#94A3B8' : '#64748B';
-        chartRef.current.options.scales.x.grid.color = isDark ? '#1E293B' : '#F1F5F9';
-        chartRef.current.update();
-      }
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => observer.disconnect();
-  }, []);
 
 
   // Stats
@@ -54,7 +40,10 @@ export default function Dashboard() {
 
   const stats = useDeferredValue(rawStats);
   const [actualCashCounted, setActualCashCounted] = useState(''); // Moved out of deferred stats
-  const [closureDate, setClosureDate] = useState(() => new Date().toISOString().split('T')[0]); // Default to today's local date
+  const [closureDate, setClosureDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  });
   const [isCloseDrawerOpen, setIsCloseDrawerOpen] = useState(false);
   const [isClosingRecord, setIsClosingRecord] = useState(false);
 
@@ -68,26 +57,26 @@ export default function Dashboard() {
     }
   }, []);
 
-  const fetchDashboardData = useCallback(async (isMounted = { current: true }) => {
+  const fetchDashboardData = useCallback(async (isMountedObj = { current: true }) => {
     if (!shopId) return;
     setLoading(true);
 
     try {
       const data = await computeDailyAggregations(shopId);
-      if (data && isMounted.current) {
+      if (data && isMountedObj.current) {
         setStats(s => ({ ...s, ...data }));
       }
     } catch (err) {
       console.error(err);
     } finally {
-      if (isMounted.current) setLoading(false);
+      if (isMountedObj.current) setLoading(false);
     }
   }, [shopId]);
 
   useEffect(() => {
-    const isMounted = { current: true };
-    fetchDashboardData(isMounted);
-    return () => { isMounted.current = false; };
+    const isMountedObj = { current: true };
+    fetchDashboardData(isMountedObj);
+    return () => { isMountedObj.current = false; };
   }, [fetchDashboardData]);
 
   useEffect(() => {
@@ -113,24 +102,26 @@ export default function Dashboard() {
   }, []);
 
   const handleCloseRegister = async () => {
+    if (!navigator.onLine) {
+      toast.error("You must be online to close the register.");
+      return;
+    }
+
     const parsedActual = parseFloat(actualCashCounted);
-    if (isNaN(parsedActual)) return;
+    if (isNaN(parsedActual) || parsedActual < 0) {
+      toast.error("Please enter a valid positive amount.");
+      return;
+    }
+
     setIsClosingRecord(true);
 
     try {
-      // 1. Try to lock the day by creating a unique daily closures doc
-      // The user explicitly selects the date to close, allowing them to close a previous missed day safely.
       if (!closureDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
          throw new Error("Invalid date format");
       }
       const closureDocId = closureDate;
-
       const diffPaise = Math.round(parsedActual * 100) - stats.expectedCash;
-      // If shortage, we create an expense. If overage, we don't. We just log it as Income adjustment (handled differently in aggregations)
-      // Note: The prompt asks to record overage as income, shortage as expense.
-      // We will create the closure doc which stores actual values.
 
-      // First, attempt to create the lock document. If it fails due to ALREADY EXISTING (rules block update), the whole block will catch and fail.
       const closureData = {
         expectedCash: stats.expectedCash,
         actualCash: Math.round(parsedActual * 100),
@@ -140,55 +131,36 @@ export default function Dashboard() {
         date: closureDocId
       };
 
-      // 1. Create Closure Doc (will fail if rules enforce it already exists today)
-      // Explicitly set the doc ID to the date string instead of allowing auto-id
-      await setDoc(doc(db, `shops/${shopId}/dailyClosures`, closureDocId), closureData);
+      const batch = writeBatch(db);
 
-    } catch (_e) {
-      toast.error("Failed to close register (Already closed today?)");
-      setIsClosingRecord(false);
-      return; // Stop early
-    }
+      const closureRef = doc(db, `shops/${shopId}/dailyClosures`, closureDocId);
+      batch.set(closureRef, closureData);
 
-    // 2. Process difference (using a separate try catch to ensure we don't rollback closure log if this fails, though batch is better)
-    // To conform to the prompt safely while adapting to the limitations:
-    try {
-       const parsedActual = parseFloat(actualCashCounted);
-       const diffPaise = Math.round(parsedActual * 100) - stats.expectedCash;
+      if (diffPaise < 0) {
+        const expRef = doc(collection(db, `shops/${shopId}/expenses`));
+        batch.set(expRef, {
+          amount: Math.abs(diffPaise),
+          category: 'other',
+          description: 'Cash Shortage',
+          creatorId: user.uid,
+          createdAt: serverTimestamp()
+        });
+      }
 
-       if (diffPaise < 0) {
-         // Shortage = Expense
-          await addDoc(collection(db, `shops/${shopId}/expenses`), {
-            amount: Math.abs(diffPaise),
-            category: 'other',
-            description: 'Cash Shortage',
-            creatorId: user.uid,
-            createdAt: serverTimestamp()
-          });
-       } else if (diffPaise > 0) {
-         // Overage = Record as Income (a positive bill/adjustment)
-         // Since 'bills' holds income, we can create an adjustment bill, or since it's just a UI change,
-         // maybe just tracking it in `dailyClosures` is enough. But the prompt says "Record overage as income".
-         // We will create a dummy sale bill for the overage.
-          await addDoc(collection(db, `shops/${shopId}/bills`), {
-            type: 'sale',
-            items: [{ name: 'Cash Overage', qty: 1, unitPrice: diffPaise, finalLineTotal: diffPaise }],
-            subtotal: diffPaise,
-            grandTotal: diffPaise,
-            paymentMethod: 'cash',
-            creatorId: user.uid,
-            createdAt: serverTimestamp()
-          });
-       }
+      await batch.commit();
 
-       toast.success("Day locked and summary saved!");
-       setIsCloseDrawerOpen(false);
-       setActualCashCounted(''); // Reset the input!
-       fetchDashboardData();
-    } catch (_e) {
-       toast.error("Failed to process discrepancies.");
+      toast.success("Day locked and summary saved!");
+      setIsCloseDrawerOpen(false);
+      setActualCashCounted('');
+      fetchDashboardData();
+    } catch (err) {
+      if (err.code === 'permission-denied') {
+        toast.error(`The register for ${closureDate} is already closed.`);
+      } else {
+        toast.error("Failed to close register. Please try again.");
+      }
     } finally {
-       setIsClosingRecord(false);
+      setIsClosingRecord(false);
     }
   };
 
@@ -201,7 +173,7 @@ export default function Dashboard() {
            {syncStatus.online ? <Cloud size={14} className="text-blue-500" /> : <CloudOff size={14} className="text-amber-500" />}
            {syncStatus.online ? `Online` : <span className="text-amber-600">Offline — changes saved locally</span>}
          </div>
-         <button aria-label="Refresh Dashboard" onClick={fetchDashboardData} className="active:rotate-180 transition-transform"><RefreshCcw size={14} /></button>
+         <button aria-label="Refresh Dashboard" onClick={() => fetchDashboardData()} className="active:rotate-180 transition-transform"><RefreshCcw size={14} /></button>
       </div>
 
       <main className="p-4 space-y-4">
@@ -209,7 +181,7 @@ export default function Dashboard() {
         {/* iOS Prompt */}
         {showIOSPrompt && (
           <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 relative mb-4">
-            <button onClick={() => { localStorage.setItem('iosInstallPromptDismissed', 'true'); setShowIOSPrompt(false); }} className="absolute top-2 right-2 p-1 text-blue-400">✕</button>
+            <button aria-label="Close" onClick={() => { localStorage.setItem('iosInstallPromptDismissed', 'true'); setShowIOSPrompt(false); }} className="absolute top-2 right-2 p-1 text-blue-400">✕</button>
             <p className="font-bold text-blue-900 text-sm mb-1">Add Ledgro to your Home Screen</p>
             <p className="text-xs text-blue-700">To protect your offline data from being deleted by iOS, tap the share icon below and select "Add to Home Screen".</p>
           </div>
@@ -286,20 +258,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Member Performance */}
-            {Object.keys(stats.staffCount).length > 0 && (
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Member Performance</p>
-                <div className="space-y-2">
-                  {Object.entries(stats.staffCount).map(([uid, count]) => (
-                    <div key={uid} className="flex justify-between items-center text-sm font-semibold">
-                      <span className="text-slate-700">{uid === user.uid ? 'You' : `Member (ID: ${uid.substring(0,4)})`}</span>
-                      <span className="text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md">{count} bills</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </>
         )}
       </main>
@@ -345,9 +303,10 @@ export default function Dashboard() {
                      <label className="block text-sm font-bold text-slate-700 mb-2">Closure Date</label>
                      <input
                        type="date"
+                       disabled
                        value={closureDate}
                        onChange={e => setClosureDate(e.target.value)}
-                       className="w-full px-4 h-12 border border-slate-200 rounded-xl font-bold text-slate-600 focus:ring-2 focus:ring-blue-500 outline-none"
+                       className="w-full px-4 h-12 border border-slate-200 rounded-xl font-bold text-slate-600 bg-slate-50 opacity-70 outline-none"
                      />
                    </div>
 
