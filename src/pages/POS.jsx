@@ -291,7 +291,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
 
       // Write to queue if offline, but commit batch regardless so local firestore updates correctly
       if (!navigator.onLine) {
-          await putData('pendingBills', { id: newBillRef.id, path: `shops/${shopId}/bills/${newBillRef.id}`, data: payload });
+          await putData('pendingBills', { id: newBillRef.id, uid: user.uid, shopId: shopId, path: `shops/${shopId}/bills/${newBillRef.id}`, data: payload });
       }
       batch.commit().catch(e => console.warn("Batch commit deferred offline", e));
 

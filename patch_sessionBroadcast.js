@@ -1,4 +1,6 @@
-let channel = null;
+import fs from 'fs';
+
+let content = `let channel = null;
 
 if (typeof BroadcastChannel !== 'undefined') {
   channel = new BroadcastChannel('ledgro-session');
@@ -41,4 +43,6 @@ export function listenForSessionEvents(onTerminated, onChanged) {
   return () => {
     channel.removeEventListener('message', handleMessage);
   };
-}
+}`;
+
+fs.writeFileSync('src/lib/sessionBroadcast.js', content);
