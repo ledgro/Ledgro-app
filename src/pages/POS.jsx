@@ -55,7 +55,12 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
     const recovered = localStorage.getItem('ledgro-cart-recovery');
     if (recovered) {
       try {
-        const { cartState, savedAt } = JSON.parse(recovered);
+        const { cartState, savedAt, uid, shopId: savedShopId } = JSON.parse(recovered);
+        // Only restore if it belongs to the current user and shop
+        if (uid !== user.uid || savedShopId !== shopId) {
+          localStorage.removeItem('ledgro-cart-recovery');
+          return;
+        }
         const ageMs = Date.now() - new Date(savedAt).getTime();
         if (ageMs < 5 * 60 * 1000) { // Only restore if less than 5 mins old
           dispatch({ type: 'INIT_FROM_EDIT', payload: { items: cartState.items, globalDiscount: cartState.globalDiscount } });
@@ -66,7 +71,8 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
         localStorage.removeItem('ledgro-cart-recovery');
       }
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, shopId]);
   const receiptRef = useRef(null);
   const springTotal = useSpring(grandTotal, { stiffness: 200, damping: 20 });
 

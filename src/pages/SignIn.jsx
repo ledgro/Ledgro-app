@@ -19,7 +19,7 @@ const SignIn = () => {
       ua.indexOf('FBAV') > -1 ||
       ua.indexOf('WhatsApp') > -1 ||
       ua.indexOf('Instagram') > -1 ||
-      ua.indexOf('Line') > -1 ||
+      /\bLine\//.test(ua) ||
       ua.indexOf('FB_IAB') > -1 ||
       ua.indexOf('Snapchat') > -1 ||
       ua.indexOf('Twitter') > -1 ||
@@ -34,8 +34,7 @@ const SignIn = () => {
     return { isIAB, targetBrowser };
   }, []);
 
-  const [isInAppBrowser] = useState(isIAB);
-  const [browserTarget] = useState(targetBrowser);
+
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -56,7 +55,7 @@ const SignIn = () => {
   const handleSignIn = async () => {
     if (isSigningIn) return;
     if (!termsAccepted) {
-      setError('Please accept the Terms of Service and Privacy Policy to continue.');
+      setError(lang === 'en' ? 'Please accept the Terms of Service and Privacy Policy to continue.' : 'തുടരാൻ ദയവായി സേവന നിബന്ധനകളും സ്വകാര്യതാ നയവും അംഗീകരിക്കുക.'); // TODO: native speaker review
       return;
     }
     try {
@@ -68,20 +67,27 @@ const SignIn = () => {
         // Check if consent record exists, if not, write it
         const userRef = doc(db, 'users', auth.currentUser.uid);
         const userSnap = await getDoc(userRef);
-        if (!userSnap.data()?.consentRecord) {
-          await setDoc(userRef, {
-            consentRecord: {
-              termsAccepted: true,
-              policyVersion: POLICY_VERSION,
-              language: lang,
-              acceptedAt: serverTimestamp()
-            }
-          }, { merge: true });
+        if (userSnap.data()?.consentRecord?.policyVersion !== POLICY_VERSION) {
+          try {
+            await setDoc(userRef, {
+              consentRecord: {
+                termsAccepted: true,
+                policyVersion: POLICY_VERSION,
+                language: lang,
+                acceptedAt: serverTimestamp()
+              }
+            }, { merge: true });
+          } catch (consentError) {
+            console.error("Consent write failed:", consentError);
+            await auth.signOut(); // using auth directly since useAuth hook destructuring might be missing
+            setError(lang === 'en' ? "Failed to save consent. Please try again." : "സമ്മതം രേഖപ്പെടുത്താൻ കഴിഞ്ഞില്ല. വീണ്ടും ശ്രമിക്കുക.");
+            return; // Halt redirect
+          }
         }
       }
     } catch (err) {
       console.error(err);
-      setError(err.message || 'Failed to sign in. Please try again.');
+      setError(err.message || (lang === 'en' ? 'Failed to sign in. Please try again.' : 'സൈൻ ഇൻ പരാജയപ്പെട്ടു. വീണ്ടും ശ്രമിക്കുക.')); // TODO: native speaker review
     } finally {
       setIsSigningIn(false);
     }
@@ -113,11 +119,16 @@ const SignIn = () => {
     textArea.focus();
     textArea.select();
     try {
-      document.execCommand('copy');
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      const success = document.execCommand('copy');
+      if (success) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } else {
+        setError(lang === 'en' ? "Copy failed. Long-press the address bar to copy the link." : "പകർത്തുവാൻ കഴിഞ്ഞില്ല. ലിങ്ക് പകർത്താൻ അഡ്രസ്സ് ബാറിൽ അമർത്തി പിടിക്കുക.");
+      }
     } catch (err) {
       console.error('Fallback copy error:', err);
+      setError(lang === 'en' ? "Copy failed. Long-press the address bar to copy the link." : "പകർത്തുവാൻ കഴിഞ്ഞില്ല. ലിങ്ക് പകർത്താൻ അഡ്രസ്സ് ബാറിൽ അമർത്തി പിടിക്കുക.");
     }
     document.body.removeChild(textArea);
   };
@@ -130,7 +141,7 @@ const SignIn = () => {
           <p className="text-slate-500 font-medium text-lg">Simple billing for your shop.</p>
         </div>
 
-        {isInAppBrowser ? (
+        {isIAB ? (
           <div className="space-y-4 bg-orange-50 text-orange-800 p-4 rounded-lg border border-orange-100">
             <div className="flex justify-end mb-2">
               <div className="flex bg-slate-100 p-1 rounded-lg">
@@ -139,7 +150,7 @@ const SignIn = () => {
               </div>
             </div>
             <p className="font-medium">
-              {lang === 'en' ? `Open in ${browserTarget} to continue.` : `തുടരാൻ ${browserTarget}-ൽ തുറക്കുക.`}
+              {lang === 'en' ? `Open in ${targetBrowser} to continue.` : `തുടരാൻ ${targetBrowser}-ൽ തുറക്കുക.`}
             </p>
             <p className="text-sm">
               {lang === 'en' ? "Google Sign-In is blocked inside this app's browser." : "ഈ ആപ്പിന്റെ ബ്രൗസറിൽ ഗൂഗിൾ സൈൻ-ഇൻ ബ്ലോക്ക് ചെയ്തിരിക്കുന്നു."}
@@ -183,6 +194,7 @@ const SignIn = () => {
               </div>
             </label>
 
+            {/* Only true if the Firestore database is in an Indian region (asia-south1/asia-south2). Verify in the Firebase console. */}
             <p className="text-[11px] text-slate-400 font-medium text-center mb-4">
               {lang === 'en'
                 ? "We collect your basic profile to manage your shop ledger. Your data remains stored in India."
@@ -218,7 +230,7 @@ const SignIn = () => {
                   />
                 </svg>
               )}
-              {isSigningIn ? 'Signing in...' : 'Continue with Google'}
+              {isSigningIn ? (lang === 'en' ? 'Signing in...' : 'സൈൻ ഇൻ ചെയ്യുന്നു...') : (lang === 'en' ? 'Continue with Google' : 'Google വഴി തുടരുക')} {/* TODO: native speaker review */}
             </button>
             {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
           </div>

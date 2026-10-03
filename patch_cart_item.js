@@ -1,4 +1,9 @@
-import { Minus, Plus, Tag, Trash2 } from 'lucide-react';
+import fs from 'fs';
+
+let content = fs.readFileSync('src/components/CartItem.jsx', 'utf-8');
+
+// Fix 1: Input filtering, blur handling, formatting, labels, touch targets, step unit decrement
+const cartItemCode = `import { Minus, Plus, Tag, Trash2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { formatCurrency } from '../lib/utils';
 import { toast } from 'sonner';
@@ -127,15 +132,15 @@ export default function CartItem({ item, dispatch, onOpenDiscount }) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => onOpenDiscount(item)}
-            className={`flex items-center gap-1 px-4 py-2 h-10 rounded-full text-xs font-bold border transition-colors ${
+            className={\`flex items-center gap-1 px-4 py-2 h-10 rounded-full text-xs font-bold border transition-colors \${
               hasDiscount
                 ? 'bg-green-50 text-green-700 border-green-200'
                 : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-            }`}
+            }\`}
           >
             <Tag size={14} />
             {hasDiscount
-              ? `-${item.lineDiscount.type === 'percent' ? item.lineDiscount.value + '%' : formatCurrency(item.lineDiscount.value)}`
+              ? \`-\${item.lineDiscount.type === 'percent' ? item.lineDiscount.value + '%' : formatCurrency(item.lineDiscount.value)}\`
               : 'Discount'}
           </button>
 
@@ -150,4 +155,6 @@ export default function CartItem({ item, dispatch, onOpenDiscount }) {
       </div>
     </div>
   );
-}
+}`;
+
+fs.writeFileSync('src/components/CartItem.jsx', cartItemCode);

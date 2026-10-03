@@ -1,4 +1,12 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import fs from 'fs';
+
+let content = fs.readFileSync('src/components/SearchInput.jsx', 'utf-8');
+
+// Fix 1: Refactor to compute results synchronously without useEffect
+// Normalize string queries, handle duplicate appending
+// Fix autofocus on mount issues by dropping autoFocus property
+
+const searchInputCode = `import { useState, useRef, useEffect, useMemo } from 'react';
 import { useCatalogStore } from '../store/catalogStore';
 import { Search, Plus } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
@@ -163,4 +171,6 @@ export default function SearchInput({ onAddItem }) {
       )}
     </div>
   );
-}
+}`;
+
+fs.writeFileSync('src/components/SearchInput.jsx', searchInputCode);
