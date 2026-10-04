@@ -39,7 +39,6 @@ const newPWA = `VitePWA({
             type: 'image/svg+xml',
             purpose: 'any maskable'
           }
-          // Note: In real life we'd add actual PNGs here for Chrome/iOS compatibility
         ]
       }
     })`;

@@ -112,15 +112,17 @@ export default function Members() {
 
   const handleRemoveMember = async (targetUid) => {
     if (!isCreator || targetUid === user?.uid) return;
-    if (!window.confirm("Remove this member?")) return;
-    if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate(20);
-
-    try {
-      const shopRef = doc(db, 'shops', shopId);
-      await updateDoc(shopRef, { [`members.${targetUid}`]: deleteField() });
-      if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate([50, 30, 50]);
-    } catch {
-      toast.error("Failed to remove member.");
+    if (window.confirm("Are you sure you want to remove this member?")) {
+      try {
+        const shopRef = doc(db, 'shops', shopId);
+        await updateDoc(shopRef, {
+           [`members.${targetUid}`]: deleteField()
+        });
+        toast.success("Member removed successfully.");
+      } catch (_err) {
+        console.error(_err);
+        toast.error("Failed to remove member.");
+      }
     }
   };
 
