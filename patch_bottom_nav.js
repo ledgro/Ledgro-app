@@ -1,4 +1,9 @@
-import { Link, useLocation } from 'react-router-dom';
+import fs from 'fs';
+
+let content = fs.readFileSync('src/components/BottomNav.jsx', 'utf-8');
+
+// Fix BottomNav accessibility, dark mode borders, active states, and replace the bill count logic with unconditional items
+const newContent = `import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, FileText, Menu, Plus, PackageSearch, Receipt, Users, Settings, TrendingUp } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Drawer } from 'vaul';
@@ -137,3 +142,6 @@ export default function BottomNav() {
     </>
   );
 }
+`;
+
+fs.writeFileSync('src/components/BottomNav.jsx', newContent);

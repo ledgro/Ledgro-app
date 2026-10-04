@@ -1,4 +1,9 @@
-import { Component } from 'react';
+import fs from 'fs';
+
+let content = fs.readFileSync('src/components/ErrorBoundary.jsx', 'utf-8');
+
+// Fix raw error leak, cart wiping, chunkload recovery
+const errorBoundaryCode = `import { Component } from 'react';
 
 export class ErrorBoundary extends Component {
   constructor(props) {
@@ -102,3 +107,6 @@ export class ErrorBoundary extends Component {
     return this.props.children;
   }
 }
+`;
+
+fs.writeFileSync('src/components/ErrorBoundary.jsx', errorBoundaryCode);

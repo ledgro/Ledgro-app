@@ -1,34 +1,38 @@
-import { forwardRef, useMemo } from 'react';
-import { formatCurrency } from '../lib/utils';
+import fs from 'fs';
 
+let content = `import { forwardRef, useMemo } from 'react';
+import { formatCurrency } from '../lib/utils';
+import { useAuth } from '../context/AuthContext'; // To pull shop profile
 
 const Receipt = forwardRef(({ billData }, ref) => {
   // Use useAuth inside the component, but handle if it's called outside somehow
-  const shopProfile = billData?.shopProfile || {};
+  let shopProfile = null;
+  try {
+    const authContext = useAuth();
+    if (authContext) shopProfile = authContext.shop;
+  } catch (e) {}
 
-  const { items = [], subtotal = 0, globalDiscountAmt = 0, grandTotal = 0, paymentMethod, shopName, createdAt, clientCreatedAt, payment } = billData || {};
+  if (!billData) return null;
+
+  const { items = [], subtotal = 0, globalDiscountAmt = 0, grandTotal = 0, paymentMethod, shopName, createdAt, clientCreatedAt, payment } = billData;
 
   // 1. Fix date to be exact time of sale
   const dateStr = useMemo(() => {
-    if (!billData) return '';
     if (clientCreatedAt) return new Date(clientCreatedAt).toLocaleString();
     if (createdAt && typeof createdAt.toDate === 'function') return createdAt.toDate().toLocaleString();
     if (createdAt) return new Date(createdAt).toLocaleString();
     return new Date().toLocaleString();
-  }, [createdAt, clientCreatedAt, billData]);
+  }, [createdAt, clientCreatedAt]);
 
   // 6. Fix fallback bill number stability
   const billNo = useMemo(() => {
-    if (!billData) return '';
     if (billData.billNo) return billData.billNo;
     if (billData.id) return billData.id;
     const arr = new Uint8Array(3);
     crypto.getRandomValues(arr);
     const suffix = Array.from(arr, b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-    return `${new Date().toLocaleDateString('en-GB').replace(/\//g, '')}-${suffix}`;
-  }, [billData?.billNo, billData?.id, billData]);
-
-  if (!billData) return null;
+    return \`\${new Date().toLocaleDateString('en-GB').replace(/\\//g, '')}-\${suffix}\`;
+  }, [billData.billNo, billData.id]);
 
   // 7. Extract settings variables
   const finalShopName = shopName || shopProfile?.name || 'SHOP';
@@ -126,3 +130,6 @@ const Receipt = forwardRef(({ billData }, ref) => {
 });
 
 export default Receipt;
+`;
+
+fs.writeFileSync('src/components/Receipt.jsx', content);

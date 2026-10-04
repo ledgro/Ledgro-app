@@ -1,17 +1,9 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-import { VitePWA } from 'vite-plugin-pwa'
+import fs from 'fs';
 
-export default defineConfig({
-  build: {
-    sourcemap: false,
-  },
-  base: '/',
-  plugins: [
-    react(),
-    tailwindcss(),
-    VitePWA({
+let content = fs.readFileSync('vite.config.js', 'utf-8');
+
+const oldPWA = /VitePWA\(\{[\s\S]*?\}\)/;
+const newPWA = `VitePWA({
       registerType: 'prompt', // prompt mode prevents forced auto-reload dropping active carts
       injectRegister: 'auto',
       workbox: {
@@ -19,7 +11,7 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // Bump up cache limit for index bundle
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
+            urlPattern: /^https:\\/\\/fonts\\.(?:googleapis|gstatic)\\.com\\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'google-fonts',
@@ -50,10 +42,7 @@ export default defineConfig({
           // Note: In real life we'd add actual PNGs here for Chrome/iOS compatibility
         ]
       }
-    })
-  ],
-  test: {
-    environment: 'jsdom',
-    globals: true
-  }
-})
+    })`;
+
+content = content.replace(oldPWA, newPWA);
+fs.writeFileSync('vite.config.js', content);
