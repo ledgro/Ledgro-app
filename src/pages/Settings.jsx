@@ -64,16 +64,6 @@ export default function Settings() {
 
   // Sync preferences to localStorage
 
-  const handleThemeChange = (newTheme) => {
-    setTheme(newTheme);
-    localStorage.setItem('ledgro-theme', newTheme);
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if (newTheme === 'dark' || (newTheme === 'system' && prefersDark)) {
-      document.documentElement.setAttribute('data-theme', 'dark');
-    } else {
-      document.documentElement.setAttribute('data-theme', 'light');
-    }
-  };
 
   useEffect(() => {
     localStorage.setItem('ledgro_defaultPayment', defaultPayment);
