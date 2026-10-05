@@ -150,7 +150,9 @@ export default function PLScreen() {
       h2.textContent = `${shopName || 'Shop'} P&L`;
       const p = document.createElement('p');
       p.style.cssText = "font-size:14px; color:#64748B; text-align:center;";
-      p.textContent = (startDate && endDate) ? `${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}` : 'All Time';
+      p.textContent = dateRangeType === 'custom' && dateRange.from
+        ? `${format(dateRange.from, 'MMM dd, yyyy')} - ${dateRange.to ? format(dateRange.to, 'MMM dd, yyyy') : ''}`
+        : dateRangeType.toUpperCase();
       header.appendChild(h2);
       header.appendChild(p);
       clone.insertBefore(header, clone.firstChild);

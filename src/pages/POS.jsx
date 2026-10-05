@@ -18,7 +18,7 @@ import BottomNav from '../components/BottomNav';
 import html2canvas from 'html2canvas-pro';
 
 import { useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { hapticVibrate, sanitizeText } from '../lib/utils';
 import { putData } from '../lib/idb';
 
@@ -44,6 +44,18 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
   const addCatalogItem = useCatalogStore((state) => state.addItem);
 
   const [state, dispatch] = useReducer(billReducer, initialBillState);
+  const navigate = useNavigate();
+  const isSubmittingRef = useRef(false);
+  const receiptRef = useRef(null);
+
+  // Checkout state (must be declared before any effect or hook that reads it)
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+  const [lastBill, setLastBill] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' | 'upi' | 'split'
+  const [splitCash, setSplitCash] = useState('');
+
+  const { items, subtotal, globalDiscountAmt, grandTotal } = useMemo(() => calculateBillTotals(state), [state]);
 
   // Stash state for survival
   useEffect(() => {
@@ -74,13 +86,12 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid, shopId]);
-  const receiptRef = useRef(null);
 
 
 
 
 
-  const springTotal = useSpring(grandTotal, { stiffness: 200, damping: 20 });
+  const springTotal = useSpring({ val: grandTotal, config: { stiffness: 200, damping: 20 } });
   const editBill = location.state?.editBill || null;
 
   // Init from edit
@@ -124,14 +135,6 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
   const [isDiscountOpen, setIsDiscountOpen] = useState(false);
   const [activeDiscountItem, setActiveDiscountItem] = useState(null); // null means global discount
 
-  // Checkout state
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
-  const [lastBill, setLastBill] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' | 'upi' | 'split'
-  const [splitCash, setSplitCash] = useState('');
-
-  const { items, subtotal, globalDiscountAmt, grandTotal } = useMemo(() => calculateBillTotals(state), [state]);
 
   // Derive top 8 most frequent active items for fast-access grid
   const storeCatalogItems = useCatalogStore(state => state.items);
@@ -213,7 +216,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
         creatorId: user.uid,
         items: items.map(i => ({
           name: sanitizeText(i.name),
-          unitPrice: i.unitPrice,
+          unitPrice: i.unitPriceAtSale,
           qty: i.qty,
           rawTotal: i.rawTotal,
           lineDiscount: i.lineDiscount,
@@ -276,7 +279,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
            }
         } else {
            // Dedupe check: prevent duplicate loose items
-           const existingItem = Array.from(catalogMap.values()).find(c => c.name.toLowerCase() === item.name.toLowerCase());
+           const existingItem = Array.from(catalogMap.values()).find(c => c.id && c.name.toLowerCase() === item.name.toLowerCase());
            if (existingItem) {
                if (!editBill) {
                    batch.update(doc(db, `shops/${shopId}/catalog`, existingItem.id), { frequency: increment(1) });
@@ -286,8 +289,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
                const newCatRef = doc(collection(db, `shops/${shopId}/catalog`));
                batch.set(newCatRef, {
                  name: item.name,
-                 unitPrice: item.unitPrice,
-                 lastUsedPrice: item.unitPrice,
+                 lastUsedPrice: item.unitPriceAtSale,
                  unit: item.unit || 'unit',
                  isActive: true,
                  frequency: editBill ? 0 : 1,
@@ -540,7 +542,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
                     </span>
                   )}
                   <animated.span className="text-2xl font-bold text-gray-900 leading-none">
-                    {springTotal.to(val => `₹${(Math.round(val) / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`)}
+                    {springTotal.val.to(val => `₹${(Math.round(val) / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`)}
                   </animated.span>
                 </div>
               </div>
