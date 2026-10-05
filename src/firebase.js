@@ -1,3 +1,6 @@
+import { initializeApp, getApp, getApps } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
+import { getAuth, GoogleAuthProvider, setPersistence, indexedDBLocalPersistence } from 'firebase/auth';
 import {
   initializeFirestore,
   getFirestore,
@@ -17,7 +20,6 @@ const firebaseConfig = {
   appId: "1:238850420032:web:e448f2bc083bcd07b4dea5"
 };
 
-import { getApp, getApps } from 'firebase/app';
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 export let appCheck = null;
