@@ -23,6 +23,7 @@ const firebaseConfig = {
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 export let appCheck = null;
+/*
 if (typeof window !== 'undefined' && import.meta.env.MODE !== 'test') {
   // If in dev, we can set FIREBASE_APPCHECK_DEBUG_TOKEN flag on window
   if (import.meta.env.DEV) {
@@ -34,6 +35,7 @@ if (typeof window !== 'undefined' && import.meta.env.MODE !== 'test') {
     isTokenAutoRefreshEnabled: true
   });
 }
+*/
 const auth = getAuth(app);
 
 // Explicitly set persistence to indexedDB
