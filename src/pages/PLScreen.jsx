@@ -1,7 +1,7 @@
 import { toast } from 'sonner';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useDeferredValue } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Share2, Download, ChevronLeft } from 'lucide-react';
@@ -10,6 +10,7 @@ import { DayPicker } from 'react-day-picker';
 import { Drawer } from 'vaul';
 import { Skeleton } from '../components/Skeleton';
 import html2canvas from 'html2canvas-pro';
+import { jsPDF } from 'jspdf';
 
 import { startOfDay, endOfDay, startOfWeek, startOfMonth, subMonths, format } from 'date-fns';
 import { Link } from 'react-router-dom';
