@@ -66,7 +66,16 @@ const SignIn = () => {
       if (auth.currentUser) {
         // Check if consent record exists, if not, write it
         const userRef = doc(db, 'users', auth.currentUser.uid);
-        const userSnap = await getDoc(userRef);
+        let userSnap;
+        try {
+          userSnap = await getDoc(userRef);
+        } catch (readError) {
+          console.error("Consent read failed:", readError);
+          await auth.signOut();
+          setError(lang === 'en' ? "Failed to verify consent. Please try again." : "സമ്മതം പരിശോധിക്കാൻ കഴിഞ്ഞില്ല. വീണ്ടും ശ്രമിക്കുക.");
+          return;
+        }
+
         if (userSnap.data()?.consentRecord?.policyVersion !== POLICY_VERSION) {
           try {
             await setDoc(userRef, {
@@ -87,7 +96,11 @@ const SignIn = () => {
       }
     } catch (err) {
       console.error(err);
-      setError(err.message || (lang === 'en' ? 'Failed to sign in. Please try again.' : 'സൈൻ ഇൻ പരാജയപ്പെട്ടു. വീണ്ടും ശ്രമിക്കുക.')); // TODO: native speaker review
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        // Silently ignore user cancellations
+      } else {
+        setError(lang === 'en' ? 'Failed to sign in. Please try again.' : 'സൈൻ ഇൻ പരാജയപ്പെട്ടു. വീണ്ടും ശ്രമിക്കുക.');
+      }
     } finally {
       setIsSigningIn(false);
     }
@@ -163,6 +176,7 @@ const SignIn = () => {
                 ? (lang === 'en' ? 'Link Copied!' : 'ലിങ്ക് പകർത്തി!')
                 : (lang === 'en' ? 'Copy Link' : 'ലിങ്ക് പകർത്തുക')}
             </button>
+            {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
           </div>
         ) : (
           <div className="space-y-4 w-full px-4 text-left">
