@@ -74,20 +74,12 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid, shopId]);
   const receiptRef = useRef(null);
+
+
+
+
+
   const springTotal = useSpring(grandTotal, { stiffness: 200, damping: 20 });
-
-  // Drawer state
-  const [isDiscountOpen, setIsDiscountOpen] = useState(false);
-  const [activeDiscountItem, setActiveDiscountItem] = useState(null); // null means global discount
-
-  // Checkout state
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
-  const [lastBill, setLastBill] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' | 'upi' | 'split'
-  const [splitCash, setSplitCash] = useState('');
-
-
   const editBill = location.state?.editBill || null;
 
   // Init from edit
@@ -126,6 +118,17 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
     };
     fetchCatalog();
   }, [hydrateCatalog, shopId]);
+
+    // Drawer state
+  const [isDiscountOpen, setIsDiscountOpen] = useState(false);
+  const [activeDiscountItem, setActiveDiscountItem] = useState(null); // null means global discount
+
+  // Checkout state
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+  const [lastBill, setLastBill] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' | 'upi' | 'split'
+  const [splitCash, setSplitCash] = useState('');
 
   const { items, subtotal, globalDiscountAmt, grandTotal } = useMemo(() => calculateBillTotals(state), [state]);
 

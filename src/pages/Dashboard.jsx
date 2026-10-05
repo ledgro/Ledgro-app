@@ -148,9 +148,11 @@ export default function Dashboard() {
           category: 'other',
           description: 'Cash Shortage',
           creatorId: user.uid,
-          createdAt: serverTimestamp()
+          createdAt: serverTimestamp(),
+          paidVia: 'cash'
         });
       }
+      // Removed Cash Overage fake logic entirely to avoid polluting counts
 
       await batch.commit();
 
