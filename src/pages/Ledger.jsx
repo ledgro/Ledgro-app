@@ -5,12 +5,14 @@ import { collection, query, where, getDocs, getDoc, orderBy, limit, startAfter, 
 import { db } from '../firebase';
 import { useInView } from 'react-intersection-observer';
 import BottomNav from '../components/BottomNav';
-import { CheckCircle2, XCircle, RefreshCcw, Share2, Search, ArrowLeftRight } from 'lucide-react';
+import { CheckCircle2, XCircle, RefreshCcw, Search, ArrowLeftRight } from 'lucide-react';
 import { Drawer } from 'vaul';
 import { formatCurrency, cn, hapticVibrate } from '../lib/utils';
 import { useBodyLock } from '../hooks/useBodyLock';
 import { fetchAllPaged } from '../lib/firestoreUtils';
-import { csvCell, csvNumber, paiseToRupeesStr, csvRow, downloadTextFile } from '../lib/csv';
+import { buildReport, rs } from '../lib/reportExport';
+import { saveFile } from '../lib/shareFile';
+import ExportMenu from '../components/ExportMenu';
 
 const PAGE = 30;
 
@@ -291,34 +293,40 @@ export default function Ledger() {
     });
   }, [bills, deferredQuery, activeFilter, showVoided]);
 
-  // Exports the WHOLE ledger (paged), not just what is scrolled in.
-  const [exporting, setExporting] = useState(false);
-  const handleExportLedger = async () => {
-    if (!shopId || exporting) return;
-    setExporting(true);
+  // Exports the WHOLE ledger (paged) as PDF or PNG, not just what is scrolled in.
+  const handleExportLedger = async (format) => {
+    if (!shopId) return;
     try {
       const docs = await fetchAllPaged(`shops/${shopId}/bills`);
       if (docs.length === 0) { toast.info('No bills to export.'); return; }
-      const all = docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }));
+      const all = docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) })).reverse();
       const reversed = new Set(all.filter((b) => b.type === 'reversal' && b.originalBillId).map((b) => b.originalBillId));
 
-      const rows = [csvRow(['Bill Number', 'Date', 'Status', 'Payment', 'Total (INR)', 'Items'].map(csvCell))];
-      all.forEach((b) => {
+      let total = 0;
+      const rows = all.map((b) => {
+        const status = reversed.has(b.id) ? 'Voided' : (b.type === 'reversal' ? 'Voided' : (b.type || 'sale'));
+        const counts = status === 'sale' || status === 'return';
+        if (counts) total += Number(b.grandTotal) || 0;
         const dateStr = b.createdAt?.toDate ? b.createdAt.toDate().toLocaleString() : '';
-        const status = reversed.has(b.id) ? 'Voided' : (b.type || 'sale');
         const pay = b.payment?.method || b.paymentMethod || '';
-        const itemsStr = (b.items || []).map((i) => `${i.name} x${i.qty}`).join('; ');
-        rows.push(csvRow([
-          csvCell(b.billNo || b.id), csvCell(dateStr), csvCell(status), csvCell(pay),
-          csvNumber(paiseToRupeesStr(b.grandTotal)), csvCell(itemsStr),
-        ]));
+        const items = (b.items || []).map((i) => `${i.name} x${i.qty}`).join(', ');
+        return [b.billNo || b.id.slice(0, 8), dateStr, status, pay, rs(b.grandTotal), items];
       });
-      downloadTextFile(rows.join('\n'), 'ledgro_ledger_export.csv');
+
+      const blob = await buildReport(format, {
+        title: 'Ledgro - Bill History',
+        subtitle: `Generated ${new Date().toLocaleString()} • ${rows.length} bills`,
+        summary: [`Net total (sales minus returns, voids excluded): ${rs(total)}`],
+        columns: [
+          { label: 'Bill', w: 1.2, max: 18 }, { label: 'Date', w: 1.6, max: 24 }, { label: 'Status', w: 0.8, max: 10 },
+          { label: 'Pay', w: 0.7, max: 8 }, { label: 'Total', w: 1.1, align: 'right', max: 18 }, { label: 'Items', w: 4, max: 70 },
+        ],
+        rows,
+      });
+      await saveFile(blob, `ledgro-bills-${Date.now()}.${format}`, 'Ledgro bills');
     } catch (err) {
       console.error(err);
       toast.error('Export failed. Check connection.');
-    } finally {
-      setExporting(false);
     }
   };
 
@@ -327,9 +335,7 @@ export default function Ledger() {
       <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 pt-3 pb-2 shadow-subtle flex flex-col gap-3">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold text-slate-900">Bill History</h1>
-          <button onClick={handleExportLedger} disabled={exporting} className="text-blue-600 font-bold text-sm flex items-center gap-1 active:scale-95 disabled:opacity-50 bg-blue-50 px-3 py-1.5 rounded-full">
-            <Share2 size={16} /> {exporting ? 'Exporting…' : 'Export'}
-          </button>
+          <ExportMenu label="Export" onPick={handleExportLedger} className="text-blue-600 font-bold text-sm flex items-center gap-1 active:scale-95 disabled:opacity-50 bg-blue-50 px-3 py-1.5 rounded-full" />
         </div>
 
         {/* Search Bar */}

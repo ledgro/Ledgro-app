@@ -17,6 +17,7 @@ import BottomNav from '../components/BottomNav';
 
 import { useLocation, useNavigate } from 'react-router-dom';
 import { hapticVibrate, sanitizeText } from '../lib/utils';
+import { shareFile, saveFile, canvasToBlob, canvasToPdfBlob } from '../lib/shareFile';
 
 const COMMIT_TIMEOUT_MS = 10000;
 const normName = (s) => String(s || '').normalize('NFC').trim().toLowerCase();
@@ -65,6 +66,8 @@ export default function POS() {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const [lastBill, setLastBill] = useState(null);
+  const [receiptFormat, setReceiptFormat] = useState('png'); // 'png' | 'pdf'
+  const [receiptFiles, setReceiptFiles] = useState(null); // pre-rendered { png, pdf } blobs
   const [paymentMethod, setPaymentMethod] = useState(() => (localStorage.getItem('ledgro_defaultPayment') === 'upi' ? 'upi' : 'cash')); // 'cash' | 'upi' | 'split'
   const [splitCash, setSplitCash] = useState('');
 
@@ -217,14 +220,8 @@ export default function POS() {
     const soldQty = new Map();
     resolved.forEach((l) => soldQty.set(l.catalogId, (soldQty.get(l.catalogId) || 0) + (Number(l.qty) || 0)));
 
-    // 3. Stock check on the aggregate
-    for (const [id, qty] of soldQty) {
-      const cat = catalogMap.get(id);
-      if (cat && cat.stockCount !== undefined && cat.stockCount !== null && cat.stockCount - qty < 0) {
-        toast.error(`Not enough stock for ${cat.name}. Available: ${cat.stockCount}`);
-        return;
-      }
-    }
+    // Stock never blocks a sale: shops often sell items they haven't entered stock for
+    // (or borrow from another branch). Tracked stock simply floors at 0.
 
     setIsCheckingOut(true);
     isSubmittingRef.current = true;
@@ -293,7 +290,8 @@ export default function POS() {
         if (!cat) return; // brand-new product, created below
         const updates = {};
         if (!editBill && soldQty.has(id)) updates.frequency = increment(1);
-        const delta = stockDelta.get(id) || 0;
+        let delta = stockDelta.get(id) || 0;
+        if (cat.stockCount != null && delta < 0) delta = Math.max(delta, -Math.max(0, cat.stockCount)); // floor at 0
         if (cat.stockCount != null && delta !== 0) updates.stockCount = increment(delta);
         if (Object.keys(updates).length > 0) {
           batch.update(doc(db, `shops/${shopId}/catalog`, id), updates);
@@ -371,75 +369,48 @@ export default function POS() {
     }
   };
 
-  const generateReceiptImage = async () => {
-    if (!receiptRef.current) return null;
-    const { default: html2canvas } = await import('html2canvas-pro');
-    const canvas = await html2canvas(receiptRef.current, {
-      scale: window.devicePixelRatio || 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      width: 720,
-      logging: false,
-    });
+  // Render the receipt ONCE as soon as the success screen shows. iOS only opens the
+  // share sheet inside a tap, so the files must already exist when the user taps.
+  useEffect(() => {
+    if (!checkoutSuccess || !lastBill) { setReceiptFiles(null); return undefined; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      if (!receiptRef.current) return;
+      try {
+        const { default: html2canvas } = await import('html2canvas-pro');
+        const canvas = await html2canvas(receiptRef.current, {
+          scale: Math.min(window.devicePixelRatio || 2, 3),
+          useCORS: true, backgroundColor: '#ffffff', width: 720, logging: false,
+        });
+        const png = await canvasToBlob(canvas);
+        const pdf = await canvasToPdfBlob(canvas);
+        canvas.width = 0; canvas.height = 0;
+        if (!cancelled) setReceiptFiles({ png, pdf });
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) setReceiptFiles({ error: true });
+      }
+    }, 150);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [checkoutSuccess, lastBill]);
 
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-
-    // Dispose canvas to prevent memory leak
-    canvas.width = 0;
-    canvas.height = 0;
-
-    return blob;
-  };
+  const receiptName = () => `ledgro-receipt-${(lastBill?.billNo || 'bill').replace(/[^\w-]/g, '')}.${receiptFormat}`;
 
   const shareReceipt = async () => {
-    try {
-      const blob = await generateReceiptImage();
-      if (!blob) return;
-
-      const file = new File([blob], 'ledgro-receipt.png', { type: 'image/png' });
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({ files: [file], title: `Receipt from ${shopName}` });
-          return;
-        } catch (err) {
-          if (err.name === 'AbortError') return;
-        }
-      }
-
-      const text = encodeURIComponent(`Receipt from ${shopName} via Ledgro`);
-      window.open(`https://wa.me/?text=${text}`, '_blank');
-    } catch (err) {
-      console.error(err);
-      toast.error('Could not create the receipt image.');
+    const blob = receiptFiles?.[receiptFormat];
+    if (!blob) { toast.error(receiptFiles?.error ? 'Could not create the receipt.' : 'Receipt still preparing…'); return; }
+    // no await before this call: keeps the tap's user-activation alive on iOS
+    const r = await shareFile(blob, receiptName(), `Receipt from ${shopName || 'shop'}`);
+    if (r === 'unsupported') {
+      await saveFile(blob, receiptName());
+      toast.info('Sharing not supported here. Receipt saved instead.');
     }
   };
 
   const downloadReceipt = async () => {
-    try {
-      const blob = await generateReceiptImage();
-      if (!blob) return;
-
-      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase());
-
-      if (isIOS) {
-        const file = new File([blob], 'ledgro-receipt.png', { type: 'image/png' });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          try { await navigator.share({ files: [file], title: 'Save Receipt' }); } catch { /* user cancelled */ }
-        }
-        return;
-      }
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'ledgro-receipt.png';
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 100);
-    } catch (err) {
-      console.error(err);
-      toast.error('Could not create the receipt image.');
-    }
+    const blob = receiptFiles?.[receiptFormat];
+    if (!blob) { toast.error(receiptFiles?.error ? 'Could not create the receipt.' : 'Receipt still preparing…'); return; }
+    await saveFile(blob, receiptName(), 'Save receipt');
   };
 
   const handleNewBill = () => {
@@ -466,17 +437,27 @@ export default function POS() {
           <p className="text-gray-500 mb-8 font-medium">₹{lastBill?.grandTotal ? (lastBill.grandTotal / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : 0} collected via {lastBill?.paymentMethod?.toUpperCase()}</p>
 
           <div className="space-y-3">
+            <div className="flex bg-slate-100 p-1 rounded-xl" role="group" aria-label="Receipt format">
+              {['png', 'pdf'].map((f) => (
+                <button key={f} type="button" onClick={() => setReceiptFormat(f)}
+                  className={`flex-1 py-2 text-sm font-black uppercase rounded-lg transition-colors ${receiptFormat === f ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>
+                  {f}
+                </button>
+              ))}
+            </div>
             <button
               onClick={shareReceipt}
-              className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:bg-indigo-700 transition-colors"
+              disabled={!receiptFiles || receiptFiles.error}
+              className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:bg-indigo-700 transition-colors disabled:opacity-50"
             >
-              <Share2 size={20} /> Share via WhatsApp
+              <Share2 size={20} /> {receiptFiles ? 'Share' : 'Preparing…'}
             </button>
             <button
               onClick={downloadReceipt}
-              className="w-full bg-white border border-slate-200 text-slate-700 font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+              disabled={!receiptFiles || receiptFiles.error}
+              className="w-full bg-white border border-slate-200 text-slate-700 font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-slate-50 active:bg-slate-100 transition-colors disabled:opacity-50"
             >
-              <Download size={20} /> {/iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase()) ? 'Save to Photos' : 'Download'}
+              <Download size={20} /> {/iphone|ipad|ipod/i.test(navigator.userAgent) ? 'Save (Files / Photos)' : 'Download'}
             </button>
             <button
               onClick={handleNewBill}

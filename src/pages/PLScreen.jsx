@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { where } from 'firebase/firestore';
 import { fetchAllPaged } from '../lib/firestoreUtils';
 import { isCashAdjustment, signedBillTotal } from '../lib/aggregations';
+import { rs } from '../lib/reportExport';
+import { shareFile, saveFile, canvasToBlob } from '../lib/shareFile';
 import BottomNav from '../components/BottomNav';
 import { Share2, Download, ChevronLeft } from 'lucide-react';
 import { formatCurrency, cn, sanitizeText } from '../lib/utils';
@@ -174,19 +176,12 @@ export default function PLScreen() {
       });
       document.body.removeChild(clone);
 
-      canvas.toBlob(async (blob) => {
-        if (!blob) return;
-        const file = new File([blob], `PL-Report-${Date.now()}.png`, { type: 'image/png' });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          try {
-            await navigator.share({ files: [file], title: 'P&L Report' });
-            return;
-          } catch { return null; }
-        }
-        const text = encodeURIComponent(`Profit & Loss Report from ${shopName || 'Shop'}\nNet Earnings: ₹${data.netEarnings}`);
-        window.open(`https://wa.me/?text=${text}`, '_blank');
-      }, 'image/png');
+      const blob = await canvasToBlob(canvas);
+      canvas.width = 0; canvas.height = 0;
+      if (!blob) return;
+      const name = `PL-Report-${Date.now()}.png`;
+      const r = await shareFile(blob, name, 'P&L Report');
+      if (r === 'unsupported') await saveFile(blob, name, 'P&L Report');
     } catch (err) {
       console.error(err);
       toast('Failed to share.');
@@ -196,33 +191,33 @@ export default function PLScreen() {
   };
 
   const handleExportPDF = async () => {
-    const { jsPDF } = await import('jspdf');
-    const doc = new jsPDF();
-    doc.setFontSize(20);
-    doc.text(`${shopName || 'Ledgro Shop'} - Profit & Loss`, 20, 20);
-
-    doc.setFontSize(12);
-    const dateStr = dateRangeType === 'custom' && dateRange.from
-      ? `${format(dateRange.from, 'MMM dd, yyyy')} - ${dateRange.to ? format(dateRange.to, 'MMM dd, yyyy') : ''}`
-      : dateRangeType.toUpperCase();
-    doc.text(`Date Range: ${dateStr}`, 20, 30);
-
-    let y = 50;
-
-    doc.setFontSize(16);
-    doc.text('Summary', 20, y);
-    y += 10;
-
-    doc.setFontSize(12);
-    doc.text(`Total Revenue: ₹${data.revenue.total}`, 20, y); y += 8;
-    doc.text(`Total Expenses: ₹${data.expenses.total}`, 20, y); y += 8;
-
-    doc.setFontSize(14);
-    doc.setTextColor(data.netEarnings >= 0 ? 34 : 220, data.netEarnings >= 0 ? 197 : 38, 94); // green/red roughly
-    doc.text(`Net Earnings: ₹${data.netEarnings}`, 20, y + 5);
-
-    doc.save(`PL-Report-${Date.now()}.pdf`);
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF();
+      const dateStr = dateRangeType === 'custom' && dateRange.from
+        ? `${format(dateRange.from, 'MMM dd, yyyy')} - ${dateRange.to ? format(dateRange.to, 'MMM dd, yyyy') : ''}`
+        : dateRangeType.toUpperCase();
+      doc.setFontSize(20);
+      doc.text(`${shopName || 'Ledgro Shop'} - Profit & Loss`, 20, 20);
+      doc.setFontSize(12);
+      doc.text(`Date Range: ${dateStr}`, 20, 30);
+      let y = 50;
+      doc.setFontSize(16); doc.text('Summary', 20, y); y += 10;
+      doc.setFontSize(12);
+      doc.text(`Cash: ${rs(data.revenue.cash + data.revenue.splitCash)}   UPI: ${rs(data.revenue.upi + data.revenue.splitUpi)}`, 20, y); y += 8;
+      doc.text(`Total Revenue: ${rs(data.revenue.total)}`, 20, y); y += 8;
+      doc.text(`Total Expenses: ${rs(data.expenses.total)}`, 20, y); y += 8;
+      Object.entries(data.expenses.byCategory || {}).forEach(([k, v]) => { doc.text(`   ${k}: ${rs(v)}`, 20, y); y += 6; });
+      doc.setFontSize(14);
+      doc.setTextColor(data.netEarnings >= 0 ? 22 : 220, data.netEarnings >= 0 ? 163 : 38, data.netEarnings >= 0 ? 74 : 38);
+      doc.text(`Net Earnings: ${rs(data.netEarnings)}`, 20, y + 6);
+      await saveFile(doc.output('blob'), `PL-Report-${Date.now()}.pdf`, 'P&L Report');
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not create the PDF.');
+    }
   };
+
 
   return (
     <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-20">

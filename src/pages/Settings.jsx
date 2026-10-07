@@ -4,7 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { fetchAllPaged, flushPendingWrites } from '../lib/firestoreUtils';
-import { csvCell, csvNumber, paiseToRupeesStr, csvRow, downloadTextFile } from '../lib/csv';
+import { buildReport, rs } from '../lib/reportExport';
+import { saveFile } from '../lib/shareFile';
+import ExportMenu from '../components/ExportMenu';
 import BottomNav from '../components/BottomNav';
 import { Store, Settings2, Database, User, LogOut, ChevronLeft, Save, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -89,79 +91,67 @@ export default function Settings() {
     }
   };
 
-  const [exporting, setExporting] = useState(false);
-  const handleExportData = async () => {
-    if (!shopId || exporting) return;
-    setExporting(true);
+  const loadAllForExport = async () => {
+    const [billDocs, expDocs] = await Promise.all([
+      fetchAllPaged(`shops/${shopId}/bills`),
+      fetchAllPaged(`shops/${shopId}/expenses`),
+    ]);
+    const bills = billDocs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
+    const expenses = expDocs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
+    return { bills, expenses };
+  };
+
+  // PDF / PNG report of bills (expenses follow in the same list)
+  const handleExportData = async (fmt) => {
+    if (!shopId) return;
     try {
-      const [billDocs, expDocs] = await Promise.all([
-        fetchAllPaged(`shops/${shopId}/bills`),
-        fetchAllPaged(`shops/${shopId}/expenses`),
-      ]);
+      const { bills, expenses } = await loadAllForExport();
+      const reversed = new Set(bills.filter((b) => b.type === 'reversal' && b.originalBillId).map((b) => b.originalBillId));
+      const when = (x) => (x.createdAt?.toDate ? format(x.createdAt.toDate(), 'yyyy-MM-dd HH:mm') : '');
 
-      const reversed = new Set();
-      const rawBills = billDocs.map((d) => {
-        const data = d.data({ serverTimestamps: 'estimate' });
-        if (data.type === 'reversal' && data.originalBillId) reversed.add(data.originalBillId);
-        return { ...data, id: d.id };
+      let sales = 0;
+      const rows = [];
+      [...bills].reverse().forEach((b) => {
+        const status = reversed.has(b.id) || b.type === 'reversal' ? 'voided' : (b.type || 'sale');
+        if (status === 'sale' || status === 'return') sales += Number(b.grandTotal) || 0;
+        const pay = b.payment?.method || b.paymentMethod || b.refundMethod || '';
+        rows.push([when(b), 'Bill ' + (b.billNo || b.id.slice(0, 8)), status, pay, rs(b.grandTotal)]);
       });
-
-      const billRows = [csvRow(['Bill Number', 'Date', 'Time', 'Items', 'Subtotal (INR)', 'Discount (INR)', 'Grand Total (INR)', 'Payment Method', 'Cash (INR)', 'UPI (INR)', 'Created By', 'Status'].map(csvCell))];
-      rawBills.forEach((b) => {
-        const created = b.createdAt?.toDate ? b.createdAt.toDate() : null;
-        const items = (b.items || []).map((i) => `${i.name} (${i.qty})`).join(';');
-        const pMethod = b.payment?.method || b.paymentMethod || b.refundMethod || 'unknown';
-        let cashAmt = 0, upiAmt = 0;
-        if (pMethod === 'split' && b.payment?.breakdown) {
-          cashAmt = b.payment.breakdown.cash || 0;
-          upiAmt = b.payment.breakdown.upi || 0;
-        } else if (pMethod === 'upi') {
-          upiAmt = b.grandTotal || 0;
-        } else {
-          cashAmt = b.grandTotal || 0;
-        }
-        const status = reversed.has(b.id) ? 'voided' : (b.type || 'sale');
-        billRows.push(csvRow([
-          csvCell(b.billNo || b.id),
-          csvCell(created ? format(created, 'yyyy-MM-dd') : ''),
-          csvCell(created ? format(created, 'HH:mm:ss') : ''),
-          csvCell(items),
-          csvNumber(paiseToRupeesStr(b.subtotal)),
-          csvNumber(paiseToRupeesStr(b.globalDiscountAmt)),
-          csvNumber(paiseToRupeesStr(b.grandTotal)),
-          csvCell(pMethod),
-          csvNumber(paiseToRupeesStr(cashAmt)),
-          csvNumber(paiseToRupeesStr(upiAmt)),
-          csvCell(b.creatorId),
-          csvCell(status),
-        ]));
+      let spent = 0;
+      [...expenses].reverse().forEach((e) => {
+        const adj = e.category === 'cash_adjustment';
+        if (!adj) spent += Number(e.amount) || 0;
+        rows.push([when(e), `Expense: ${e.description || e.category || ''}`, adj ? 'adjustment' : 'expense', e.paidVia || 'cash', rs(-(Number(e.amount) || 0))]);
       });
+      if (rows.length === 0) { toast.info('Nothing to export yet.'); return; }
 
-      const rawExp = [];
-      const expRows = [csvRow(['Date', 'Description', 'Category', 'Paid Via', 'Amount (INR)', 'Created By'].map(csvCell))];
-      expDocs.forEach((d) => {
-        const e = d.data({ serverTimestamps: 'estimate' });
-        rawExp.push({ ...e, id: d.id });
-        const created = e.createdAt?.toDate ? e.createdAt.toDate() : null;
-        expRows.push(csvRow([
-          csvCell(created ? format(created, 'yyyy-MM-dd HH:mm') : ''),
-          csvCell(e.description || ''),
-          csvCell(e.category || ''),
-          csvCell(e.paidVia || 'cash'),
-          csvNumber(paiseToRupeesStr(e.amount)),
-          csvCell(e.creatorId || ''),
-        ]));
+      const blob = await buildReport(fmt, {
+        title: 'Ledgro - Full Data Export',
+        subtitle: `Generated ${new Date().toLocaleString()}`,
+        summary: [`Net sales: ${rs(sales)}   Expenses: ${rs(spent)}   Net: ${rs(sales - spent)}`],
+        columns: [
+          { label: 'Date', w: 1.5, max: 18 }, { label: 'Entry', w: 3.5, max: 60 }, { label: 'Status', w: 1, max: 12 },
+          { label: 'Pay', w: 0.8, max: 8 }, { label: 'Amount', w: 1.2, align: 'right', max: 18 },
+        ],
+        rows,
       });
-
-      const stamp = Date.now();
-      downloadTextFile(billRows.join('\n'), `ledgro_bills_${stamp}.csv`);
-      setTimeout(() => downloadTextFile(expRows.join('\n'), `ledgro_expenses_${stamp}.csv`), 1000);
-      setTimeout(() => downloadTextFile(JSON.stringify({ bills: rawBills, expenses: rawExp }, null, 2), `ledgro_backup_${stamp}.json`, 'application/json'), 2000);
+      await saveFile(blob, `ledgro-export-${Date.now()}.${fmt}`, 'Ledgro export');
     } catch (err) {
       console.error(err);
       toast.error('Failed to export data. Check connection.');
-    } finally {
-      setExporting(false);
+    }
+  };
+
+  // Full-fidelity machine backup (restore / audit)
+  const handleBackupJson = async () => {
+    if (!shopId) return;
+    try {
+      const data = await loadAllForExport();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      await saveFile(blob, `ledgro-backup-${Date.now()}.json`, 'Ledgro backup');
+    } catch (err) {
+      console.error(err);
+      toast.error('Backup failed. Check connection.');
     }
   };
 
@@ -331,8 +321,12 @@ export default function Settings() {
                 </div>
               </div>
             )}
-            <button onClick={handleExportData} disabled={exporting} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors">
-              {exporting ? 'Exporting…' : 'Export All Data to CSV'}
+            <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 h-12">
+              <span className="text-sm font-bold text-slate-700">Export data</span>
+              <ExportMenu label="PDF / PNG" onPick={handleExportData} className="text-xs font-black uppercase bg-slate-900 text-white px-3 py-1.5 rounded-full active:scale-95" />
+            </div>
+            <button onClick={handleBackupJson} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors text-sm">
+              Backup file (JSON)
             </button>
             <button onClick={handleClearCache} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors text-sm">
               Clear App Cache & Reload

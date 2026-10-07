@@ -6,23 +6,14 @@ vi.mock('firebase/firestore', () => ({
   writeBatch: vi.fn(), doc: vi.fn(), deleteDoc: vi.fn(), waitForPendingWrites: vi.fn(), where: vi.fn(),
 }));
 
-const { csvCell, paiseToRupeesStr, csvNumber } = await import('../lib/csv');
+const { rs } = await import('../lib/reportExport');
 const { signedBillTotal, isCashAdjustment } = await import('../lib/aggregations');
 
-describe('csv', () => {
-  it('neutralises formula injection', () => {
-    expect(csvCell('=HYPERLINK("x")')).toBe(`"'=HYPERLINK(""x"")"`);
-    expect(csvCell('+1')).toBe(`"'+1"`);
-    expect(csvCell('@a')).toBe(`"'@a"`);
-  });
-  it('escapes quotes and nulls', () => {
-    expect(csvCell('a"b')).toBe('"a""b"');
-    expect(csvCell(null)).toBe('""');
-  });
-  it('paise -> rupees', () => {
-    expect(paiseToRupeesStr(12345)).toBe('123.45');
-    expect(paiseToRupeesStr(-500)).toBe('-5.00');
-    expect(csvNumber('x')).toBe('0');
+describe('report helpers', () => {
+  it('formats paise as Rs with Indian grouping', () => {
+    expect(rs(12345678)).toBe('Rs 1,23,456.78');
+    expect(rs(-500)).toBe('-Rs 5.00');
+    expect(rs('x')).toBe('Rs 0.00');
   });
 });
 
