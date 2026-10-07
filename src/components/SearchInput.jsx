@@ -119,7 +119,7 @@ export default function SearchInput({ onAddItem }) {
               {results.map((item) => (
                 <button
                   type="button"
-                  key={item.id}
+                  key={item.id || item.name}
                   onClick={() => handleSelectResult(item)}
                   className="w-full text-left p-4 hover:bg-slate-50 active:bg-slate-100 cursor-pointer flex justify-between items-center transition-colors border-b border-slate-50 last:border-0"
                 >

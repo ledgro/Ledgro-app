@@ -24,6 +24,14 @@ export const useCatalogStore = create((set, get) => ({
            newItems[existingIndex] = { ...newItems[existingIndex], ...item };
            return { items: newItems };
         }
+        // A typed-at-the-till entry (no id yet) now has its real document: adopt the id
+        const nameKey = (item.name || '').trim().toLowerCase();
+        const localIndex = state.items.findIndex(i => !i.id && (i.name || '').trim().toLowerCase() === nameKey);
+        if (localIndex !== -1) {
+           const newItems = [...state.items];
+           newItems[localIndex] = { ...newItems[localIndex], ...item };
+           return { items: newItems };
+        }
       } else {
         // Deduplicate by exact name if no ID is provided to avoid appending copies endlessly
         const existingIndex = state.items.findIndex(i => i.name.trim().toLowerCase() === item.name.trim().toLowerCase());

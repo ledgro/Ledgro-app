@@ -1,23 +1,20 @@
-import { createHashRouter, RouterProvider, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { createHashRouter, RouterProvider, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import React, { useState, useEffect } from 'react';
-import { getAllData, deleteData } from './lib/idb';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from './firebase';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
-import SignIn from './pages/SignIn';
-import ShopSetup from './pages/ShopSetup';
-import Dashboard from './pages/Dashboard';
-import POS from './pages/POS';
-import Ledger from './pages/Ledger';
-import Expenses from './pages/Expenses';
-import Members from './pages/Members';
-import Products from './pages/Products';
-import Settings from './pages/Settings';
-import PLScreen from './pages/PLScreen';
-import TermsOfService from './pages/TermsOfService';
-import PrivacyPolicy from './pages/PrivacyPolicy';
+const SignIn = lazy(() => import('./pages/SignIn'));
+const ShopSetup = lazy(() => import('./pages/ShopSetup'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const POS = lazy(() => import('./pages/POS'));
+const Ledger = lazy(() => import('./pages/Ledger'));
+const Expenses = lazy(() => import('./pages/Expenses'));
+const Members = lazy(() => import('./pages/Members'));
+const Products = lazy(() => import('./pages/Products'));
+const Settings = lazy(() => import('./pages/Settings'));
+const PLScreen = lazy(() => import('./pages/PLScreen'));
+const TermsOfService = lazy(() => import('./pages/TermsOfService'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 import SplashScreen from './components/SplashScreen';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -64,7 +61,7 @@ const AnimatedLayout = () => {
     const handleTouchStart = (e) => {
       touchStartX = e.touches[0].clientX;
     };
-    const handleTouchEnd = (e) => {
+    const handleTouchEnd = () => {
       if (touchStartX < 20) {
         setDisableExitAnimation(true);
         setTimeout(() => setDisableExitAnimation(false), 500);
@@ -89,7 +86,9 @@ const AnimatedLayout = () => {
         transition={pageTransition}
         style={{ position: 'absolute', width: '100%', height: '100%' }}
       >
-        <Outlet />
+        <Suspense fallback={<SplashScreen />}>
+          <Outlet />
+        </Suspense>
       </motion.div>
     </AnimatePresence>
   );
@@ -122,70 +121,10 @@ const router = createHashRouter([
   }
 ]);
 
-function SyncManager() {
-  const { user } = useAuth();
-  const isSyncingRef = React.useRef(false);
-
-  useEffect(() => {
-    let intervalId;
-    let cancelled = false;
-
-    const handleSync = async () => {
-       if (isSyncingRef.current || !navigator.onLine || !user) return;
-       isSyncingRef.current = true;
-       try {
-         const pending = await getAllData('pendingBills');
-         for (const bill of pending) {
-            if (cancelled) break;
-
-            // Strictly check uid and shopId
-            if (!bill.uid || bill.uid !== user.uid) continue;
-
-            try {
-               // Clone data and inject serverTimestamp
-               const { serverTimestamp } = await import('firebase/firestore');
-               const data = { ...bill.data, createdAt: serverTimestamp() };
-               await setDoc(doc(db, bill.path), data);
-               await deleteData('pendingBills', bill.id);
-            } catch(e) {
-               console.error('Failed to sync bill', e);
-               // In a production app, we would add retry count and quarantine bad bills here.
-               // For now, we continue so one bad bill doesn't block the rest.
-            }
-         }
-       } finally {
-         isSyncingRef.current = false;
-       }
-    };
-
-    // Sync on mount/auth change
-    handleSync();
-    window.addEventListener('online', handleSync);
-
-    // Aggressive sync fallback if storage is not persisted
-    if (navigator.storage && navigator.storage.persist) {
-       navigator.storage.persist().then(granted => {
-          if (!granted && !cancelled) {
-             intervalId = setInterval(handleSync, 15000);
-          }
-       });
-    }
-
-    return () => {
-       cancelled = true;
-       window.removeEventListener('online', handleSync);
-       if (intervalId) clearInterval(intervalId);
-    };
-  }, [user]);
-
-  return null;
-}
-
 export default function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <SyncManager />
         <RouterProvider router={router} />
       </AuthProvider>
     </ErrorBoundary>

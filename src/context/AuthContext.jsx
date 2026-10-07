@@ -1,16 +1,52 @@
 import { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut as firebaseSignOut, setPersistence, indexedDBLocalPersistence, deleteUser, reauthenticateWithPopup } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, setPersistence, indexedDBLocalPersistence, deleteUser, reauthenticateWithPopup } from 'firebase/auth';
 import { listenForSessionEvents } from '../lib/sessionBroadcast';
 import { clearStore } from '../lib/idb';
 import { sessionGuard } from '../lib/SessionGuard';
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteField, deleteDoc, getDocFromCache, terminate, clearIndexedDbPersistence } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteField, deleteDoc, getDocFromCache, onSnapshot, terminate, clearIndexedDbPersistence } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../firebase';
+import { deleteShopCascade, flushPendingWrites } from '../lib/firestoreUtils';
 import SplashScreen from '../components/SplashScreen';
 
 const AuthContext = createContext();
 const SESSION_DURATION = 3 * 24 * 60 * 60 * 1000; // 3 days in ms
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
+
+const OFFLINE_KEYS = ['ledgro_offline_shopId', 'ledgro_offline_shopAdminId', 'ledgro_offline_shopName', 'lastLoginTime'];
+
+function clearLocalSession() {
+  OFFLINE_KEYS.forEach((k) => localStorage.removeItem(k));
+}
+
+async function wipeOfflineData() {
+  try {
+    await terminate(db);
+    await clearIndexedDbPersistence(db);
+  } catch (e) {
+    console.info('Offline cache wipe skipped or failed', e);
+  }
+  try {
+    await clearStore('pendingBills');
+    await clearStore('session');
+    await clearStore('catalogCache');
+  } catch (e) {
+    console.info('IDB clear skipped or failed', e);
+  }
+}
+
+function RetryScreen({ onRetry }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-[100dvh] bg-slate-50 p-8 text-center" role="alert">
+      <h2 className="text-xl font-semibold text-slate-900 mb-2">Could not load your shop</h2>
+      <p className="text-slate-500 text-sm mb-6 max-w-sm">
+        Check your internet connection and try again. Your data is safe.
+      </p>
+      <button onClick={onRetry} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold">Retry</button>
+    </div>
+  );
+}
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -19,50 +55,36 @@ export const AuthProvider = ({ children }) => {
   const [shopId, setShopId] = useState(null);
   const [shopAdminId, setShopAdminId] = useState(null);
   const [shopName, setShopName] = useState('');
+  const [shopProfile, setShopProfile] = useState({ address: '', phone: '', tagline: '' });
+  const [shopError, setShopError] = useState(false);
+  const [lookupNonce, setLookupNonce] = useState(0);
 
   const requestCounter = useRef(0);
+  // set while this device is deliberately leaving / deleting, so the
+  // "you were removed" listener below doesn't fight the voluntary flow
+  const voluntaryExitRef = useRef(false);
 
   useEffect(() => {
     const cleanup = listenForSessionEvents(
       async (broadcastUid) => {
         if (!auth.currentUser || auth.currentUser.uid !== broadcastUid) return;
         try {
-          // Re-use standard sign out logic instead of bypassing it
-          localStorage.removeItem('ledgro_offline_shopId');
-          localStorage.removeItem('ledgro_offline_shopAdminId');
-          localStorage.removeItem('ledgro_offline_shopName');
-          localStorage.removeItem('lastLoginTime');
-          try {
-            await terminate(db);
-            await clearIndexedDbPersistence(db);
-            try {
-              await clearStore('pendingBills');
-              await clearStore('session');
-              await clearStore('catalogCache');
-            } catch(idbErr) { console.warn('Could not clear IDB', idbErr) }
-          } catch(e) { console.error(e) }
-
+          clearLocalSession();
+          await wipeOfflineData();
           await firebaseSignOut(auth);
           window.location.href = '/';
-        } catch(e){
-          console.error("Session event auto sign-out failed", e);
+        } catch (e) {
+          console.error('Session event auto sign-out failed', e);
         }
       },
       async (uid) => {
         if (auth.currentUser && auth.currentUser.uid !== uid) {
           try {
-            localStorage.removeItem('ledgro_offline_shopId');
-            localStorage.removeItem('ledgro_offline_shopAdminId');
-            localStorage.removeItem('ledgro_offline_shopName');
-            localStorage.removeItem('lastLoginTime');
-            try {
-              await terminate(db);
-              await clearIndexedDbPersistence(db);
-            } catch(e) { console.error(e) }
-
+            clearLocalSession();
+            await wipeOfflineData();
             await firebaseSignOut(auth);
-          } catch(e) {
-            console.error("Cross-tab session mismatch auto sign-out failed", e);
+          } catch (e) {
+            console.error('Cross-tab session mismatch auto sign-out failed', e);
           }
         }
       }
@@ -71,6 +93,13 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    const clearShop = () => {
+      setHasShop(false);
+      setShopId(null);
+      setShopAdminId(null);
+      setShopName('');
+    };
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       const currentRequestId = ++requestCounter.current;
 
@@ -87,131 +116,150 @@ export const AuthProvider = ({ children }) => {
 
       if (currentRequestId !== requestCounter.current) return;
       setUser(currentUser);
-      if(currentUser) {
+      if (currentUser) {
         sessionGuard.bindSession(currentUser.uid);
       }
 
-      if (currentUser) {
-        try {
-          const cachedShopId = localStorage.getItem('ledgro_offline_shopId');
-          if (cachedShopId) {
-            try {
-              const shopDocRef = doc(db, 'shops', cachedShopId);
-              let shopSnap;
-              try {
-                shopSnap = await getDocFromCache(shopDocRef);
-              } catch (cacheError) {
-                console.warn("Cache miss for shop doc, falling back to network getDoc.");
-                shopSnap = await getDoc(shopDocRef);
-              }
-
-              if (currentRequestId !== requestCounter.current) return;
-
-              if (shopSnap.exists()) {
-                const data = shopSnap.data({ serverTimestamps: 'estimate' });
-                if (data.ownerId === currentUser.uid || (data.members && data.members[currentUser.uid])) {
-                  setHasShop(true);
-                  setShopId(cachedShopId);
-                  setShopAdminId(data.ownerId);
-                  setShopName(data.name);
-                  localStorage.setItem('ledgro_offline_shopAdminId', data.ownerId);
-                  localStorage.setItem('ledgro_offline_shopName', data.name);
-                  setLoading(false);
-                  return;
-                } else {
-                  // User removed from cached shop
-                  localStorage.removeItem('ledgro_offline_shopId');
-                  localStorage.removeItem('ledgro_offline_shopAdminId');
-                  localStorage.removeItem('ledgro_offline_shopName');
-                  setHasShop(false);
-                  setShopId(null);
-                  setShopAdminId(null);
-                  setShopName('');
-                  setLoading(false);
-                  return;
-                }
-              } else {
-                 // Cached shop deleted
-                 localStorage.removeItem('ledgro_offline_shopId');
-                 localStorage.removeItem('ledgro_offline_shopAdminId');
-                 localStorage.removeItem('ledgro_offline_shopName');
-                 setHasShop(false);
-                 setShopId(null);
-                 setShopAdminId(null);
-                 setShopName('');
-                 setLoading(false);
-                 return;
-              }
-            } catch (fastPathError) {
-              console.warn("Direct fetch failed, falling back to query.", fastPathError);
-            }
-          }
-
-          const shopsRef = collection(db, 'shops');
-          const qAdmin = query(shopsRef, where('ownerId', '==', currentUser.uid));
-          const qMember = query(shopsRef, where(`members.${currentUser.uid}`, 'in', ['admin', 'member']));
-
-          const [adminSnap, memberSnap] = await Promise.all([getDocs(qAdmin), getDocs(qMember)]);
-          if (currentRequestId !== requestCounter.current) return;
-
-          let foundShop = null;
-          if (!adminSnap.empty) {
-            foundShop = adminSnap.docs[0];
-          } else if (!memberSnap.empty) {
-            foundShop = memberSnap.docs[0];
-          }
-
-          if (foundShop) {
-            const data = foundShop.data({ serverTimestamps: 'estimate' });
-            setHasShop(true);
-            setShopId(foundShop.id);
-            setShopAdminId(data.ownerId);
-            setShopName(data.name);
-            localStorage.setItem('ledgro_offline_shopId', foundShop.id);
-            localStorage.setItem('ledgro_offline_shopAdminId', data.ownerId);
-            localStorage.setItem('ledgro_offline_shopName', data.name);
-          } else {
-            setHasShop(false);
-            setShopId(null);
-            setShopAdminId(null);
-            setShopName('');
-          }
-        } catch (error) {
-          console.error("Error checking for shop:", error);
-          if (currentRequestId !== requestCounter.current) return;
-          // Transient error: maintain previous state if we have it locally, otherwise unknown.
-          const cachedShopId = localStorage.getItem('ledgro_offline_shopId');
-          if (cachedShopId) {
-             setHasShop(true);
-             setShopId(cachedShopId);
-             setShopAdminId(localStorage.getItem('ledgro_offline_shopAdminId'));
-             setShopName(localStorage.getItem('ledgro_offline_shopName'));
-          } else {
-             // Don't arbitrarily set to false if it's just a network failure and we haven't confirmed no shop.
-             // Leaving it as null/loading is safer than sending to setup, unless it's a confirmed empty result.
-             // Given we can't confirm empty, we rely on cached state or fail gracefully.
-          }
-        }
-      } else {
+      if (!currentUser) {
         setHasShop(null);
         setShopId(null);
         setShopAdminId(null);
         setShopName('');
+        setShopError(false);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setShopError(false);
+
+        // Fast path: remembered shop on this device
+        const cachedShopId = localStorage.getItem('ledgro_offline_shopId');
+        if (cachedShopId) {
+          try {
+            const shopDocRef = doc(db, 'shops', cachedShopId);
+            let shopSnap;
+            try {
+              shopSnap = await getDocFromCache(shopDocRef);
+            } catch {
+              shopSnap = await getDoc(shopDocRef);
+            }
+            if (currentRequestId !== requestCounter.current) return;
+
+            if (shopSnap.exists()) {
+              const data = shopSnap.data({ serverTimestamps: 'estimate' });
+              if (data.members && data.members[currentUser.uid]) {
+                setHasShop(true);
+                setShopId(cachedShopId);
+                setShopAdminId(data.ownerId);
+                setShopName(data.name);
+                localStorage.setItem('ledgro_offline_shopAdminId', data.ownerId);
+                localStorage.setItem('ledgro_offline_shopName', data.name);
+                setLoading(false);
+                return;
+              }
+            }
+            // removed from shop, or shop deleted
+            OFFLINE_KEYS.slice(0, 3).forEach((k) => localStorage.removeItem(k));
+          } catch (fastPathError) {
+            console.warn('Direct fetch failed, falling back to query.', fastPathError);
+          }
+        }
+
+        // Slow path: find the shop by membership. Equality filters (not `in`) so
+        // firestore.rules can prove the query only returns shops the user belongs to.
+        // allSettled: one rejected query must not hide a shop found by the other.
+        const shopsRef = collection(db, 'shops');
+        const results = await Promise.allSettled([
+          getDocs(query(shopsRef, where(`members.${currentUser.uid}`, '==', 'admin'))),
+          getDocs(query(shopsRef, where(`members.${currentUser.uid}`, '==', 'member'))),
+        ]);
+        if (currentRequestId !== requestCounter.current) return;
+
+        const fulfilled = results.filter((r) => r.status === 'fulfilled').map((r) => r.value);
+        const foundShop = fulfilled.flatMap((snap) => snap.docs)[0] || null;
+
+        if (foundShop) {
+          const data = foundShop.data({ serverTimestamps: 'estimate' });
+          setHasShop(true);
+          setShopId(foundShop.id);
+          setShopAdminId(data.ownerId);
+          setShopName(data.name);
+          localStorage.setItem('ledgro_offline_shopId', foundShop.id);
+          localStorage.setItem('ledgro_offline_shopAdminId', data.ownerId);
+          localStorage.setItem('ledgro_offline_shopName', data.name);
+        } else if (fulfilled.length === results.length) {
+          // every query succeeded and found nothing: genuinely no shop yet
+          clearShop();
+        } else {
+          // a query failed and nothing was found: we do not know -> let the user retry
+          console.error('Shop lookup failed', results);
+          setShopError(true);
+        }
+      } catch (error) {
+        console.error('Error checking for shop:', error);
+        if (currentRequestId !== requestCounter.current) return;
+        const cachedShopId = localStorage.getItem('ledgro_offline_shopId');
+        if (cachedShopId) {
+          setHasShop(true);
+          setShopId(cachedShopId);
+          setShopAdminId(localStorage.getItem('ledgro_offline_shopAdminId'));
+          setShopName(localStorage.getItem('ledgro_offline_shopName') || '');
+        } else {
+          setShopError(true);
+        }
       }
 
       if (currentRequestId === requestCounter.current) {
-         setLoading(false);
+        setLoading(false);
       }
     });
 
-  return () => unsubscribe();
-  }, []);
+    return () => unsubscribe();
+  }, [lookupNonce]);
+
+  // Live shop listener: keeps owner/name/profile fresh AND logs out a user who
+  // was removed from the shop (or whose shop was deleted) on ANY screen, not
+  // only the Members page.
+  useEffect(() => {
+    if (!user?.uid || !shopId || !hasShop) return undefined;
+
+    const revoke = async () => {
+      if (voluntaryExitRef.current) return;
+      clearLocalSession();
+      await wipeOfflineData();
+      try { await firebaseSignOut(auth); } catch (e) { console.error(e); }
+      window.location.replace('/');
+    };
+
+    const unsubscribe = onSnapshot(doc(db, 'shops', shopId), (snap) => {
+      if (!snap.exists()) {
+        // a cache-only "missing" while offline is not a real deletion
+        if (!snap.metadata.fromCache) revoke();
+        return;
+      }
+      const data = snap.data({ serverTimestamps: 'estimate' });
+      const members = data.members || {};
+      if (members[user.uid] == null) {
+        revoke();
+        return;
+      }
+      setShopAdminId((prev) => (data.ownerId && data.ownerId !== prev ? data.ownerId : prev));
+      setShopName((prev) => (data.name && data.name !== prev ? data.name : prev));
+      setShopProfile({ address: data.address || '', phone: data.phone || '', tagline: data.tagline || '' });
+    }, (err) => {
+      if (err?.code === 'permission-denied') revoke();
+      else console.warn('Shop listener error', err);
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid, shopId, hasShop]);
 
   useEffect(() => {
     if (navigator.storage && navigator.storage.persist) {
-      navigator.storage.persist().then(granted => {
+      navigator.storage.persist().then((granted) => {
         if (!granted) {
-          console.warn("Storage will not be persisted. Running in best-effort mode.");
+          console.warn('Storage will not be persisted. Running in best-effort mode.');
         }
       });
     }
@@ -227,9 +275,9 @@ export const AuthProvider = ({ children }) => {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       if (error.code === 'auth/account-exists-with-different-credential') {
-         throw new Error("An account already exists with this email using a different sign-in method. Please sign in using your original provider.");
+        throw new Error('An account already exists with this email using a different sign-in method. Please sign in using your original provider.');
       } else if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-        // User closed popup or cancelled auth request — silent, no error shown
+        // User closed popup or cancelled auth request: silent, no error shown
       } else if (error.code === 'auth/popup-blocked') {
         throw new Error('Popup blocked. Please allow popups for this site.');
       } else {
@@ -238,117 +286,116 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const signOut = useCallback(async () => {
-    localStorage.removeItem('ledgro_offline_shopId');
-    localStorage.removeItem('ledgro_offline_shopAdminId');
-    localStorage.removeItem('ledgro_offline_shopName');
-    localStorage.removeItem('lastLoginTime');
+  /**
+   * Sign out and wipe the offline cache. Refuses (throws SYNC_PENDING) while
+   * offline bills are still queued, because wiping would destroy them.
+   * `force` skips that check (used when the user was removed from the shop and
+   * their writes can no longer succeed anyway).
+   */
+  const signOut = useCallback(async ({ force = false } = {}) => {
+    if (!force) {
+      const flushed = await flushPendingWrites();
+      if (!flushed) throw new Error('SYNC_PENDING');
+    }
+
+    clearLocalSession();
     setHasShop(null);
     setShopId(null);
     setShopAdminId(null);
     setShopName('');
-
     sessionGuard.unbindSession();
 
-    try {
-      await terminate(db);
-      await clearIndexedDbPersistence(db);
-    } catch(e) {
-      console.error("Failed to wipe offline database on sign-out", e);
-    }
+    await wipeOfflineData();
 
     try {
       await firebaseSignOut(auth);
-    } catch(e) {
-      console.error("Failed to sign out", e);
+    } catch (e) {
+      console.error('Failed to sign out', e);
       throw e;
     }
+    // Firestore was terminated above; a clean reload is the only safe way to
+    // get a working instance for the next sign-in.
+    window.location.replace('/');
   }, []);
 
+  const beginVoluntaryExit = useCallback(() => {
+    voluntaryExitRef.current = true;
+  }, []);
 
   const deleteAccount = useCallback(async () => {
     if (!auth.currentUser) return;
 
     try {
-      // 1. Re-authenticate first before starting any destructive operations
+      // Re-authenticate before any destructive operation
       await reauthenticateWithPopup(auth.currentUser, googleProvider);
     } catch (error) {
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-        throw new Error("Account deletion cancelled.");
+        throw new Error('Account deletion cancelled.');
       }
-      throw new Error("Failed to authenticate. Please try again.");
+      throw new Error('Failed to authenticate. Please try again.');
     }
 
     const uid = auth.currentUser.uid;
 
-    // 2. Check shop status and handle membership/shop deletion
-    if (shopId) {
-      try {
+    // Make sure nothing the user already recorded is still waiting to upload
+    const flushed = await flushPendingWrites();
+    if (!flushed) {
+      throw new Error('You have unsynced offline data. Connect to the internet and wait for it to sync before deleting your account.');
+    }
+
+    voluntaryExitRef.current = true;
+
+    try {
+      if (shopId) {
         const shopDocRef = doc(db, 'shops', shopId);
         const shopSnap = await getDoc(shopDocRef);
         if (shopSnap.exists()) {
           const shopData = shopSnap.data();
           const members = shopData.members || {};
+          const memberCount = Object.keys(members).length;
+          const otherAdmins = Object.keys(members).filter((m) => m !== uid && members[m] === 'admin');
 
-          if (members[uid] === 'admin') {
-            const adminCount = Object.values(members).filter(role => role === 'admin').length;
-            if (adminCount <= 1) {
-              if (Object.keys(members).length === 1) {
-                // Delete orphaned subcollections first
-                const collectionsToDelete = ['bills', 'expenses', 'catalog'];
-                for (const collName of collectionsToDelete) {
-                  const subColRef = collection(db, `shops/${shopId}/${collName}`);
-                  const snapshot = await getDocs(subColRef);
-                  const deletePromises = snapshot.docs.map(d => deleteDoc(d.ref));
-                  await Promise.all(deletePromises);
-                }
-                // Then delete parent shop
-                await deleteDoc(shopDocRef);
-              } else {
-                throw new Error("You are the only Admin. You must promote another member to Admin before deleting your account to prevent locking the shop.");
-              }
+          if (members[uid] === 'admin' && otherAdmins.length === 0) {
+            if (memberCount === 1) {
+              // sole member: close the shop and all its records
+              await deleteShopCascade(shopId);
             } else {
-              await updateDoc(shopDocRef, {
-                [`members.${uid}`]: deleteField()
-              });
+              throw new Error('You are the only Admin. You must promote another member to Admin before deleting your account to prevent locking the shop.');
             }
           } else {
-            await updateDoc(shopDocRef, {
-              [`members.${uid}`]: deleteField()
-            });
+            const update = { [`members.${uid}`]: deleteField() };
+            // never leave the shop pointing at an owner who no longer exists
+            if (shopData.ownerId === uid && otherAdmins.length > 0) update.ownerId = otherAdmins[0];
+            await updateDoc(shopDocRef, update);
           }
         }
-      } catch (err) {
-        if (err.message.includes("only Admin") || err.message.includes("cancelled")) throw err;
-        console.error("Error removing member from shop:", err);
-        throw new Error("Failed to remove account from shop. Please check your internet connection.");
       }
+    } catch (err) {
+      voluntaryExitRef.current = false;
+      if (err.message.includes('only Admin')) throw err;
+      console.error('Error removing member from shop:', err);
+      throw new Error('Failed to remove account from shop. Please check your internet connection.');
     }
 
-    // 3. Delete user's consent record
+    // consent record
     try {
       await deleteDoc(doc(db, 'users', uid));
     } catch (err) {
-      console.warn("Failed to delete user consent record:", err);
+      console.warn('Failed to delete user consent record:', err);
     }
 
-    // 4. Delete the actual auth account
+    // the auth account itself
     try {
       await deleteUser(auth.currentUser);
-      localStorage.removeItem('ledgro_offline_shopId');
-      localStorage.removeItem('ledgro_offline_shopAdminId');
-      localStorage.removeItem('ledgro_offline_shopName');
-      localStorage.removeItem('lastLoginTime');
-      try {
-        await terminate(db);
-        await clearIndexedDbPersistence(db);
-      } catch(e) {
-        console.error("Failed to clear offline cache", e);
-      }
-      window.location.href = '/';
     } catch (error) {
-      throw new Error("Failed to delete account entirely. Please try again.");
+      voluntaryExitRef.current = false;
+      console.error(error);
+      throw new Error('Failed to delete account entirely. Please try again.');
     }
+
+    clearLocalSession();
+    await wipeOfflineData();
+    window.location.replace('/');
   }, [shopId]);
 
   const value = useMemo(() => ({
@@ -357,18 +404,32 @@ export const AuthProvider = ({ children }) => {
     shopId,
     shopAdminId,
     shopName,
+    shopProfile,
     loading,
     setHasShop,
     setShopId,
     setShopAdminId,
     signInWithGoogle,
     signOut,
-    deleteAccount
-  }), [user, hasShop, shopId, shopAdminId, shopName, loading, signInWithGoogle, signOut, deleteAccount]);
+    beginVoluntaryExit,
+    deleteAccount,
+  }), [user, hasShop, shopId, shopAdminId, shopName, shopProfile, loading, signInWithGoogle, signOut, beginVoluntaryExit, deleteAccount]);
+
+  if (loading) {
+    return <AuthContext.Provider value={value}><SplashScreen /></AuthContext.Provider>;
+  }
+
+  if (user && hasShop === null && shopError) {
+    return (
+      <AuthContext.Provider value={value}>
+        <RetryScreen onRetry={() => { setLoading(true); setShopError(false); setLookupNonce((n) => n + 1); }} />
+      </AuthContext.Provider>
+    );
+  }
 
   return (
     <AuthContext.Provider value={value}>
-      {loading ? <SplashScreen /> : children}
+      {children}
     </AuthContext.Provider>
   );
 };

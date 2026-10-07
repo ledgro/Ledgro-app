@@ -1,5 +1,5 @@
 import { toast } from 'sonner';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { collection, query, orderBy, getDocs, addDoc, serverTimestamp, deleteDoc, doc, limit } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -19,7 +19,8 @@ const CATEGORIES = [
 ];
 
 export default function Expenses() {
-  const { user, shopId } = useAuth();
+  const { user, shopId, shopAdminId } = useAuth();
+  const isAdmin = user?.uid === shopAdminId;
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -31,23 +32,29 @@ export default function Expenses() {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState(CATEGORIES[0].id);
   const [submitting, setSubmitting] = useState(false);
+  const [paidVia, setPaidVia] = useState('cash'); // 'cash' | 'upi'
+  const [fetchError, setFetchError] = useState(false);
+
+  const fetchExpenses = useCallback(async () => {
+    if (!shopId) return;
+    setLoading(true);
+    setFetchError(false);
+    try {
+      // Optimize to only fetch recent expenses to prevent unbounded scans
+      const q = query(collection(db, `shops/${shopId}/expenses`), orderBy('createdAt', 'desc'), limit(50));
+      const snap = await getDocs(q);
+      setExpenses(snap.docs.map(doc => ({ id: doc.id, ...doc.data({ serverTimestamps: 'estimate' }) })));
+    } catch (err) {
+      console.error("Failed to fetch expenses", err);
+      setFetchError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [shopId]);
 
   useEffect(() => {
-    const fetchExpenses = async () => {
-      if (!shopId) return;
-      try {
-        // Optimize to only fetch recent expenses to prevent unbounded scans
-        const q = query(collection(db, `shops/${shopId}/expenses`), orderBy('createdAt', 'desc'), limit(50));
-        const snap = await getDocs(q);
-        setExpenses(snap.docs.map(doc => ({ id: doc.id, ...doc.data({ serverTimestamps: 'estimate' }) })));
-      } catch (err) {
-        console.error("Failed to fetch expenses", err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchExpenses();
-  }, [shopId]);
+  }, [fetchExpenses]);
 
   const handleAddExpense = async (e) => {
     e.preventDefault();
@@ -84,6 +91,7 @@ export default function Expenses() {
       setExpenses(prev => [{ id: newDocRef.id, ...payload, createdAt: { toDate: () => new Date() } }, ...prev]);
 
       // Reset form
+      setPaidVia('cash');
       setAmount('');
       setDescription('');
       setCategory(CATEGORIES[0].id);
@@ -190,12 +198,6 @@ export default function Expenses() {
                 </motion.div>
               );
             })}
-
-            {hasMore && expenses.length > 0 && (
-               <div ref={ref} className="py-8 text-center text-slate-400 font-semibold text-sm">
-                 {loading ? 'Loading more...' : 'Scroll for more'}
-               </div>
-            )}
           </div>
         )}
       </main>

@@ -16,6 +16,8 @@ export default defineConfig({
       injectRegister: 'auto',
       workbox: {
         cleanupOutdatedCaches: true,
+        // never serve the app shell for Firebase auth handler / well-known files
+        navigateFallbackDenylist: [/^\/__\//, /^\/\.well-known\//],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // Bump up cache limit for index bundle
         runtimeCaching: [
           {
@@ -32,7 +34,10 @@ export default defineConfig({
         ]
       },
       manifest: {
+        id: '/',
         name: 'Ledgro POS',
+        description: 'Offline-first billing, ledger and expenses for small shops.',
+        categories: ['business', 'finance', 'productivity'],
         short_name: 'Ledgro',
         theme_color: '#F8FAFC',
         background_color: '#F8FAFC',
@@ -41,12 +46,10 @@ export default defineConfig({
         scope: '/',
         orientation: 'portrait-primary',
         icons: [
-          {
-            src: 'favicon.svg',
-            sizes: '192x192 512x512',
-            type: 'image/svg+xml',
-            purpose: 'any maskable'
-          }
+          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'pwa-maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }
         ]
       }
     })

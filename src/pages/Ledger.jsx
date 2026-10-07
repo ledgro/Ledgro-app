@@ -1,38 +1,57 @@
 import { toast } from 'sonner';
 import { useState, useEffect, useCallback, useMemo, useDeferredValue, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, where, getDocs, orderBy, limit, startAfter, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, orderBy, limit, startAfter, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useInView } from 'react-intersection-observer';
 import BottomNav from '../components/BottomNav';
-import { CheckCircle2, XCircle, RefreshCcw, Share2, Search, ArrowLeftRight } from 'lucide-react';
+import { CheckCircle2, XCircle, RefreshCcw, Search, ArrowLeftRight } from 'lucide-react';
 import { Drawer } from 'vaul';
 import { formatCurrency, cn, hapticVibrate } from '../lib/utils';
 import { useBodyLock } from '../hooks/useBodyLock';
+import { fetchAllPaged } from '../lib/firestoreUtils';
+import { buildReport, rs } from '../lib/reportExport';
+import { saveFile } from '../lib/shareFile';
+import ExportMenu from '../components/ExportMenu';
 
-import { putData } from '../lib/idb';
-import { useCatalogStore } from '../store/catalogStore';
+const PAGE = 30;
+
+const hapticOn = () => localStorage.getItem('ledgro_haptic') !== 'false';
+
+function readRecentSearches() {
+  try { return JSON.parse(localStorage.getItem('ledgro_recent_searches') || '[]'); } catch { return []; }
+}
+
+/** Unit price (paise) of one item after discounts, never NaN. */
+const unitRefundOf = (item) => {
+  const line = Number(item.finalLineTotal ?? item.lineTotal);
+  const qty = Number(item.qty);
+  return qty > 0 && Number.isFinite(line) ? line / qty : 0;
+};
 
 export default function Ledger() {
   const { user, shopId } = useAuth();
 
   const [bills, setBills] = useState([]);
   const lastDoc = useRef(null);
-  const hasMore = useRef(true);
+  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
+  const loadingRef = useRef(false);
   const [reversingId, setReversingId] = useState(null);
   const [selectedBill, setSelectedBill] = useState(null);
+  const [processingReturn, setProcessingReturn] = useState(false);
 
   // Search and Filter
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState(''); // 'cash', 'upi', 'split', 'return', 'reversal'
+  const [activeFilter, setActiveFilter] = useState(''); // 'cash', 'upi', 'split', 'return'
   const [showVoided, setShowVoided] = useState(false);
   const deferredQuery = useDeferredValue(searchQuery);
-  const [recentSearches, setRecentSearches] = useState(() => JSON.parse(localStorage.getItem('ledgro_recent_searches') || '[]'));
+  const [recentSearches, setRecentSearches] = useState(readRecentSearches);
 
   // Return Drawer State
   const [isReturnDrawerOpen, setIsReturnDrawerOpen] = useState(false);
   const [returnItems, setReturnItems] = useState({}); // { index: qtyToReturn }
+  const [alreadyReturned, setAlreadyReturned] = useState({}); // { index: qty returned earlier }
   const [refundMethod, setRefundMethod] = useState('cash');
 
   useBodyLock(!!selectedBill || isReturnDrawerOpen);
@@ -40,40 +59,39 @@ export default function Ledger() {
   const ledgerListRef = useRef(null);
 
   const fetchBills = useCallback(async (isNextPage = false) => {
-    if (!shopId || (!hasMore.current && isNextPage)) return;
+    if (!shopId || loadingRef.current) return;
 
+    loadingRef.current = true;
     setLoading(true);
     try {
       const billsRef = collection(db, `shops/${shopId}/bills`);
-      let q = query(billsRef, orderBy('createdAt', 'desc'), limit(30));
-
-      if (isNextPage && lastDoc.current) {
-        q = query(billsRef, orderBy('createdAt', 'desc'), startAfter(lastDoc.current), limit(30));
-      }
+      const q = isNextPage && lastDoc.current
+        ? query(billsRef, orderBy('createdAt', 'desc'), startAfter(lastDoc.current), limit(PAGE))
+        : query(billsRef, orderBy('createdAt', 'desc'), limit(PAGE));
 
       const snap = await getDocs(q);
+      const newBills = snap.docs.map((d) => {
+        const data = d.data({ serverTimestamps: 'estimate' });
+        const created = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+        return { id: d.id, ...data, createdAt: { toDate: () => created } };
+      });
+      if (snap.docs.length) lastDoc.current = snap.docs[snap.docs.length - 1];
+      setHasMore(snap.size === PAGE);
 
-      if (snap.empty) {
-        hasMore.current = false;
-      } else {
-        const newBills = snap.docs.map(doc => {
-           const data = doc.data({ serverTimestamps: 'estimate' });
-           return { id: doc.id, ...data, createdAt: data.createdAt ? { toDate: () => data.createdAt.toDate() } : { toDate: () => new Date() } };
+      if (isNextPage) {
+        setBills((prev) => {
+          const existingIds = new Set(prev.map((b) => b.id));
+          return [...prev, ...newBills.filter((b) => !existingIds.has(b.id))];
         });
-        lastDoc.current = snap.docs[snap.docs.length - 1];
-
-        if (isNextPage) {
-          setBills(prev => {
-            const existingIds = new Set(prev.map(b => b.id));
-            return [...prev, ...newBills.filter(b => !existingIds.has(b.id))];
-          });
-        } else {
-          setBills(newBills);
-        }
+      } else {
+        setBills(newBills);
       }
     } catch (err) {
-      console.error("Failed to fetch bills:", err);
+      console.error('Failed to fetch bills:', err);
+      toast.error('Could not load bills. Check connection.');
+      setHasMore(false);
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   }, [shopId]);
@@ -81,140 +99,180 @@ export default function Ledger() {
   useEffect(() => {
     if (shopId) {
       lastDoc.current = null;
-      hasMore.current = true;
+      setHasMore(true);
       fetchBills();
     }
   }, [shopId, fetchBills]);
 
   useEffect(() => {
-    if (inView && hasMore.current && !loading) {
+    if (inView && hasMore && !loading && bills.length > 0) {
       fetchBills(true);
     }
-  }, [inView, loading, fetchBills]);
+  }, [inView, hasMore, loading, bills.length, fetchBills]);
+
+  /** Only restock/bump catalog docs that still exist and actually track stock. */
+  const addCatalogAdjustments = async (batch, items, { sign }) => {
+    const qtyById = new Map();
+    (items || []).forEach((item) => {
+      if (!item.catalogId) return;
+      qtyById.set(item.catalogId, (qtyById.get(item.catalogId) || 0) + (Number(item.qty) || 0));
+    });
+    const ids = [...qtyById.keys()];
+    const snaps = await Promise.allSettled(ids.map((id) => getDoc(doc(db, `shops/${shopId}/catalog`, id))));
+    snaps.forEach((res, i) => {
+      if (res.status !== 'fulfilled' || !res.value.exists()) return;
+      const data = res.value.data();
+      const updates = {};
+      if (typeof data.stockCount === 'number') updates.stockCount = increment(sign * qtyById.get(ids[i]));
+      if (Object.keys(updates).length) batch.update(res.value.ref, updates);
+    });
+  };
 
   const handleVoidBill = async (originalBill) => {
-    if (!shopId || !window.confirm(`Are you sure you want to void this bill?`)) return;
-
-    if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate(20);
+    if (!shopId || !user || !window.confirm('Are you sure you want to void this bill?')) return;
+    if (hapticOn()) hapticVibrate(20);
 
     setReversingId(originalBill.id);
     try {
       const batch = writeBatch(db);
-
       const billRef = doc(db, `shops/${shopId}/bills`, originalBill.id);
 
+      // Rules allow exactly this mutation: sale -> reversal.
       batch.update(billRef, {
-        isVoided: true,
-        voidedAt: serverTimestamp(),
-        voidedBy: user.uid
+        type: 'reversal',
+        originalBillId: originalBill.id,
+        reversedBy: user.uid,
+        reversedAt: serverTimestamp(),
       });
 
-      if (originalBill.items && Array.isArray(originalBill.items)) {
-        originalBill.items.forEach(item => {
-          if (item.name && item.catalogId) {
-             const catalogRef = doc(db, `shops/${shopId}/catalog`, item.catalogId);
-             batch.update(catalogRef, { frequency: increment(-1), stockCount: increment(item.qty || 1) });
-          }
-        });
-      }
-
+      await addCatalogAdjustments(batch, originalBill.items, { sign: 1 });
       await batch.commit();
 
-      setBills(prev => prev.map(b => b.id === originalBill.id ? { ...b, type: 'reversal', reversedBy: user.uid, reversedAt: new Date() } : b));
-      if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate([50, 30, 50]);
+      setBills((prev) => prev.map((b) => (b.id === originalBill.id ? { ...b, type: 'reversal', originalBillId: b.id, reversedBy: user.uid, reversedAt: new Date() } : b)));
+      if (hapticOn()) hapticVibrate([50, 30, 50]);
     } catch (err) {
       console.error(err);
-      if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate([100, 50, 100]);
-      toast.error("Failed to void bill.");
+      if (hapticOn()) hapticVibrate([100, 50, 100]);
+      const denied = err?.code === 'permission-denied';
+      toast.error(denied ? 'Cannot void: only within 24h, by the bill creator or an admin.' : 'Failed to void bill.');
     } finally {
       setReversingId(null);
     }
   };
 
+  // Load what was already returned for the open bill so we can't over-refund.
+  const openReturnDrawer = async () => {
+    if (!selectedBill) return;
+    setReturnItems({});
+    setAlreadyReturned({});
+    setIsReturnDrawerOpen(true);
+    try {
+      const snap = await getDocs(query(
+        collection(db, `shops/${shopId}/bills`),
+        where('originalBillId', '==', selectedBill.id),
+        limit(100),
+      ));
+      const returned = {};
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        if (data.type !== 'return') return;
+        (data.items || []).forEach((it) => {
+          if (typeof it.idx === 'number') returned[it.idx] = (returned[it.idx] || 0) + (Number(it.qty) || 0);
+        });
+      });
+      setAlreadyReturned(returned);
+    } catch (err) {
+      console.error('Could not load previous returns:', err);
+    }
+  };
+
   const handleProcessReturn = async () => {
-    if (!selectedBill || !shopId) return;
+    if (!selectedBill || !shopId || !user || processingReturn) return;
 
     const returnedItemsList = [];
     let returnTotal = 0;
 
-    selectedBill.items.forEach((item, idx) => {
-      const returnQty = returnItems[idx] || 0;
+    (selectedBill.items || []).forEach((item, idx) => {
+      const maxQty = Math.max(0, (Number(item.qty) || 0) - (alreadyReturned[idx] || 0));
+      const returnQty = Math.min(returnItems[idx] || 0, maxQty);
       if (returnQty > 0) {
-        // Calculate proportional refund amount based on final line total
-        const unitRefund = (item.finalLineTotal ?? item.lineTotal) / item.qty;
-        const lineRefund = unitRefund * returnQty;
+        const lineRefund = Math.round(unitRefundOf(item) * returnQty);
         returnTotal += lineRefund;
         returnedItemsList.push({
+          idx,
+          catalogId: item.catalogId || null,
           name: item.name,
-          unitPrice: item.unitPrice,
+          unit: item.unit || null,
+          unitPrice: item.unitPrice ?? item.unitPriceAtSale ?? 0,
           qty: returnQty,
-          lineTotal: lineRefund
+          lineTotal: lineRefund,
         });
       }
     });
 
-    if (returnedItemsList.length === 0) return;
-
-    // We only ask confirmation to prevent accidental clicks
+    if (returnedItemsList.length === 0 || returnTotal <= 0) return;
     if (!window.confirm(`Process refund of ${formatCurrency(returnTotal)} via ${refundMethod.toUpperCase()}?`)) return;
+    if (hapticOn()) hapticVibrate(20);
 
-    if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate(20);
-
+    setProcessingReturn(true);
     try {
       const batch = writeBatch(db);
 
+      // Only keys allowed by firestore.rules for a return.
       const payload = {
         type: 'return',
         originalBillId: selectedBill.id,
-        shopId: shopId,
         creatorId: user.uid,
         items: returnedItemsList,
-        grandTotal: -Math.abs(returnTotal), // negative entry
-        refundMethod: refundMethod,
+        subtotal: -returnTotal,
+        grandTotal: -returnTotal,
+        paymentMethod: refundMethod,
+        refundMethod,
+        billNo: `R-${selectedBill.billNo || selectedBill.id.substring(0, 6)}`,
+        clientCreatedAt: Date.now(),
         createdAt: serverTimestamp(),
-        status: 'active'
       };
 
       const returnDocRef = doc(collection(db, `shops/${shopId}/bills`));
       batch.set(returnDocRef, payload);
+
+      // Returned goods go back on the shelf (tracked items only).
+      await addCatalogAdjustments(batch, returnedItemsList, { sign: 1 });
       await batch.commit();
 
-      // Optimistic update
-      setBills(prev => [{
+      setBills((prev) => [{
         id: returnDocRef.id,
         ...payload,
-        createdAt: { toDate: () => new Date() }
+        createdAt: { toDate: () => new Date() },
       }, ...prev]);
 
       setIsReturnDrawerOpen(false);
       setSelectedBill(null);
-      if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate([50, 30, 50]);
+      if (hapticOn()) hapticVibrate([50, 30, 50]);
     } catch (e) {
       console.error(e);
-      toast.error("Failed to process return");
-      if (localStorage.getItem('ledgro_haptic') !== 'false') hapticVibrate([100, 50, 100]);
+      toast.error('Failed to process return');
+      if (hapticOn()) hapticVibrate([100, 50, 100]);
+    } finally {
+      setProcessingReturn(false);
     }
   };
 
   const saveRecentSearch = (term) => {
-     if (!term.trim()) return;
-     const newSearches = [term.trim(), ...recentSearches.filter(s => s !== term.trim())].slice(0, 5);
-     setRecentSearches(newSearches);
-     localStorage.setItem('ledgro_recent_searches', JSON.stringify(newSearches));
+    if (!term.trim()) return;
+    const newSearches = [term.trim(), ...recentSearches.filter((s) => s !== term.trim())].slice(0, 5);
+    setRecentSearches(newSearches);
+    try { localStorage.setItem('ledgro_recent_searches', JSON.stringify(newSearches)); } catch { /* storage blocked */ }
   };
 
   const processedBills = useMemo(() => {
-    let filtered = bills;
     const reversedIds = new Set();
-    bills.forEach(b => { if (b.type === 'reversal' && b.originalBillId) reversedIds.add(b.originalBillId); });
+    bills.forEach((b) => { if (b.type === 'reversal' && b.originalBillId) reversedIds.add(b.originalBillId); });
 
-    // Client-side filtering logic
-    return filtered.map(b => ({...b, isVoided: reversedIds.has(b.id) })).filter(bill => {
-      // Voided logic
+    return bills.map((b) => ({ ...b, isVoided: reversedIds.has(b.id) })).filter((bill) => {
       if (!showVoided && bill.isVoided) return false;
       if (!showVoided && bill.type === 'reversal') return false;
 
-      // Filter chips
       if (activeFilter) {
         if (activeFilter === 'return' && bill.type !== 'return') return false;
         if (activeFilter === 'cash' && (bill.paymentMethod !== 'cash' && bill.payment?.method !== 'cash')) return false;
@@ -222,14 +280,12 @@ export default function Ledger() {
         if (activeFilter === 'split' && bill.payment?.method !== 'split') return false;
       }
 
-      // Search
       if (deferredQuery) {
-        const query = deferredQuery.toLowerCase();
+        const q = deferredQuery.toLowerCase();
         const matchesSearch =
-          (bill.billNo?.toLowerCase().includes(query)) ||
-          (bill.grandTotal?.toString().includes(query)) ||
-          (bill.items?.some(item => item.name.toLowerCase().includes(query)));
-
+          (bill.billNo?.toLowerCase().includes(q)) ||
+          (bill.grandTotal != null && (Math.abs(bill.grandTotal) / 100).toString().includes(q)) ||
+          (bill.items?.some((item) => item.name?.toLowerCase().includes(q)));
         if (!matchesSearch) return false;
       }
 
@@ -237,29 +293,41 @@ export default function Ledger() {
     });
   }, [bills, deferredQuery, activeFilter, showVoided]);
 
-  const handleExportLedger = async () => {
-    if (processedBills.length === 0) return;
+  // Exports the WHOLE ledger (paged) as PDF or PNG, not just what is scrolled in.
+  const handleExportLedger = async (format) => {
+    if (!shopId) return;
+    try {
+      const docs = await fetchAllPaged(`shops/${shopId}/bills`);
+      if (docs.length === 0) { toast.info('No bills to export.'); return; }
+      const all = docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) })).reverse();
+      const reversed = new Set(all.filter((b) => b.type === 'reversal' && b.originalBillId).map((b) => b.originalBillId));
 
-    // Very simple CSV export of currently loaded view
-    const headers = "Bill Number,Date,Status,Total,Items";
-    const rows = [headers];
-    processedBills.forEach(b => {
-      const dateStr = b.createdAt?.toDate ? b.createdAt.toDate().toLocaleString() : '';
-      const statusStr = b.isVoided ? 'Voided' : (b.type || 'Sale');
-      const itemsStr = b.items ? b.items.length + ' items' : '0 items';
-      rows.push(`"${b.billNo || b.id}","${dateStr}","${statusStr}",${b.grandTotal / 100},"${itemsStr}"`);
-    });
+      let total = 0;
+      const rows = all.map((b) => {
+        const status = reversed.has(b.id) ? 'Voided' : (b.type === 'reversal' ? 'Voided' : (b.type || 'sale'));
+        const counts = status === 'sale' || status === 'return';
+        if (counts) total += Number(b.grandTotal) || 0;
+        const dateStr = b.createdAt?.toDate ? b.createdAt.toDate().toLocaleString() : '';
+        const pay = b.payment?.method || b.paymentMethod || '';
+        const items = (b.items || []).map((i) => `${i.name} x${i.qty}`).join(', ');
+        return [b.billNo || b.id.slice(0, 8), dateStr, status, pay, rs(b.grandTotal), items];
+      });
 
-    const csvContent = rows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "ledgro_ledger_export.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 100);
+      const blob = await buildReport(format, {
+        title: 'Ledgro - Bill History',
+        subtitle: `Generated ${new Date().toLocaleString()} • ${rows.length} bills`,
+        summary: [`Net total (sales minus returns, voids excluded): ${rs(total)}`],
+        columns: [
+          { label: 'Bill', w: 1.2, max: 18 }, { label: 'Date', w: 1.6, max: 24 }, { label: 'Status', w: 0.8, max: 10 },
+          { label: 'Pay', w: 0.7, max: 8 }, { label: 'Total', w: 1.1, align: 'right', max: 18 }, { label: 'Items', w: 4, max: 70 },
+        ],
+        rows,
+      });
+      await saveFile(blob, `ledgro-bills-${Date.now()}.${format}`, 'Ledgro bills');
+    } catch (err) {
+      console.error(err);
+      toast.error('Export failed. Check connection.');
+    }
   };
 
   return (
@@ -267,9 +335,7 @@ export default function Ledger() {
       <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 pt-3 pb-2 shadow-subtle flex flex-col gap-3">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold text-slate-900">Bill History</h1>
-          <button onClick={handleExportLedger} disabled={ processedBills.length === 0} className="text-blue-600 font-bold text-sm flex items-center gap-1 active:scale-95 disabled:opacity-50 bg-blue-50 px-3 py-1.5 rounded-full">
-            <Share2 size={16} /> Export
-          </button>
+          <ExportMenu label="Export" onPick={handleExportLedger} className="text-blue-600 font-bold text-sm flex items-center gap-1 active:scale-95 disabled:opacity-50 bg-blue-50 px-3 py-1.5 rounded-full" />
         </div>
 
         {/* Search Bar */}
@@ -369,7 +435,7 @@ export default function Ledger() {
           </div>
         )}
 
-        {hasMore && processedBills.length > 0 && (
+        {hasMore && bills.length > 0 && (
            <div ref={ref} className="py-8 text-center text-slate-400 font-semibold text-sm">
              {loading ? 'Loading more...' : 'Scroll for more'}
            </div>
@@ -412,7 +478,7 @@ export default function Ledger() {
                   {!selectedBill.isVoided && selectedBill.type !== 'return' && selectedBill.type !== 'reversal' && (
                      <div className="grid grid-cols-2 gap-3">
                        <button
-                         onClick={() => { setIsReturnDrawerOpen(true); }}
+                         onClick={openReturnDrawer}
                          className="w-full bg-orange-50 text-orange-600 font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-orange-100 transition-colors shadow-sm"
                        >
                          <ArrowLeftRight size={20} /> Return Items
@@ -448,11 +514,12 @@ export default function Ledger() {
                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
                      {selectedBill.items.map((item, idx) => {
                         const currentReturnQty = returnItems[idx] || 0;
+                        const maxQty = Math.max(0, (Number(item.qty) || 0) - (alreadyReturned[idx] || 0));
                         return (
                           <div key={idx} className="p-4 flex items-center justify-between">
                             <div className="flex-1">
                                <p className="font-bold text-slate-900">{item.name}</p>
-                               <p className="text-xs text-slate-500">Max qty: {item.qty} • {formatCurrency((item.finalLineTotal ?? item.lineTotal) / item.qty)} ea</p>
+                               <p className="text-xs text-slate-500">Max qty: {maxQty}{alreadyReturned[idx] ? ` (${alreadyReturned[idx]} already returned)` : ''} • {formatCurrency(Math.round(unitRefundOf(item)))} ea</p>
                             </div>
                             <div className="flex items-center gap-3">
                                <button
@@ -461,7 +528,7 @@ export default function Ledger() {
                                >-</button>
                                <span className="font-bold text-lg w-4 text-center">{currentReturnQty}</span>
                                <button
-                                 onClick={() => setReturnItems(prev => ({...prev, [idx]: Math.min(item.qty, currentReturnQty + 1)}))}
+                                 onClick={() => setReturnItems(prev => ({...prev, [idx]: Math.min(maxQty, currentReturnQty + 1)}))}
                                  className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-black active:bg-slate-200 flex items-center justify-center"
                                >+</button>
                             </div>
@@ -480,10 +547,10 @@ export default function Ledger() {
 
                    <button
                      onClick={handleProcessReturn}
-                     disabled={Object.values(returnItems).every(v => v === 0)}
+                     disabled={processingReturn || Object.values(returnItems).every(v => !v)}
                      className="w-full mt-4 bg-orange-600 text-white font-bold h-14 rounded-xl active:bg-orange-700 disabled:opacity-50"
                    >
-                     Confirm Return
+                     {processingReturn ? 'Processing…' : 'Confirm Return'}
                    </button>
                  </div>
                )}
