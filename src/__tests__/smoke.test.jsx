@@ -23,6 +23,9 @@ vi.mock('firebase/firestore', () => {
     addDoc: vi.fn(async () => ({ id: 'new-id' })), setDoc: vi.fn(async () => {}), updateDoc: vi.fn(async () => {}), deleteDoc: vi.fn(async () => {}),
     doc: vi.fn(() => ({})), writeBatch: vi.fn(() => batch),
     serverTimestamp: vi.fn(() => ({ _sentinel: 'serverTimestamp' })), increment: vi.fn((n) => ({ _increment: n })),
+    getDocFromCache: vi.fn(async () => { throw new Error('no cache'); }), onSnapshot: vi.fn(() => () => {}),
+    waitForPendingWrites: vi.fn(async () => {}), deleteField: vi.fn(() => ({ _delete: true })),
+    Timestamp: { fromMillis: (n) => ({ ms: n }) },
     __batch: batch,
   };
 });
@@ -30,7 +33,7 @@ vi.mock('firebase/firestore', () => {
 vi.mock('../context/AuthContext', () => ({
   useAuth: () => ({
     user: { uid: 'u1', email: 'owner@example.com' }, shopId: 's1', shopName: 'Test Shop', shopAdminId: 'u1',
-    signOut: vi.fn(), deleteAccount: vi.fn(),
+    signOut: vi.fn(), deleteAccount: vi.fn(), beginVoluntaryExit: vi.fn(), shopProfile: null,
   }),
 }));
 

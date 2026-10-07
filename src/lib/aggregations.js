@@ -1,6 +1,19 @@
 import { startOfDay, endOfDay, subDays, format } from 'date-fns';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
+import { where } from 'firebase/firestore';
+import { fetchAllPaged } from './firestoreUtils';
+
+// Cash adjustments written by the daily lock are not real expenses.
+// New docs use category 'cash_adjustment'; legacy docs used a description.
+export function isCashAdjustment(e) {
+  if (e.category === 'cash_adjustment') return true;
+  return e.category === 'other' && (e.description === 'Cash Shortage' || e.description === 'Cash Overage');
+}
+
+/** Bill total in paise with the correct sign (returns always negative). */
+export function signedBillTotal(b) {
+  const g = Number(b.grandTotal) || 0;
+  return b.type === 'return' ? -Math.abs(g) : g;
+}
 
 export async function computeDailyAggregations(shopId) {
   if (!shopId) return null;
@@ -10,27 +23,23 @@ export async function computeDailyAggregations(shopId) {
   const yesterdayStart = subDays(todayStart, 1);
   const weekStart = subDays(todayStart, 6);
 
-  const billsRef = collection(db, `shops/${shopId}/bills`);
-  const expRef = collection(db, `shops/${shopId}/expenses`);
-
-  // Only 2 queries to reduce billing: fetch the whole week without limits
-  const qWeekBills = query(billsRef, where('createdAt', '>=', weekStart), where('createdAt', '<=', todayEnd));
-  const qWeekExp = query(expRef, where('createdAt', '>=', weekStart), where('createdAt', '<=', todayEnd));
-
-  const [weekBSnap, weekESnap] = await Promise.all([
-    getDocs(qWeekBills), getDocs(qWeekExp)
+  const range = [where('createdAt', '>=', weekStart), where('createdAt', '<=', todayEnd)];
+  // Rules cap list queries at 100 docs, so read in pages.
+  const [weekBDocs, weekEDocs] = await Promise.all([
+    fetchAllPaged(`shops/${shopId}/bills`, range),
+    fetchAllPaged(`shops/${shopId}/expenses`, range),
   ]);
 
-  // Build voided map to skip returns that belong to voided original bills
+  // Returns that belong to voided originals must not count.
   const voidedMap = new Set();
   const allBills = [];
-  weekBSnap.forEach(doc => {
-    const b = doc.data({ serverTimestamps: 'estimate' });
+  weekBDocs.forEach((d) => {
+    const b = d.data({ serverTimestamps: 'estimate' });
     if (b.isVoided || b.type === 'reversal') {
-       if (b.originalBillId) voidedMap.add(b.originalBillId);
-       if (b.id) voidedMap.add(b.id);
+      if (b.originalBillId) voidedMap.add(b.originalBillId);
+      voidedMap.add(d.id);
     }
-    allBills.push({ id: doc.id, ...b });
+    allBills.push({ id: d.id, ...b });
   });
 
   const todayStr = format(todayStart, 'yyyy-MM-dd');
@@ -58,8 +67,8 @@ export async function computeDailyAggregations(shopId) {
     const dtStr = b.createdAt ? format(b.createdAt.toDate(), 'yyyy-MM-dd') : null;
     if (!dtStr || dailyEarn[dtStr] === undefined) return;
 
-    let mult = b.type === 'return' ? -1 : 1;
-    const total = (b.grandTotal || 0) * mult;
+    const mult = b.type === 'return' ? -1 : 1;
+    const total = signedBillTotal(b);
 
     // Sparkline revenue (we will subtract expense later to get net earnings)
     dailyEarn[dtStr] += total;
@@ -82,8 +91,8 @@ export async function computeDailyAggregations(shopId) {
   });
 
   // Process Expenses
-  weekESnap.forEach(doc => {
-    const e = doc.data({ serverTimestamps: 'estimate' });
+  weekEDocs.forEach(d => {
+    const e = d.data({ serverTimestamps: 'estimate' });
     const dtStr = e.createdAt ? format(e.createdAt.toDate(), 'yyyy-MM-dd') : null;
     if (!dtStr || dailyExp[dtStr] === undefined) return;
 
@@ -91,23 +100,23 @@ export async function computeDailyAggregations(shopId) {
 
     // Sparkline expenses
     // Exclude Cash Overage/Shortage adjustments created by the lock process from Net Earnings logic
-    if (e.description !== 'Cash Shortage' && e.description !== 'Cash Overage') {
+    if (!isCashAdjustment(e)) {
        dailyExp[dtStr] += amt;
     }
 
     if (dtStr === todayStr) {
-      if (e.description !== 'Cash Shortage' && e.description !== 'Cash Overage') {
+      if (!isCashAdjustment(e)) {
          todayExpAmt += amt;
       }
 
       // Only reduce expected cash drawer if the expense was explicitly paid via cash.
       // (Older documents without paidVia assumed cash, so we default to cash).
       const pVia = e.paidVia || 'cash';
-      if (pVia === 'cash') {
+      if (pVia === 'cash' && !isCashAdjustment(e)) {
          todayExpectedCashDeduction += amt;
       }
     } else if (dtStr === yestStr) {
-      if (e.description !== 'Cash Shortage' && e.description !== 'Cash Overage') {
+      if (!isCashAdjustment(e)) {
          yestExpAmt += amt;
       }
     }

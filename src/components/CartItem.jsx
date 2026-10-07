@@ -47,16 +47,18 @@ export default function CartItem({ item, dispatch, onOpenDiscount }) {
     }
   };
 
+  const isWeightOrVolume = ['kg', 'l', 'litre', 'liter'].includes(item.unit);
+
   const increment = () => {
     const currentQty = parseFloat(item.qty) || 0;
-    const step = item.unit === 'kg' || item.unit === 'l' ? 0.5 : 1;
+    const step = isWeightOrVolume ? 0.5 : 1;
     dispatch({ type: 'UPDATE_QTY', payload: { id: item.id, qty: currentQty + step } });
   };
 
   const decrement = () => {
     const currentQty = parseFloat(item.qty) || 0;
-    const step = item.unit === 'kg' || item.unit === 'l' ? 0.5 : 1;
-    const min = item.unit === 'kg' || item.unit === 'l' ? 0.1 : 1;
+    const step = isWeightOrVolume ? 0.5 : 1;
+    const min = isWeightOrVolume ? 0.1 : 1;
     if (currentQty - step >= min) {
       dispatch({ type: 'UPDATE_QTY', payload: { id: item.id, qty: currentQty - step } });
     }

@@ -1,16 +1,15 @@
 import { toast } from 'sonner';
 import { useState, useEffect, useRef, useCallback, useDeferredValue } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
-import { db } from '../firebase';
+import { where } from 'firebase/firestore';
+import { fetchAllPaged } from '../lib/firestoreUtils';
+import { isCashAdjustment, signedBillTotal } from '../lib/aggregations';
 import BottomNav from '../components/BottomNav';
 import { Share2, Download, ChevronLeft } from 'lucide-react';
 import { formatCurrency, cn, sanitizeText } from '../lib/utils';
 import { DayPicker } from 'react-day-picker';
 import { Drawer } from 'vaul';
 import { Skeleton } from '../components/Skeleton';
-import html2canvas from 'html2canvas-pro';
-import { jsPDF } from 'jspdf';
 
 import { startOfDay, endOfDay, startOfWeek, startOfMonth, subMonths, format } from 'date-fns';
 import { Link } from 'react-router-dom';
@@ -47,22 +46,28 @@ export default function PLScreen() {
     try {
       const toDate = range.to ? endOfDay(range.to) : endOfDay(range.from);
 
-      const billsRef = collection(db, `shops/${shopId}/bills`);
-      const qBills = query(billsRef, where('createdAt', '>=', range.from), where('createdAt', '<=', toDate), limit(100));
+      const rangeC = [where('createdAt', '>=', range.from), where('createdAt', '<=', toDate)];
+      const [billDocs, expDocs] = await Promise.all([
+        fetchAllPaged(`shops/${shopId}/bills`, rangeC),
+        fetchAllPaged(`shops/${shopId}/expenses`, rangeC),
+      ]);
 
-      const expRef = collection(db, `shops/${shopId}/expenses`);
-      const qExp = query(expRef, where('createdAt', '>=', range.from), where('createdAt', '<=', toDate), limit(100));
-
-      const [billsSnap, expSnap] = await Promise.all([getDocs(qBills), getDocs(qExp)]);
+      // Returns whose original bill was voided must not count.
+      const voided = new Set();
+      billDocs.forEach((d) => {
+        const b = d.data();
+        if (b.type === 'reversal' || b.isVoided) { voided.add(d.id); if (b.originalBillId) voided.add(b.originalBillId); }
+      });
 
       let rev = { total: 0, cash: 0, upi: 0, splitCash: 0, splitUpi: 0 };
 
-      billsSnap.forEach(doc => {
-        const b = doc.data({ serverTimestamps: 'estimate' });
+      billDocs.forEach(d => {
+        const b = d.data({ serverTimestamps: 'estimate' });
         if (b.type === 'reversal' || b.isVoided) return;
+        if (b.type === 'return' && voided.has(b.originalBillId)) return;
 
-        let multiplier = b.type === 'return' ? -1 : 1;
-        const total = (b.grandTotal || 0) * multiplier;
+        const multiplier = b.type === 'return' ? -1 : 1;
+        const total = signedBillTotal(b);
 
         rev.total += total;
 
@@ -79,8 +84,9 @@ export default function PLScreen() {
 
       let expTotal = 0;
       let expCats = {};
-      expSnap.forEach(doc => {
-        const e = doc.data({ serverTimestamps: 'estimate' });
+      expDocs.forEach(d => {
+        const e = d.data({ serverTimestamps: 'estimate' });
+        if (isCashAdjustment(e)) return;
         const amt = parseFloat(e.amount) || 0;
         expTotal += amt;
         const cat = e.category || 'other';
@@ -159,6 +165,7 @@ export default function PLScreen() {
 
       document.body.appendChild(clone);
 
+      const { default: html2canvas } = await import('html2canvas-pro');
       const canvas = await html2canvas(clone, {
         scale: window.devicePixelRatio || 2,
         useCORS: true,
@@ -188,7 +195,8 @@ export default function PLScreen() {
     }
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
+    const { jsPDF } = await import('jspdf');
     const doc = new jsPDF();
     doc.setFontSize(20);
     doc.text(`${shopName || 'Ledgro Shop'} - Profit & Loss`, 20, 20);

@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback, useDeferredValue } from 'reac
 import { useAuth } from '../context/AuthContext';
 import { checkStorageHealth } from '../lib/storageHealth';
 import { measureClockDrift } from '../lib/clockDrift';
-import { collection, query, where, getDocs, limit, addDoc, serverTimestamp, doc, setDoc, writeBatch } from 'firebase/firestore';
+import { collection, serverTimestamp, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Cloud, CloudOff, RefreshCcw } from 'lucide-react';
@@ -121,10 +121,15 @@ export default function Dashboard() {
     setIsClosingRecord(true);
 
     try {
-      if (!closureDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-         throw new Error("Invalid date format");
+      // Use the server-corrected clock: a wrong phone clock must not lock the wrong day.
+      const offset = (await measureClockDrift()) || 0;
+      if (Math.abs(offset) > 120000) {
+        toast.error('Phone clock is off by more than 2 minutes. Fix date & time, then retry.');
+        return;
       }
-      const closureDocId = closureDate;
+      const nowC = new Date(Date.now() + offset);
+      const closureDocId = `${nowC.getFullYear()}-${String(nowC.getMonth() + 1).padStart(2, '0')}-${String(nowC.getDate()).padStart(2, '0')}`;
+      setClosureDate(closureDocId);
       const diffPaise = Math.round(parsedActual * 100) - stats.expectedCash;
 
       const closureData = {
@@ -145,7 +150,7 @@ export default function Dashboard() {
         const expRef = doc(collection(db, `shops/${shopId}/expenses`));
         batch.set(expRef, {
           amount: Math.abs(diffPaise),
-          category: 'other',
+          category: 'cash_adjustment',
           description: 'Cash Shortage',
           creatorId: user.uid,
           createdAt: serverTimestamp(),
@@ -162,7 +167,7 @@ export default function Dashboard() {
       fetchDashboardData();
     } catch (err) {
       if (err.code === 'permission-denied') {
-        toast.error(`The register for ${closureDate} is already closed.`);
+        toast.error('Register for today is already closed.');
       } else {
         toast.error("Failed to close register. Please try again.");
       }

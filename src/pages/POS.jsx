@@ -1,11 +1,10 @@
 import { toast } from 'sonner';
-import { useReducer, useState, useMemo, useEffect } from 'react';
+import { useReducer, useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
-import { collection, addDoc, serverTimestamp, getDocs, writeBatch, doc, increment } from 'firebase/firestore';
+import { collection, getDocs, writeBatch, doc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Tag, ArrowRight, Share2, PlusCircle, Download } from 'lucide-react';
-import { Drawer } from 'vaul';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSpring, animated } from '@react-spring/web';
 
@@ -15,12 +14,26 @@ import DiscountDrawer from '../components/DiscountDrawer';
 import Receipt from '../components/Receipt';
 import { billReducer, initialBillState, calculateBillTotals } from '../reducers/billReducer';
 import BottomNav from '../components/BottomNav';
-import html2canvas from 'html2canvas-pro';
 
-import { useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { hapticVibrate, sanitizeText } from '../lib/utils';
-import { putData } from '../lib/idb';
+
+const COMMIT_TIMEOUT_MS = 10000;
+const normName = (s) => String(s || '').normalize('NFC').trim().toLowerCase();
+
+// Bill numbers must not collide across devices: uid prefix + per-device tag + daily counter.
+function getDeviceTag() {
+  try {
+    let tag = localStorage.getItem('ledgro_device_tag');
+    if (!tag) {
+      tag = Array.from(crypto.getRandomValues(new Uint8Array(2)), (b) => (b % 36).toString(36)).join('').toUpperCase();
+      localStorage.setItem('ledgro_device_tag', tag);
+    }
+    return tag;
+  } catch {
+    return 'ZZ';
+  }
+}
 
 function generateBillNumber(uid) {
   const now = new Date();
@@ -34,62 +47,64 @@ function generateBillNumber(uid) {
   const prefix = uid ? uid.slice(0, 2).toUpperCase() : 'XX';
   const seq = String(current).padStart(3, '0');
 
-  return `${prefix}-${dd}${mm}-${seq}`;
+  return `${prefix}${getDeviceTag()}-${dd}${mm}-${seq}`;
 }
 
 export default function POS() {
-  const { user, shopId, shopName } = useAuth();
+  const { user, shopId, shopName, shopProfile } = useAuth();
   const location = useLocation();
-const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
-  const addCatalogItem = useCatalogStore((state) => state.addItem);
+  const navigate = useNavigate();
+  const hydrateCatalog = useCatalogStore((s) => s.hydrateCatalog);
+  const addCatalogItem = useCatalogStore((s) => s.addItem);
 
   const [state, dispatch] = useReducer(billReducer, initialBillState);
-  const navigate = useNavigate();
   const isSubmittingRef = useRef(false);
   const receiptRef = useRef(null);
 
-  // Checkout state (must be declared before any effect or hook that reads it)
+  // Checkout state (declared before any effect/hook that reads it)
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const [lastBill, setLastBill] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' | 'upi' | 'split'
+  const [paymentMethod, setPaymentMethod] = useState(() => (localStorage.getItem('ledgro_defaultPayment') === 'upi' ? 'upi' : 'cash')); // 'cash' | 'upi' | 'split'
   const [splitCash, setSplitCash] = useState('');
 
   const { items, subtotal, globalDiscountAmt, grandTotal } = useMemo(() => calculateBillTotals(state), [state]);
 
-  // Stash state for survival
+  // Identity + live cart for the update/recovery logic in main.jsx and ErrorBoundary
+  useEffect(() => {
+    window.__LEDGRO_UID__ = user?.uid;
+    window.__LEDGRO_SHOPID__ = shopId;
+  }, [user?.uid, shopId]);
+
   useEffect(() => {
     window.__LEDGRO_CART_STATE__ = state;
     window.__LEDGRO_CHECKOUT_ACTIVE__ = isCheckingOut;
   }, [state, isCheckingOut]);
 
-  // Restore logic
+  useEffect(() => () => {
+    // leaving the POS screen: nothing is "in progress" any more
+    window.__LEDGRO_CART_STATE__ = null;
+    window.__LEDGRO_CHECKOUT_ACTIVE__ = false;
+  }, []);
+
+  // Restore a cart saved just before an update-reload
   useEffect(() => {
     const recovered = localStorage.getItem('ledgro-cart-recovery');
-    if (recovered) {
-      try {
-        const { cartState, savedAt, uid, shopId: savedShopId } = JSON.parse(recovered);
-        // Only restore if it belongs to the current user and shop
-        if (uid !== user.uid || savedShopId !== shopId) {
-          localStorage.removeItem('ledgro-cart-recovery');
-          return;
-        }
-        const ageMs = Date.now() - new Date(savedAt).getTime();
-        if (ageMs < 5 * 60 * 1000) { // Only restore if less than 5 mins old
-          dispatch({ type: 'INIT_FROM_EDIT', payload: { items: cartState.items, globalDiscount: cartState.globalDiscount } });
-          toast.success('Cart restored after app update');
-        }
-        localStorage.removeItem('ledgro-cart-recovery');
-      } catch (e) {
-        localStorage.removeItem('ledgro-cart-recovery');
+    if (!recovered) return;
+    try {
+      const { cartState, savedAt, uid, shopId: savedShopId } = JSON.parse(recovered);
+      localStorage.removeItem('ledgro-cart-recovery');
+      // Only restore if it belongs to the current user and shop
+      if (uid !== user?.uid || savedShopId !== shopId) return;
+      const ageMs = Date.now() - new Date(savedAt).getTime();
+      if (ageMs < 5 * 60 * 1000 && cartState?.items?.length) { // Only restore if less than 5 mins old
+        dispatch({ type: 'INIT_FROM_EDIT', payload: { items: cartState.items, globalDiscount: cartState.globalDiscount } });
+        toast.success('Cart restored after app update');
       }
+    } catch {
+      localStorage.removeItem('ledgro-cart-recovery');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid, shopId]);
-
-
-
-
 
   const springTotal = useSpring({ val: grandTotal, config: { stiffness: 200, damping: 20 } });
   const editBill = location.state?.editBill || null;
@@ -99,15 +114,13 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
     if (editBill && state.items.length === 0 && !checkoutSuccess) {
       dispatch({ type: 'INIT_FROM_EDIT', payload: editBill });
 
-
       // If it was a split payment, re-initialize the split UI
       if (editBill.payment?.method === 'split') {
-         setPaymentMethod('split');
-         setSplitCash(editBill.payment.breakdown.cash.toString());
+        setPaymentMethod('split');
+        setSplitCash(((editBill.payment.breakdown?.cash || 0) / 100).toString());
       } else {
-         setPaymentMethod(editBill.paymentMethod || 'cash');
+        setPaymentMethod(editBill.paymentMethod || 'cash');
       }
-
 
       // Clear location state so refresh doesn't trigger edit mode again
       window.history.replaceState({}, document.title);
@@ -119,28 +132,25 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
     const fetchCatalog = async () => {
       if (!shopId) return;
       try {
-        // Querying the specific shop's subcollection for catalog items
-        const catalogRef = collection(db, `shops/${shopId}/catalog`);
-        const snap = await getDocs(catalogRef);
-        const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data({ serverTimestamps: 'estimate' }) }));
-        hydrateCatalog(items);
+        const snap = await getDocs(collection(db, `shops/${shopId}/catalog`));
+        const loaded = snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }));
+        hydrateCatalog(loaded);
       } catch (err) {
-        console.error("Failed to load catalog", err);
+        console.error('Failed to load catalog', err);
       }
     };
     fetchCatalog();
   }, [hydrateCatalog, shopId]);
 
-    // Drawer state
+  // Drawer state
   const [isDiscountOpen, setIsDiscountOpen] = useState(false);
   const [activeDiscountItem, setActiveDiscountItem] = useState(null); // null means global discount
 
-
   // Derive top 8 most frequent active items for fast-access grid
-  const storeCatalogItems = useCatalogStore(state => state.items);
+  const storeCatalogItems = useCatalogStore((s) => s.items);
   const fastAccessItems = useMemo(() => {
     return storeCatalogItems
-      .filter(i => i.isActive !== false)
+      .filter((i) => i.id && i.isActive !== false)
       .sort((a, b) => (b.frequency || 0) - (a.frequency || 0))
       .slice(0, 8);
   }, [storeCatalogItems]);
@@ -150,19 +160,10 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
     if (localStorage.getItem('ledgro_haptic') !== 'false') {
       hapticVibrate(10);
     }
-
-    // Optimistically add to local catalog store so it's instantly available next time
-    addCatalogItem({ name: item.name, lastUsedPrice: item.unitPriceAtSale });
-
-    // Asynchronously add to Firestore catalog collection scoped by shopId
-    if (shopId && !item.catalogId) { // Only add if it doesn't have an ID
-      addDoc(collection(db, `shops/${shopId}/catalog`), {
-        name: item.name,
-        lastUsedPrice: item.unitPriceAtSale,
-        addedBy: user.uid,
-        createdAt: serverTimestamp(),
-        stockCount: 0
-      }).catch(console.error); // fire and forget
+    // Remember typed items locally so they show up in search straight away.
+    // The catalog document itself is created at checkout (together with the bill).
+    if (!item.catalogId) {
+      addCatalogItem({ name: item.name, lastUsedPrice: item.unitPriceAtSale, unit: item.unit || 'piece' });
     }
   };
 
@@ -179,17 +180,49 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
   const handleCheckout = async () => {
     if (items.length === 0 || !shopId || isSubmittingRef.current) return;
 
-    // Validate stock before continuing
-    const catalogMap = new Map(useCatalogStore.getState().items.map(i => [i.id, i]));
-    for (const item of items) {
-      if (item.catalogId) {
-        const catItem = catalogMap.get(item.catalogId);
-        if (catItem && catItem.stockCount !== undefined && catItem.stockCount !== null) {
-          if (catItem.stockCount - item.qty < 0) {
-            toast.error(`Not enough stock for ${item.name}. Available: ${catItem.stockCount}`);
-            return;
+    // Split payment sanity
+    const cashPaise = paymentMethod === 'split' ? Math.round((parseFloat(splitCash) || 0) * 100) : 0;
+    if (paymentMethod === 'split' && (cashPaise <= 0 || cashPaise >= grandTotal)) {
+      toast.error('Enter a cash amount between 0 and the bill total.');
+      return;
+    }
+
+    const catalogItems = useCatalogStore.getState().items;
+    const catalogMap = new Map(catalogItems.filter((c) => c.id).map((c) => [c.id, c]));
+    const catalogByName = new Map(catalogItems.filter((c) => c.id).map((c) => [normName(c.name), c]));
+
+    // 1. Resolve every cart line to a catalog document (existing, or one to create)
+    const newCatalog = new Map(); // normalized name -> { id, ref, name, price, unit }
+    const resolved = items.map((line) => {
+      let catalogId = line.catalogId && catalogMap.has(line.catalogId) ? line.catalogId : null;
+      if (!catalogId) {
+        const key = normName(line.name);
+        const existing = catalogByName.get(key);
+        if (existing) {
+          catalogId = existing.id;
+        } else {
+          let fresh = newCatalog.get(key);
+          if (!fresh) {
+            const ref = doc(collection(db, `shops/${shopId}/catalog`));
+            fresh = { id: ref.id, ref, name: String(line.name).slice(0, 100), price: line.unitPriceAtSale, unit: line.unit || 'unit' };
+            newCatalog.set(key, fresh);
           }
+          catalogId = fresh.id;
         }
+      }
+      return { ...line, catalogId };
+    });
+
+    // 2. Aggregate per catalog doc (several cart lines can share one product)
+    const soldQty = new Map();
+    resolved.forEach((l) => soldQty.set(l.catalogId, (soldQty.get(l.catalogId) || 0) + (Number(l.qty) || 0)));
+
+    // 3. Stock check on the aggregate
+    for (const [id, qty] of soldQty) {
+      const cat = catalogMap.get(id);
+      if (cat && cat.stockCount !== undefined && cat.stockCount !== null && cat.stockCount - qty < 0) {
+        toast.error(`Not enough stock for ${cat.name}. Available: ${cat.stockCount}`);
+        return;
       }
     }
 
@@ -197,30 +230,26 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
     isSubmittingRef.current = true;
 
     try {
-      // Calculate split amounts if applicable safely
-      const parsedSplit = parseFloat(splitCash);
-      const cashReceived = isNaN(parsedSplit) ? 0 : Math.round(parsedSplit * 100);
-      const upiAmount = Math.round(Math.max(0, grandTotal - cashReceived));
-
-
       const paymentData = {
         method: paymentMethod,
         breakdown: {
-          cash: paymentMethod === 'split' ? cashReceived : (paymentMethod === 'cash' ? grandTotal : 0),
-          upi: paymentMethod === 'split' ? upiAmount : (paymentMethod === 'upi' ? grandTotal : 0)
-        }
+          cash: paymentMethod === 'split' ? cashPaise : (paymentMethod === 'cash' ? grandTotal : 0),
+          upi: paymentMethod === 'split' ? grandTotal - cashPaise : (paymentMethod === 'upi' ? grandTotal : 0),
+        },
       };
 
-      // Snapshot the bill
+      // Snapshot the bill (no undefined values: Firestore rejects them)
       const payload = {
         creatorId: user.uid,
-        items: items.map(i => ({
+        items: resolved.map((i) => ({
           name: sanitizeText(i.name),
+          catalogId: i.catalogId,
+          unit: i.unit || 'unit',
           unitPrice: i.unitPriceAtSale,
           qty: i.qty,
           rawTotal: i.rawTotal,
           lineDiscount: i.lineDiscount,
-          finalLineTotal: i.finalLineTotal
+          finalLineTotal: i.finalLineTotal,
         })),
         subtotal,
         globalDiscount: state.globalDiscount,
@@ -228,103 +257,114 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
         grandTotal,
         paymentMethod, // legacy string, keeping for backwards compatibility
         payment: paymentData,
-        shopName, // Pass the actual shop name to the receipt
+        shopName: shopName || '',
         billNo: generateBillNumber(user.uid),
         clientCreatedAt: new Date().toISOString(),
-        createdAt: serverTimestamp() // critical for offline ledger ordering
+        createdAt: serverTimestamp(), // critical for offline ledger ordering
       };
 
       const batch = writeBatch(db);
-
       const newBillRef = doc(collection(db, `shops/${shopId}/bills`));
       batch.set(newBillRef, payload);
 
-      // If editing, update original bill to type: reversal
+      // Stock/frequency bookkeeping, one write per catalog doc
+      const stockDelta = new Map(); // id -> signed change
+      soldQty.forEach((qty, id) => stockDelta.set(id, -qty));
+
+      // Editing a bill voids the original and returns its stock
       if (editBill) {
-        const originalBillRef = doc(db, `shops/${shopId}/bills`, editBill.id);
-        batch.update(originalBillRef, {
+        batch.update(doc(db, `shops/${shopId}/bills`, editBill.id), {
           type: 'reversal',
           originalBillId: editBill.id,
           reversedBy: user.uid,
-          reversedAt: serverTimestamp()
+          reversedAt: serverTimestamp(),
         });
-
-        // Restore original bill's stock quantities so we don't permanently lose stock during an edit
-        if (editBill.items && Array.isArray(editBill.items)) {
-          editBill.items.forEach(oldItem => {
-            if (oldItem.catalogId) {
-              const catalogRef = doc(db, `shops/${shopId}/catalog`, oldItem.catalogId);
-              batch.update(catalogRef, { stockCount: increment(oldItem.qty) });
-            }
-          });
-        }
+        (editBill.items || []).forEach((old) => {
+          if (old.catalogId && catalogMap.has(old.catalogId)) {
+            stockDelta.set(old.catalogId, (stockDelta.get(old.catalogId) || 0) + (Number(old.qty) || 0));
+          }
+        });
       }
 
-      // Update catalog: Decrement stock (if tracked) and increment frequency (only on new sale)
-      state.items.forEach(item => {
-        if (item.catalogId) {
-           const catalogItem = catalogMap.get(item.catalogId);
-           if (catalogItem) {
-              const catalogRef = doc(db, `shops/${shopId}/catalog`, item.catalogId);
-              const updates = {};
-              if (!editBill) {
-                updates.frequency = increment(1);
-              }
-              if (catalogItem.stockCount != null) {
-                 updates.stockCount = increment(-item.qty);
-              }
-              if (Object.keys(updates).length > 0) {
-                 batch.update(catalogRef, updates);
-              }
-           }
-        } else {
-           // Dedupe check: prevent duplicate loose items
-           const existingItem = Array.from(catalogMap.values()).find(c => c.id && c.name.toLowerCase() === item.name.toLowerCase());
-           if (existingItem) {
-               if (!editBill) {
-                   batch.update(doc(db, `shops/${shopId}/catalog`, existingItem.id), { frequency: increment(1) });
-               }
-               item.catalogId = existingItem.id;
-           } else {
-               const newCatRef = doc(collection(db, `shops/${shopId}/catalog`));
-               batch.set(newCatRef, {
-                 name: item.name,
-                 lastUsedPrice: item.unitPriceAtSale,
-                 unit: item.unit || 'unit',
-                 isActive: true,
-                 frequency: editBill ? 0 : 1,
-                 createdAt: serverTimestamp(),
-                 updatedAt: serverTimestamp()
-               });
-               item.catalogId = newCatRef.id;
-           }
+      const localCatalogUpdates = [];
+      const touched = new Set([...soldQty.keys(), ...stockDelta.keys()]);
+      touched.forEach((id) => {
+        const cat = catalogMap.get(id);
+        if (!cat) return; // brand-new product, created below
+        const updates = {};
+        if (!editBill && soldQty.has(id)) updates.frequency = increment(1);
+        const delta = stockDelta.get(id) || 0;
+        if (cat.stockCount != null && delta !== 0) updates.stockCount = increment(delta);
+        if (Object.keys(updates).length > 0) {
+          batch.update(doc(db, `shops/${shopId}/catalog`, id), updates);
+          localCatalogUpdates.push({
+            id,
+            name: cat.name,
+            ...(updates.frequency ? { frequency: (cat.frequency || 0) + 1 } : {}),
+            ...(updates.stockCount ? { stockCount: cat.stockCount + delta } : {}),
+          });
         }
       });
 
-      // Write to queue if offline, but commit batch regardless so local firestore updates correctly
-      if (!navigator.onLine) {
-          await putData('pendingBills', { id: newBillRef.id, uid: user.uid, shopId: shopId, path: `shops/${shopId}/bills/${newBillRef.id}`, data: payload });
+      // Brand-new products typed at the till
+      newCatalog.forEach((fresh) => {
+        batch.set(fresh.ref, {
+          name: fresh.name,
+          lastUsedPrice: fresh.price,
+          unit: fresh.unit,
+          isActive: true,
+          frequency: editBill ? 0 : 1,
+          stockCount: null,
+          createdBy: user.uid,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      });
+
+      // Commit. Online: wait for the server's verdict so a rejected bill is NEVER
+      // shown as a success. Offline (or a very slow link): the SDK keeps the write
+      // in its persistent queue and syncs it later, so we continue immediately.
+      const commitPromise = batch.commit();
+      let outcome = 'synced';
+      if (navigator.onLine) {
+        outcome = await Promise.race([
+          commitPromise.then(() => 'synced'),
+          new Promise((resolve) => setTimeout(() => resolve('queued'), COMMIT_TIMEOUT_MS)),
+        ]);
+      } else {
+        outcome = 'queued';
       }
-      batch.commit().catch(e => console.warn("Batch commit deferred offline", e));
+      if (outcome === 'queued') {
+        commitPromise.catch((e) => {
+          console.error('Queued bill was rejected by the server', e);
+          toast.error(`Bill ${payload.billNo} could not be saved. Please re-enter it.`, { duration: Infinity });
+        });
+        toast.info('Saved on this device. It will upload when you are back online.');
+      }
+
+      // Keep the local catalog in step with what we just wrote
+      localCatalogUpdates.forEach((u) => addCatalogItem(u));
+      newCatalog.forEach((fresh) => addCatalogItem({
+        id: fresh.id, name: fresh.name, lastUsedPrice: fresh.price, unit: fresh.unit, isActive: true, frequency: editBill ? 0 : 1, stockCount: null,
+      }));
 
       if (localStorage.getItem('ledgro_haptic') !== 'false') {
         hapticVibrate([50, 30, 50]);
       }
 
-      // Reset state correctly
-      dispatch({ type: 'RESET' });
+      dispatch({ type: 'CLEAR_BILL' });
       setSplitCash('');
-      setLastBill(payload);
+      setLastBill({ ...payload, shopProfile });
       setCheckoutSuccess(true);
       const bCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
       localStorage.setItem('ledgro-billCount', (bCount + 1).toString());
-
     } catch (err) {
-      console.error("Checkout failed:", err);
+      console.error('Checkout failed:', err);
       if (localStorage.getItem('ledgro_haptic') !== 'false') {
         hapticVibrate([100, 50, 100]);
       }
-      toast.error("Checkout failed. Please try again.");
+      // cart is untouched, so the cashier can simply try again
+      toast.error('Checkout failed. Nothing was charged. Please try again.');
     } finally {
       setIsCheckingOut(false);
       isSubmittingRef.current = false;
@@ -333,68 +373,73 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
 
   const generateReceiptImage = async () => {
     if (!receiptRef.current) return null;
+    const { default: html2canvas } = await import('html2canvas-pro');
     const canvas = await html2canvas(receiptRef.current, {
       scale: window.devicePixelRatio || 2,
       useCORS: true,
       backgroundColor: '#ffffff',
       width: 720,
-      logging: false
+      logging: false,
     });
 
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
 
     // Dispose canvas to prevent memory leak
     canvas.width = 0;
     canvas.height = 0;
-    const ctx = canvas.getContext('2d');
-    if (ctx) ctx.clearRect(0, 0, 0, 0);
 
     return blob;
   };
 
   const shareReceipt = async () => {
-    const blob = await generateReceiptImage();
-    if (!blob) return;
+    try {
+      const blob = await generateReceiptImage();
+      if (!blob) return;
 
-    const file = new File([blob], 'ledgro-receipt.png', { type: 'image/png' });
+      const file = new File([blob], 'ledgro-receipt.png', { type: 'image/png' });
 
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          files: [file],
-          title: `Receipt from ${shopName}`
-        });
-        return;
-      } catch (err) {
-        if (err.name === 'AbortError') return;
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: `Receipt from ${shopName}` });
+          return;
+        } catch (err) {
+          if (err.name === 'AbortError') return;
+        }
       }
-    }
 
-    const text = encodeURIComponent(`Receipt from ${shopName} via Ledgro`);
-    const url = `https://wa.me/?text=${text}`;
-    if (url.length <= 2048) window.open(url, '_blank');
+      const text = encodeURIComponent(`Receipt from ${shopName} via Ledgro`);
+      window.open(`https://wa.me/?text=${text}`, '_blank');
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not create the receipt image.');
+    }
   };
 
   const downloadReceipt = async () => {
-    const blob = await generateReceiptImage();
-    if (!blob) return;
+    try {
+      const blob = await generateReceiptImage();
+      if (!blob) return;
 
-    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase());
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase());
 
-    if (isIOS) {
-      const file = new File([blob], 'ledgro-receipt.png', { type: 'image/png' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: 'Save Receipt' }); } catch(e) {}
+      if (isIOS) {
+        const file = new File([blob], 'ledgro-receipt.png', { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try { await navigator.share({ files: [file], title: 'Save Receipt' }); } catch { /* user cancelled */ }
+        }
+        return;
       }
-      return;
-    }
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'ledgro-receipt.png';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 100);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'ledgro-receipt.png';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not create the receipt image.');
+    }
   };
 
   const handleNewBill = () => {
@@ -402,6 +447,8 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
     setLastBill(null);
     dispatch({ type: 'CLEAR_BILL' });
     navigate('.', { replace: true, state: {} });
+    // let a pending app update install now that the sale is fully finished
+    window.dispatchEvent(new Event('ledgro:checkout-complete'));
   };
 
   if (checkoutSuccess) {
@@ -466,7 +513,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
         {fastAccessItems.length > 0 && (
           <div className="px-4 pb-4 overflow-x-auto no-scrollbar">
             <div className="flex gap-2">
-              {fastAccessItems.map(fItem => (
+              {fastAccessItems.map((fItem) => (
                 <button
                   key={fItem.id}
                   onClick={() => handleAddItem({
@@ -475,13 +522,13 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
                     catalogVersionTimestamp: fItem.updatedAt?.toMillis?.() || Date.now(),
                     catalogId: fItem.id,
                     qty: 1,
-                    unit: fItem.unit || 'unit'
+                    unit: fItem.unit || 'unit',
                   })}
                   className="flex-shrink-0 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2 flex flex-col items-center justify-center active:bg-blue-100 transition-colors shadow-sm"
                   style={{ minWidth: '100px' }}
                 >
                   <span className="font-bold text-slate-800 text-sm truncate w-full text-center">{fItem.name}</span>
-                  <span className="text-blue-600 font-bold text-xs mt-0.5">₹{(fItem.lastUsedPrice / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
+                  <span className="text-blue-600 font-bold text-xs mt-0.5">₹{((fItem.lastUsedPrice || 0) / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
                 </button>
               ))}
             </div>
@@ -496,7 +543,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
           ) : (
             <div className="flex flex-col">
               <AnimatePresence mode="popLayout">
-                {items.map(item => (
+                {items.map((item) => (
                   <motion.div
                     key={item.id}
                     layout
@@ -542,7 +589,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
                     </span>
                   )}
                   <animated.span className="text-2xl font-bold text-gray-900 leading-none">
-                    {springTotal.val.to(val => `₹${(Math.round(val) / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`)}
+                    {springTotal.val.to((val) => `₹${(Math.round(val) / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`)}
                   </animated.span>
                 </div>
               </div>
@@ -551,7 +598,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
             {/* Checkout Actions & Payment Toggle */}
             <div className="flex flex-col gap-3">
               <div className="flex bg-slate-100 p-1 rounded-xl">
-                {['cash', 'upi', 'split'].map(method => (
+                {['cash', 'upi', 'split'].map((method) => (
                   <button
                     key={method}
                     onClick={() => {
@@ -566,7 +613,6 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
                   </button>
                 ))}
               </div>
-
 
               {/* Split Payment UI */}
               {paymentMethod === 'split' && (
@@ -619,6 +665,7 @@ const hydrateCatalog = useCatalogStore((state) => state.hydrateCatalog);
         isOpen={isDiscountOpen}
         onClose={() => setIsDiscountOpen(false)}
         targetItem={activeDiscountItem}
+        globalDiscount={state.globalDiscount}
         dispatch={dispatch}
       />
 

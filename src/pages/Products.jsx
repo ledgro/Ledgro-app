@@ -2,7 +2,7 @@ import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
-import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, addDoc, setDoc, doc, updateDoc, deleteDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Drawer } from 'vaul';
@@ -176,7 +176,7 @@ export default function Products() {
         if (navigator.onLine) {
            await updateDoc(docRef, payload);
         } else {
-           updateDoc(docRef, payload).catch(e => console.warn('Offline update deferred'));
+           updateDoc(docRef, payload).catch(() => console.warn('Offline update deferred'));
         }
 
         addCatalogItem({
@@ -209,9 +209,7 @@ export default function Products() {
            newId = docRef.id;
         } else {
            const docRef = doc(db, `shops/${shopId}/catalog`, newId);
-           import('firebase/firestore').then(({ setDoc }) => {
-             setDoc(docRef, payload).catch(e => console.warn('Offline create deferred'));
-           });
+           setDoc(docRef, payload).catch(() => console.warn('Offline create deferred'));
         }
 
         addCatalogItem({
@@ -251,7 +249,7 @@ export default function Products() {
       if (navigator.onLine) {
          await deleteDoc(docRef);
       } else {
-         deleteDoc(docRef).catch(e => console.warn('Offline delete deferred'));
+         deleteDoc(docRef).catch(() => console.warn('Offline delete deferred'));
       }
 
       removeCatalogItem(editingItem.id);
