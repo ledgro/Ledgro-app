@@ -27,7 +27,7 @@ window.addEventListener('vite:preloadError', (event) => {
         shopId,
         savedAt: new Date().toISOString()
       }));
-    } catch(e) {}
+    } catch { /* storage full or blocked */ }
   }
 
   sessionStorage.setItem('ledgro-last-reload', Date.now().toString());
