@@ -25,18 +25,23 @@ service cloud.firestore {
         getShop(shopId).members[request.auth.uid] == 'admin';
     }
 
+    // True when the shop has exactly one member (its admin). Used to allow the
+    // irreversible "close shop / delete account" teardown of financial records.
+    function isSoleAdmin(shopId) {
+      return isAdmin(shopId) && getShop(shopId).members.size() == 1;
+    }
+
     // Validation functions
     function isValidString(val, minLen, maxLen) {
       return val is string && val.size() >= minLen && val.size() <= maxLen;
     }
-
-
 
     match /shops/{shopId} {
       allow read: if isAuthenticated() &&
         resource.data.members[request.auth.uid] != null;
 
       allow create: if isAuthenticated() &&
+        request.resource.data.keys().hasOnly(['name', 'ownerId', 'members']) &&
         request.resource.data.ownerId == request.auth.uid &&
         request.resource.data.members[request.auth.uid] == 'admin' &&
         request.resource.data.members.size() == 1 &&
@@ -46,11 +51,17 @@ service cloud.firestore {
           resource.data.members[request.auth.uid] == 'admin'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'members', 'ownerId', 'phone', 'address', 'tagline', 'updatedAt'])
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) || isValidString(request.resource.data.name, 1, 60))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['phone']) || isValidString(request.resource.data.phone, 0, 30))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['address']) || isValidString(request.resource.data.address, 0, 200))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['tagline']) || isValidString(request.resource.data.tagline, 0, 100))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['members']) || (
                isAdmin(shopId)
                && request.resource.data.members.values().hasAny(['admin'])
                && mapValuesAreRoles(request.resource.data.members)
              ))
+          // the shop owner must always be one of the admins
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerId'])
+              || request.resource.data.members[request.resource.data.ownerId] == 'admin')
         ) || (
           // Allow users to remove themselves from the shop when deleting their account
           (request.auth.uid in resource.data.members)
@@ -71,7 +82,9 @@ service cloud.firestore {
           && getAfter(/databases/$(database)/documents/invites/$(request.resource.data.consumedInviteCode)).data.shopId == shopId
         );
 
-      allow delete: if resource.data.members[request.auth.uid] == 'admin';
+      // Only the last remaining member (an admin) can delete a shop.
+      allow delete: if resource.data.members[request.auth.uid] == 'admin'
+        && resource.data.members.size() == 1;
 
       match /bills/{billId} {
         allow get: if isMember(shopId);
@@ -85,18 +98,32 @@ service cloud.firestore {
           && request.resource.data.items.size() <= 100
           && request.resource.data.subtotal is number
           && request.resource.data.grandTotal is number
-          && request.resource.data.grandTotal <= request.resource.data.subtotal * 2 // Sanity check to prevent massive arbitrary totals relative to subtotal
           && request.resource.data.paymentMethod is string
           && (
-            (request.resource.data.get('type', 'sale') != 'return' && request.resource.data.subtotal >= 0 && request.resource.data.grandTotal >= 0 && request.resource.data.paymentMethod in ['cash', 'upi', 'split'])
+            // SALE: total must equal subtotal minus the recorded bill discount
+            (request.resource.data.get('type', 'sale') == 'sale'
+              && request.resource.data.subtotal >= 0
+              && request.resource.data.get('globalDiscountAmt', 0) is number
+              && request.resource.data.get('globalDiscountAmt', 0) >= 0
+              && request.resource.data.grandTotal == request.resource.data.subtotal - request.resource.data.get('globalDiscountAmt', 0)
+              && request.resource.data.grandTotal >= 0
+              && request.resource.data.paymentMethod in ['cash', 'upi', 'split'])
             ||
-            (request.resource.data.get('type', 'sale') == 'return' && request.resource.data.subtotal <= 0 && request.resource.data.grandTotal <= 0 && request.resource.data.paymentMethod in ['cash', 'upi'])
+            // RETURN: negative entry, refunding no more than the original bill total
+            (request.resource.data.get('type', 'sale') == 'return'
+              && request.resource.data.subtotal <= 0
+              && request.resource.data.grandTotal == request.resource.data.subtotal
+              && request.resource.data.paymentMethod in ['cash', 'upi']
+              && request.resource.data.originalBillId is string
+              && exists(/databases/$(database)/documents/shops/$(shopId)/bills/$(request.resource.data.originalBillId))
+              && -request.resource.data.grandTotal <= get(/databases/$(database)/documents/shops/$(shopId)/bills/$(request.resource.data.originalBillId)).data.grandTotal)
           );
 
+        // Void = turn a sale into a 'reversal' (the only mutation bills allow).
         allow update: if isMember(shopId)
           && (isAdmin(shopId) || resource.data.creatorId == request.auth.uid)
           && request.time < resource.data.createdAt + duration.value(1, 'd')
-          && resource.data.get('type', 'sale') != 'reversal'
+          && resource.data.get('type', 'sale') == 'sale'
           && request.resource.data.type == 'reversal'
           && request.resource.data.grandTotal == resource.data.grandTotal
           && request.resource.data.creatorId == resource.data.creatorId
@@ -105,7 +132,8 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly(['type', 'originalBillId', 'reversedAt', 'reversedBy']);
 
-        allow delete: if false;
+        // Financial records are immutable, except when the sole admin closes the shop.
+        allow delete: if isSoleAdmin(shopId);
       }
 
       match /expenses/{expenseId} {
@@ -120,6 +148,7 @@ service cloud.firestore {
           && request.resource.data.amount > 0
           && isValidString(request.resource.data.category, 1, 50)
           && isValidString(request.resource.data.description, 0, 200)
+          && request.resource.data.get('paidVia', 'cash') in ['cash', 'upi']
           && request.resource.data.creatorId == request.auth.uid;
 
         allow update: if isMember(shopId)
@@ -144,7 +173,8 @@ service cloud.firestore {
           && request.resource.data.actualCash is number
           && request.resource.data.difference is number
           && request.resource.data.date == closureId;
-        allow update, delete: if false; // Closures are immutable locks
+        allow update: if false; // Closures are immutable locks
+        allow delete: if isSoleAdmin(shopId); // only when the shop itself is being closed
       }
 
       match /catalog/{productId} {
@@ -153,9 +183,11 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['name', 'lastUsedPrice', 'unit', 'stockCount', 'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency', 'createdAt', 'createdBy', 'addedBy'])
           && isValidString(request.resource.data.name, 1, 100)
           && request.resource.data.lastUsedPrice is number && request.resource.data.lastUsedPrice >= 0
-          && (request.resource.data.stockCount == null || (request.resource.data.stockCount is number && request.resource.data.stockCount >= 0));
+          && (request.resource.data.get('stockCount', null) == null || (request.resource.data.stockCount is number && request.resource.data.stockCount >= 0));
+        // Any member may change stock in either direction: cashiers restock on
+        // returns/voids and the Products screen lets staff correct counts.
         allow update: if isMember(shopId)
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['stockCount']) || (request.resource.data.stockCount == null || (request.resource.data.stockCount is number && request.resource.data.stockCount >= 0 && (isAdmin(shopId) || request.resource.data.stockCount <= resource.data.stockCount))))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['stockCount']) || (request.resource.data.stockCount == null || (request.resource.data.stockCount is number && request.resource.data.stockCount >= 0)))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastUsedPrice']) || (request.resource.data.lastUsedPrice is number && request.resource.data.lastUsedPrice >= 0))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) || isValidString(request.resource.data.name, 1, 100))
           && request.resource.data.diff(resource.data)
@@ -163,7 +195,8 @@ service cloud.firestore {
               'name', 'lastUsedPrice', 'unit', 'stockCount',
               'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency'
             ]);
-        allow delete: if false;
+        // Products screen offers permanent delete to admins only.
+        allow delete: if isAdmin(shopId);
       }
     }
 
