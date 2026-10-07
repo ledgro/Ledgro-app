@@ -1,25 +1,19 @@
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
-import { getAllData } from '../lib/idb';
+import { fetchAllPaged, flushPendingWrites } from '../lib/firestoreUtils';
+import { csvCell, csvNumber, paiseToRupeesStr, csvRow, downloadTextFile } from '../lib/csv';
 import BottomNav from '../components/BottomNav';
 import { Store, Settings2, Database, User, LogOut, ChevronLeft, Save, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { hapticVibrate } from '../lib/utils';
-// import { broadcastSessionTerminated } from '../lib/sessionBroadcast';
-import { getDocs, collection } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { checkStorageHealth } from '../lib/storageHealth';
 
-function csvEscape(value) {
-  if (value === null || value === undefined) return '';
-  return String(value).replace(/"/g, '""');
-}
-
 export default function Settings() {
-    const { user, shopId, signOut, deleteAccount } = useAuth();
+  const { user, shopId, signOut, deleteAccount } = useAuth();
   const navigate = useNavigate();
 
   // Shop Profile State
@@ -66,9 +60,9 @@ export default function Settings() {
 
 
   useEffect(() => {
-    localStorage.setItem('ledgro_defaultPayment', defaultPayment);
-    localStorage.setItem('ledgro_haptic', hapticFeedback);
-    localStorage.setItem('ledgro_autoReset', autoReset);
+    try { localStorage.setItem('ledgro_defaultPayment', defaultPayment);
+    localStorage.setItem('ledgro_haptic', String(hapticFeedback));
+    localStorage.setItem('ledgro_autoReset', String(autoReset)); } catch { /* storage blocked */ }
   }, [defaultPayment, hapticFeedback, autoReset]);
 
   const handleSaveProfile = async (e) => {
@@ -82,7 +76,7 @@ export default function Settings() {
         address: address.trim(),
         phone: phone.trim(),
         tagline: tagline.trim(),
-        updatedAt: new Date()
+        updatedAt: serverTimestamp()
       });
       if (hapticFeedback) hapticVibrate([50, 30, 50]);
       toast("Shop profile saved!");
@@ -95,93 +89,81 @@ export default function Settings() {
     }
   };
 
+  const [exporting, setExporting] = useState(false);
   const handleExportData = async () => {
-    const escapeCSV = (val) => {
-      if (val === null || val === undefined) return '';
-      let str = String(val);
-      if (/^[=+\-@]/.test(str)) {
-        str = "'" + str;
-      }
-      str = str.replace(/"/g, '""');
-      return `"${str}"`;
-    };
-    if (!shopId) return;
-
+    if (!shopId || exporting) return;
+    setExporting(true);
     try {
-      const billsSnap = await getDocs(collection(db, `shops/${shopId}/bills`));
-      const expSnap = await getDocs(collection(db, `shops/${shopId}/expenses`));
+      const [billDocs, expDocs] = await Promise.all([
+        fetchAllPaged(`shops/${shopId}/bills`),
+        fetchAllPaged(`shops/${shopId}/expenses`),
+      ]);
 
-      // 1. Bills CSV
-      const billHeaders = "Bill Number,Date,Time,Items,Subtotal,Discount,Grand Total,Payment Method,Cash Amount,UPI Amount,Created By,Status";
-      const billRows = [billHeaders];
-
-      const rawBills = [];
-      billsSnap.forEach(doc => {
-         const data = doc.data({ serverTimestamps: 'estimate' });
-         rawBills.push({...data, id: doc.id});
-
-         const date = data.createdAt?.toDate ? format(data.createdAt.toDate(), 'yyyy-MM-dd') : '';
-         const time = data.createdAt?.toDate ? format(data.createdAt.toDate(), 'HH:mm:ss') : '';
-         const items = data.items ? data.items.map(i => `${i.name} (${i.qty})`).join(';') : '';
-
-         let cashAmt = 0;
-         let upiAmt = 0;
-         const pMethod = data.paymentMethod || data.payment?.method || data.refundMethod || 'unknown';
-         if (pMethod === 'split' && data.payment?.breakdown) {
-            cashAmt = data.payment.breakdown.cash;
-            upiAmt = data.payment.breakdown.upi;
-         } else if (pMethod === 'upi') {
-            upiAmt = data.grandTotal;
-         } else {
-            cashAmt = data.grandTotal;
-         }
-
-         const status = data.isVoided ? 'voided' : (data.type || 'active');
-
-         billRows.push(`"${csvEscape(data.billNo || data.id)}","${date}","${time}","${csvEscape(items)}",${data.subtotal || 0},${data.globalDiscountAmt || 0},${data.grandTotal || 0},"${csvEscape(pMethod)}",${cashAmt},${upiAmt},"${csvEscape(data.creatorId)}","${csvEscape(status)}"`);
+      const reversed = new Set();
+      const rawBills = billDocs.map((d) => {
+        const data = d.data({ serverTimestamps: 'estimate' });
+        if (data.type === 'reversal' && data.originalBillId) reversed.add(data.originalBillId);
+        return { ...data, id: d.id };
       });
 
-      // 2. Expenses CSV
-      const expHeaders = "Date,Description,Category,Amount,Created By";
-      const expRows = [expHeaders];
+      const billRows = [csvRow(['Bill Number', 'Date', 'Time', 'Items', 'Subtotal (INR)', 'Discount (INR)', 'Grand Total (INR)', 'Payment Method', 'Cash (INR)', 'UPI (INR)', 'Created By', 'Status'].map(csvCell))];
+      rawBills.forEach((b) => {
+        const created = b.createdAt?.toDate ? b.createdAt.toDate() : null;
+        const items = (b.items || []).map((i) => `${i.name} (${i.qty})`).join(';');
+        const pMethod = b.payment?.method || b.paymentMethod || b.refundMethod || 'unknown';
+        let cashAmt = 0, upiAmt = 0;
+        if (pMethod === 'split' && b.payment?.breakdown) {
+          cashAmt = b.payment.breakdown.cash || 0;
+          upiAmt = b.payment.breakdown.upi || 0;
+        } else if (pMethod === 'upi') {
+          upiAmt = b.grandTotal || 0;
+        } else {
+          cashAmt = b.grandTotal || 0;
+        }
+        const status = reversed.has(b.id) ? 'voided' : (b.type || 'sale');
+        billRows.push(csvRow([
+          csvCell(b.billNo || b.id),
+          csvCell(created ? format(created, 'yyyy-MM-dd') : ''),
+          csvCell(created ? format(created, 'HH:mm:ss') : ''),
+          csvCell(items),
+          csvNumber(paiseToRupeesStr(b.subtotal)),
+          csvNumber(paiseToRupeesStr(b.globalDiscountAmt)),
+          csvNumber(paiseToRupeesStr(b.grandTotal)),
+          csvCell(pMethod),
+          csvNumber(paiseToRupeesStr(cashAmt)),
+          csvNumber(paiseToRupeesStr(upiAmt)),
+          csvCell(b.creatorId),
+          csvCell(status),
+        ]));
+      });
+
       const rawExp = [];
-      expSnap.forEach(doc => {
-         const data = doc.data({ serverTimestamps: 'estimate' });
-         rawExp.push({...data, id: doc.id});
-         const date = data.createdAt?.toDate ? format(data.createdAt.toDate(), 'yyyy-MM-dd HH:mm') : '';
-         expRows.push(`"${date}","${csvEscape(data.description || '')}","${csvEscape(data.category || '')}",${data.amount || 0},"${csvEscape(data.creatorId || '')}"`);
+      const expRows = [csvRow(['Date', 'Description', 'Category', 'Paid Via', 'Amount (INR)', 'Created By'].map(csvCell))];
+      expDocs.forEach((d) => {
+        const e = d.data({ serverTimestamps: 'estimate' });
+        rawExp.push({ ...e, id: d.id });
+        const created = e.createdAt?.toDate ? e.createdAt.toDate() : null;
+        expRows.push(csvRow([
+          csvCell(created ? format(created, 'yyyy-MM-dd HH:mm') : ''),
+          csvCell(e.description || ''),
+          csvCell(e.category || ''),
+          csvCell(e.paidVia || 'cash'),
+          csvNumber(paiseToRupeesStr(e.amount)),
+          csvCell(e.creatorId || ''),
+        ]));
       });
 
-      const downloadFile = (content, filename, type) => {
-         const blob = new Blob([content], { type: type });
-         const url = window.URL.createObjectURL(blob);
-         const a = document.createElement('a');
-         a.href = url;
-         a.download = filename;
-         document.body.appendChild(a);
-         a.click();
-         document.body.removeChild(a);
-         window.URL.revokeObjectURL(url);
-      };
-
-      // Download Sequentially
-      downloadFile(billRows.join('\n'), `ledgro_bills_${Date.now()}.csv`, 'text/csv');
-
-      setTimeout(() => {
-         downloadFile(expRows.join('\n'), `ledgro_expenses_${Date.now()}.csv`, 'text/csv');
-      }, 1000);
-
-      setTimeout(() => {
-         const rawData = JSON.stringify({ bills: rawBills, expenses: rawExp }, null, 2);
-         downloadFile(rawData, `ledgro_backup_${Date.now()}.json`, 'application/json');
-      }, 2000);
-
-    } catch (_err) {
-      console.error(_err);
-      toast.error("Failed to export data.");
+      const stamp = Date.now();
+      downloadTextFile(billRows.join('\n'), `ledgro_bills_${stamp}.csv`);
+      setTimeout(() => downloadTextFile(expRows.join('\n'), `ledgro_expenses_${stamp}.csv`), 1000);
+      setTimeout(() => downloadTextFile(JSON.stringify({ bills: rawBills, expenses: rawExp }, null, 2), `ledgro_backup_${stamp}.json`, 'application/json'), 2000);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export data. Check connection.');
+    } finally {
+      setExporting(false);
     }
   };
-
 
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
@@ -206,47 +188,36 @@ export default function Settings() {
   };
 
   const handleSignOut = async () => {
-    if (!navigator.onLine) {
-      toast.error("Cannot sign out while offline. Please connect to the internet to sync.");
-      return;
-    }
-    try {
-      const pending = await getAllData('pendingBills');
-      if (pending && pending.length > 0) {
-        toast.error("Cannot sign out with pending bills. Please connect to the internet to sync.");
-        return;
-      }
-    } catch (e) {
-      console.error("Error checking pending bills", e);
-    }
-
     try {
       await signOut();
-    } catch (_err) {
-      toast.error("Failed to sign out.");
+    } catch (err) {
+      if (err?.message === 'SYNC_PENDING') {
+        toast.error('Unsynced bills pending. Connect to the internet and wait until they sync, then sign out.');
+      } else {
+        toast.error('Failed to sign out.');
+      }
     }
   };
 
   const handleClearCache = async () => {
-    try {
-      const pending = await getAllData('pendingBills');
-      if (pending && pending.length > 0) {
-        toast.error("Cannot clear cache with pending bills. Please connect to the internet to sync first.");
-        return;
-      }
-    } catch (e) {
-      console.warn("Could not check pending bills", e);
+    if (!window.confirm('Clear app files and reload? Your data stays safe in the cloud.')) return;
+    if (!(await flushPendingWrites())) {
+      toast.error('Unsynced bills pending. Connect to the internet until they sync, then retry.');
+      return;
     }
-
-    if (window.confirm("This will clear local app cache and reload the app. Unsaved offline data may be lost. Continue?")) {
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
       if ('serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();
-        for (let registration of registrations) {
-          await registration.unregister();
-        }
+        await Promise.all(registrations.map((r) => r.unregister()));
       }
-      window.location.reload(true);
+    } catch (err) {
+      console.warn('Cache clear partly failed', err);
     }
+    window.location.reload();
   };
 
   return (
@@ -268,19 +239,19 @@ export default function Settings() {
           <form onSubmit={handleSaveProfile} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1">Shop Name *</label>
-              <input type="text" required value={shopName} onChange={(e) => setShopName(e.target.value)} className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium" />
+              <input type="text" required maxLength={60} value={shopName} onChange={(e) => setShopName(e.target.value)} className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1">Address</label>
-              <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium" />
+              <input type="text" maxLength={200} value={address} onChange={(e) => setAddress(e.target.value)} className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1">Phone Number</label>
-              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium" />
+              <input type="tel" maxLength={30} value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1">Receipt Footer Tagline</label>
-              <input type="text" value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="e.g. Thank you for shopping with us!" className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium" />
+              <input type="text" maxLength={100} value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="e.g. Thank you for shopping with us!" className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium" />
             </div>
             <button type="submit" disabled={savingProfile} className="w-full bg-blue-50 text-blue-600 font-bold h-12 rounded-xl flex items-center justify-center gap-2 active:bg-blue-100 transition-colors">
               <Save size={18} /> {savingProfile ? 'Saving...' : 'Save Profile'}
@@ -360,8 +331,8 @@ export default function Settings() {
                 </div>
               </div>
             )}
-            <button onClick={handleExportData} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors">
-              Export All Data to CSV
+            <button onClick={handleExportData} disabled={exporting} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors">
+              {exporting ? 'Exporting…' : 'Export All Data to CSV'}
             </button>
             <button onClick={handleClearCache} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors text-sm">
               Clear App Cache & Reload

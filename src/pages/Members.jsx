@@ -1,53 +1,30 @@
 import { toast } from 'sonner';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot, clearIndexedDbPersistence, terminate, deleteField, collection, getDocs, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot, deleteField, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Trash2, UserPlus, LogOut, ArrowUpCircle } from 'lucide-react';
-import { hapticVibrate } from '../lib/utils';
 import { broadcastSessionTerminated } from '../lib/sessionBroadcast';
+import { deleteShopCascade, flushPendingWrites } from '../lib/firestoreUtils';
 
 export default function Members() {
-  const { user, shopId, shopAdminId, setShopAdminId, signOut } = useAuth();
+  const { user, shopId, shopAdminId, signOut, beginVoluntaryExit } = useAuth();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const shopAdminIdRef = useRef(shopAdminId);
-  useEffect(() => { shopAdminIdRef.current = shopAdminId; }, [shopAdminId]);
-
   const isCreator = user?.uid === shopAdminId;
 
+  // List only. Removal / shop-deleted / owner changes are handled globally in AuthContext.
   useEffect(() => {
     if (!shopId || !user?.uid) return;
-
-    const performWipe = async () => {
-      localStorage.removeItem('ledgro_offline_shopId');
-      try {
-         await terminate(db);
-         await clearIndexedDbPersistence(db);
-      } catch(e) {
-         console.info('IndexedDB clear skipped or failed', e);
-      }
-      await signOut();
-    };
 
     const unsubscribe = onSnapshot(doc(db, 'shops', shopId), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data({ serverTimestamps: 'estimate' });
         const membersMap = data.members || {};
-
-        if (membersMap[user.uid] == null) {
-          performWipe();
-          return;
-        }
-
-        if (data.ownerId && data.ownerId !== shopAdminIdRef.current) {
-          setShopAdminId(data.ownerId);
-        }
-
         const memberList = Object.keys(membersMap).map(uid => ({
           uid,
           role: membersMap[uid] === 'admin' || uid === data.ownerId ? 'Admin' : 'Member',
@@ -55,17 +32,15 @@ export default function Members() {
         }));
         memberList.sort((a, b) => (a.uid === user.uid ? -1 : b.uid === user.uid ? 1 : 0));
         setMembers(memberList);
-      } else {
-        performWipe();
       }
       setLoading(false);
     }, (error) => {
-       console.error("Snapshot error (permission denied likely due to removal):", error);
-       performWipe();
+      console.error('Members snapshot error:', error);
+      setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [shopId, user?.uid, setShopAdminId, signOut]);
+  }, [shopId, user?.uid]);
 
   const handleGenerateInvite = async () => {
     setIsGenerating(true);
@@ -146,52 +121,40 @@ export default function Members() {
 
   const handleLeaveShop = async () => {
     if (!shopId || !user?.uid) return;
-
-    if (isCreator) {
-       if (members.length > 1) {
-          toast("You are the admin. Transfer admin role to another member before leaving, or remove all members first.");
-          return;
-       }
-       if (window.confirm("You are the only member. This will permanently delete the shop. Continue?")) {
-          try {
-             // Delete orphaned subcollections first
-             const collectionsToDelete = ['bills', 'expenses', 'catalog'];
-             for (const collName of collectionsToDelete) {
-               const subColRef = collection(db, `shops/${shopId}/${collName}`);
-               const snapshot = await getDocs(subColRef);
-               const deletePromises = snapshot.docs.map(d => deleteDoc(d.ref));
-               await Promise.all(deletePromises);
-             }
-
-             await deleteDoc(doc(db, 'shops', shopId));
-             broadcastSessionTerminated();
-             await handleWipeAndExit();
-          } catch {
-             toast.error("Failed to delete shop.");
-          }
-       }
-    } else {
-       if (window.confirm("Are you sure you want to leave this shop?")) {
-          try {
-             const shopRef = doc(db, 'shops', shopId);
-             await updateDoc(shopRef, { [`members.${user.uid}`]: deleteField() });
-             await handleWipeAndExit();
-          } catch {
-             toast.error("Failed to leave shop.");
-          }
-       }
+    if (!navigator.onLine) {
+      toast.error('Go online to leave the shop.');
+      return;
     }
-  };
 
-  const handleWipeAndExit = async () => {
-    localStorage.removeItem('ledgro_offline_shopId');
+    if (isCreator && members.length > 1) {
+      toast('You are the admin. Make another member admin first, or remove all members.');
+      return;
+    }
+
+    const msg = isCreator
+      ? 'You are the only member. This permanently deletes the shop and ALL its bills. Continue?'
+      : 'Are you sure you want to leave this shop?';
+    if (!window.confirm(msg)) return;
+
+    // Queued offline bills would be lost once access is gone.
+    if (!(await flushPendingWrites())) {
+      toast.error('Unsynced bills pending. Stay online until they sync, then retry.');
+      return;
+    }
+
     try {
-       await terminate(db);
-       await clearIndexedDbPersistence(db);
-    } catch(e) {
-       console.info('IndexedDB clear skipped or failed', e);
+      beginVoluntaryExit();
+      if (isCreator) {
+        await deleteShopCascade(shopId);
+        broadcastSessionTerminated();
+      } else {
+        await updateDoc(doc(db, 'shops', shopId), { [`members.${user.uid}`]: deleteField() });
+      }
+      await signOut({ force: true });
+    } catch (err) {
+      console.error(err);
+      toast.error(isCreator ? 'Failed to delete shop.' : 'Failed to leave shop.');
     }
-    await signOut();
   };
 
   return (
@@ -212,7 +175,7 @@ export default function Members() {
                   try {
                     await deleteDoc(doc(db, 'invites', inviteCode));
                     setInviteCode(null);
-                  } catch (e) {
+                  } catch {
                     toast.error("Failed to cancel invite.");
                   }
                 }} className="mt-4 text-sm text-slate-500 underline">
