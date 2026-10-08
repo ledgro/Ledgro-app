@@ -1,9 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import App from './App.jsx'
 import { Toaster, toast } from 'sonner';
 import { registerSW } from 'virtual:pwa-register'
+import { installErrorOverlay } from './lib/errorOverlay'
 
 // Stash cart to localStorage on preload error
 window.addEventListener('vite:preloadError', (event) => {
@@ -94,9 +94,66 @@ const updateSW = registerSW({
   },
 })
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-    <Toaster position="top-center" />
-  </StrictMode>,
-)
+// ---- Startup safety net -------------------------------------------------------------
+// A blank white page is the worst failure: nobody can tell what is wrong. If the app
+// cannot start (missing build setting, stale cache, broken script) show the reason and
+// a one-tap reset instead.
+let lastStartupError = '';
+window.addEventListener('error', (e) => { lastStartupError = e.message || String(e.error || ''); });
+window.addEventListener('unhandledrejection', (e) => { lastStartupError = String(e.reason?.message || e.reason || ''); });
+
+function showFatal(message) {
+  const root = document.getElementById('root');
+  if (!root) return;
+  root.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.setAttribute('role', 'alert');
+  wrap.style.cssText = 'min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;font-family:system-ui,sans-serif;background:#F8FAFC;color:#0F172A';
+  const h = document.createElement('h1');
+  h.textContent = 'Ledgro could not start';
+  h.style.cssText = 'font-size:24px;font-weight:800;margin:0';
+  const p = document.createElement('p');
+  p.textContent = message;
+  p.style.cssText = 'font-size:14px;line-height:1.5;max-width:420px;margin:0;color:#475569;word-break:break-word';
+  const btn = document.createElement('button');
+  btn.textContent = 'Clear cache and reload';
+  btn.style.cssText = 'height:48px;padding:0 24px;border:0;border-radius:12px;background:#2563EB;color:#fff;font-size:16px;font-weight:700';
+  btn.onclick = async () => {
+    try {
+      const regs = await navigator.serviceWorker?.getRegistrations();
+      await Promise.all((regs || []).map((r) => r.unregister()));
+      const keys = await window.caches?.keys();
+      await Promise.all((keys || []).map((k) => caches.delete(k)));
+    } catch { /* ignore */ }
+    window.location.reload();
+  };
+  wrap.append(h, p, btn);
+  root.append(wrap);
+}
+
+async function start() {
+  if (!import.meta.env.VITE_FIREBASE_API_KEY) {
+    showFatal('This build has no Firebase key. Set VITE_FIREBASE_API_KEY in the hosting build settings, then redeploy.');
+    return;
+  }
+  try {
+    const { default: App } = await import('./App.jsx');
+    createRoot(document.getElementById('root')).render(
+      <StrictMode>
+        <App />
+        <Toaster position="top-center" />
+      </StrictMode>,
+    );
+    installErrorOverlay();
+    // If nothing painted after 8s, say so instead of leaving a white screen.
+    setTimeout(() => {
+      const root = document.getElementById('root');
+      if (root && root.childElementCount === 0) showFatal(lastStartupError || 'The app did not load. Clearing the cache usually fixes this.');
+    }, 8000);
+  } catch (err) {
+    console.error('Startup failed:', err);
+    showFatal(String(err?.message || err));
+  }
+}
+
+start();

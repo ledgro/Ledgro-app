@@ -36,7 +36,7 @@ export default defineConfig({
       manifest: {
         id: '/',
         name: 'Ledgro POS',
-        description: 'Offline-first billing, ledger and expenses for small shops.',
+        description: 'Billing, ledger and expenses for small shops.',
         categories: ['business', 'finance', 'productivity'],
         short_name: 'Ledgro',
         theme_color: '#F8FAFC',

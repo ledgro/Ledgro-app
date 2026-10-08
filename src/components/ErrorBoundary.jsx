@@ -76,6 +76,11 @@ export class ErrorBoundary extends Component {
           <p className="text-slate-500 text-sm mb-6 max-w-sm mx-auto">
             An unexpected error occurred. You can return to the dashboard or refresh the app.
           </p>
+          {this.state.error && (
+            <pre className="text-left text-xs text-slate-500 bg-white border border-slate-200 rounded-xl p-3 mb-6 max-w-sm w-full mx-auto whitespace-pre-wrap break-words max-h-40 overflow-auto">
+              {String(this.state.error?.message || this.state.error)}
+            </pre>
+          )}
           <div className="flex flex-col gap-3 w-full max-w-xs mx-auto">
              <button
                onClick={this.handleReset}
