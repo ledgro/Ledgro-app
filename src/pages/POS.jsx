@@ -2,7 +2,7 @@ import { toast } from 'sonner';
 import { useReducer, useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
-import { collection, getDocs, writeBatch, doc, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, getDoc, writeBatch, doc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Tag, ArrowRight, Share2, PlusCircle, Download } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -62,6 +62,7 @@ export default function POS() {
   const isSubmittingRef = useRef(false);
   // Same bill doc id is reused if a slow commit is retried, so a bill can never be saved twice.
   const pendingBillRefRef = useRef(null);
+  const timedOutRef = useRef(false);
   const receiptRef = useRef(null);
 
   // Checkout state (declared before any effect/hook that reads it)
@@ -325,11 +326,19 @@ export default function POS() {
       // Online-only: wait for the server's verdict. A bill is NEVER shown as success unless
       // the server accepted it. The same bill id is reused on retry, so no duplicates.
       if (!navigator.onLine) throw new Error('OFFLINE');
-      await Promise.race([
-        batch.commit(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), COMMIT_TIMEOUT_MS)),
-      ]);
+      // After a timeout the first attempt may have landed. If the bill exists, do not write again.
+      let alreadySaved = false;
+      if (timedOutRef.current) {
+        try { alreadySaved = (await getDoc(newBillRef)).exists(); } catch { /* treat as not saved */ }
+      }
+      if (!alreadySaved) {
+        await Promise.race([
+          batch.commit(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), COMMIT_TIMEOUT_MS)),
+        ]);
+      }
       pendingBillRefRef.current = null;
+      timedOutRef.current = false;
 
       // Keep the local catalog in step with what we just wrote
       localCatalogUpdates.forEach((u) => addCatalogItem(u));
@@ -356,9 +365,11 @@ export default function POS() {
       if (err?.message === 'OFFLINE') {
         toast.error('You are offline. Reconnect, then tap Checkout again. Nothing was saved.');
       } else if (err?.message === 'TIMEOUT') {
+        timedOutRef.current = true;
         toast.error('Slow connection. The bill may still go through. Check Ledger before tapping Checkout again.', { duration: 8000 });
       } else {
         pendingBillRefRef.current = null;
+        timedOutRef.current = false;
         toast.error('Checkout failed. Nothing was charged. Please try again.');
       }
     } finally {
