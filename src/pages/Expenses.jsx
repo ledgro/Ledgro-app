@@ -64,6 +64,11 @@ export default function Expenses() {
       return;
     }
 
+    if (!navigator.onLine) {
+      toast.error('You are offline. Reconnect and try again. Nothing was saved.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const payload = {
@@ -77,15 +82,7 @@ export default function Expenses() {
       };
 
       const expensesRef = collection(db, `shops/${shopId}/expenses`);
-      // Don't await addDoc for offline responsiveness. Firestore SDK will queue it.
-      let newDocRef;
-      if (navigator.onLine) {
-        newDocRef = await addDoc(expensesRef, payload);
-      } else {
-        // Fire and forget if offline so UI doesn't hang
-        addDoc(expensesRef, payload).catch(err => console.warn('Offline add deferred', err));
-        newDocRef = { id: crypto.randomUUID() }; // Fake ID for optimistic UI
-      }
+      const newDocRef = await addDoc(expensesRef, payload);
 
       // Optimistic addition
       setExpenses(prev => [{ id: newDocRef.id, ...payload, createdAt: { toDate: () => new Date() } }, ...prev]);
@@ -106,6 +103,7 @@ export default function Expenses() {
   };
 
   const handleDeleteExpense = async (id) => {
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
     if (!window.confirm("Are you sure you want to delete this expense?")) return;
     // 1. Optimistic UI update (instantly remove from screen)
     const previousExpenses = [...expenses];

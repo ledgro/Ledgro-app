@@ -87,6 +87,7 @@ export default function Members() {
 
   const handleRemoveMember = async (targetUid) => {
     if (!isCreator || targetUid === user?.uid) return;
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
     if (window.confirm("Are you sure you want to remove this member?")) {
       try {
         const shopRef = doc(db, 'shops', shopId);
@@ -103,6 +104,7 @@ export default function Members() {
 
   const handleMakeAdmin = async (targetUid) => {
      if (!isCreator || targetUid === user?.uid) return;
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
      if (window.confirm("Make this member the new admin? You will become a regular member.")) {
         try {
            const shopRef = doc(db, 'shops', shopId);

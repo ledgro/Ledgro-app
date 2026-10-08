@@ -129,7 +129,9 @@ export default function Ledger() {
   };
 
   const handleVoidBill = async (originalBill) => {
-    if (!shopId || !user || !window.confirm('Are you sure you want to void this bill?')) return;
+    if (!shopId || !user) return;
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
+    if (!window.confirm('Are you sure you want to void this bill?')) return;
     if (hapticOn()) hapticVibrate(20);
 
     setReversingId(originalBill.id);
@@ -211,6 +213,7 @@ export default function Ledger() {
     });
 
     if (returnedItemsList.length === 0 || returnTotal <= 0) return;
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
     if (!window.confirm(`Process refund of ${formatCurrency(returnTotal)} via ${refundMethod.toUpperCase()}?`)) return;
     if (hapticOn()) hapticVibrate(20);
 

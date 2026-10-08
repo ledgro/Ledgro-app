@@ -11,7 +11,15 @@ window.addEventListener('vite:preloadError', (event) => {
 
   const lastReload = sessionStorage.getItem('ledgro-last-reload');
   if (lastReload && Date.now() - parseInt(lastReload) < 10000) {
-    console.warn("Skipping reload loop");
+    console.warn("Reload loop detected: resetting service worker and caches once");
+    if (!sessionStorage.getItem('ledgro-sw-reset')) {
+      sessionStorage.setItem('ledgro-sw-reset', '1');
+      const done = () => window.location.reload();
+      Promise.all([
+        navigator.serviceWorker?.getRegistrations().then((rs) => Promise.all(rs.map((r) => r.unregister()))),
+        window.caches?.keys().then((ks) => Promise.all(ks.map((k) => caches.delete(k)))),
+      ]).then(done, done);
+    }
     return;
   }
 

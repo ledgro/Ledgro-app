@@ -164,7 +164,7 @@ service cloud.firestore {
       match /dailyClosures/{closureId} {
         allow get: if isMember(shopId);
         allow list: if isMember(shopId) && request.query.limit <= 100;
-        allow create: if isMember(shopId)
+        allow create, update: if isMember(shopId)
           && closureId.matches('^\\d{4}-\\d{2}-\\d{2}$')
           && request.resource.data.creatorId == request.auth.uid
           && request.resource.data.createdAt == request.time
@@ -173,7 +173,6 @@ service cloud.firestore {
           && request.resource.data.actualCash is number
           && request.resource.data.difference is number
           && request.resource.data.date == closureId;
-        allow update: if false; // Closures are immutable locks
         allow delete: if isSoleAdmin(shopId); // only when the shop itself is being closed
       }
 

@@ -19,7 +19,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { hapticVibrate, sanitizeText } from '../lib/utils';
 import { shareFile, saveFile, canvasToBlob, canvasToPdfBlob } from '../lib/shareFile';
 
-const COMMIT_TIMEOUT_MS = 10000;
+const COMMIT_TIMEOUT_MS = 15000;
 const normName = (s) => String(s || '').normalize('NFC').trim().toLowerCase();
 
 // Bill numbers must not collide across devices: uid prefix + per-device tag + daily counter.
@@ -60,6 +60,8 @@ export default function POS() {
 
   const [state, dispatch] = useReducer(billReducer, initialBillState);
   const isSubmittingRef = useRef(false);
+  // Same bill doc id is reused if a slow commit is retried, so a bill can never be saved twice.
+  const pendingBillRefRef = useRef(null);
   const receiptRef = useRef(null);
 
   // Checkout state (declared before any effect/hook that reads it)
@@ -261,7 +263,8 @@ export default function POS() {
       };
 
       const batch = writeBatch(db);
-      const newBillRef = doc(collection(db, `shops/${shopId}/bills`));
+      if (!pendingBillRefRef.current) pendingBillRefRef.current = doc(collection(db, `shops/${shopId}/bills`));
+      const newBillRef = pendingBillRefRef.current;
       batch.set(newBillRef, payload);
 
       // Stock/frequency bookkeeping, one write per catalog doc
@@ -319,26 +322,14 @@ export default function POS() {
         });
       });
 
-      // Commit. Online: wait for the server's verdict so a rejected bill is NEVER
-      // shown as a success. Offline (or a very slow link): the SDK keeps the write
-      // in its persistent queue and syncs it later, so we continue immediately.
-      const commitPromise = batch.commit();
-      let outcome = 'synced';
-      if (navigator.onLine) {
-        outcome = await Promise.race([
-          commitPromise.then(() => 'synced'),
-          new Promise((resolve) => setTimeout(() => resolve('queued'), COMMIT_TIMEOUT_MS)),
-        ]);
-      } else {
-        outcome = 'queued';
-      }
-      if (outcome === 'queued') {
-        commitPromise.catch((e) => {
-          console.error('Queued bill was rejected by the server', e);
-          toast.error(`Bill ${payload.billNo} could not be saved. Please re-enter it.`, { duration: Infinity });
-        });
-        toast.info('Saved on this device. It will upload when you are back online.');
-      }
+      // Online-only: wait for the server's verdict. A bill is NEVER shown as success unless
+      // the server accepted it. The same bill id is reused on retry, so no duplicates.
+      if (!navigator.onLine) throw new Error('OFFLINE');
+      await Promise.race([
+        batch.commit(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), COMMIT_TIMEOUT_MS)),
+      ]);
+      pendingBillRefRef.current = null;
 
       // Keep the local catalog in step with what we just wrote
       localCatalogUpdates.forEach((u) => addCatalogItem(u));
@@ -362,7 +353,14 @@ export default function POS() {
         hapticVibrate([100, 50, 100]);
       }
       // cart is untouched, so the cashier can simply try again
-      toast.error('Checkout failed. Nothing was charged. Please try again.');
+      if (err?.message === 'OFFLINE') {
+        toast.error('You are offline. Reconnect, then tap Checkout again. Nothing was saved.');
+      } else if (err?.message === 'TIMEOUT') {
+        toast.error('Slow connection. The bill may still go through. Check Ledger before tapping Checkout again.', { duration: 8000 });
+      } else {
+        pendingBillRefRef.current = null;
+        toast.error('Checkout failed. Nothing was charged. Please try again.');
+      }
     } finally {
       setIsCheckingOut(false);
       isSubmittingRef.current = false;

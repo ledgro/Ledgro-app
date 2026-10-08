@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback, useDeferredValue } from 'reac
 import { useAuth } from '../context/AuthContext';
 import { checkStorageHealth } from '../lib/storageHealth';
 import { measureClockDrift } from '../lib/clockDrift';
-import { collection, serverTimestamp, doc, writeBatch } from 'firebase/firestore';
+import { serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Cloud, CloudOff, RefreshCcw } from 'lucide-react';
@@ -108,7 +108,7 @@ export default function Dashboard() {
 
   const handleCloseRegister = async () => {
     if (!navigator.onLine) {
-      toast.error("You must be online to close the register.");
+      toast.error("You must be online to save the cash count.");
       return;
     }
 
@@ -141,36 +141,17 @@ export default function Dashboard() {
         date: closureDocId
       };
 
-      const batch = writeBatch(db);
-
+      // Cash count: can be re-saved any time today (latest count wins). Nothing is locked
+      // and no expense is created: it only records expected vs counted.
       const closureRef = doc(db, `shops/${shopId}/dailyClosures`, closureDocId);
-      batch.set(closureRef, closureData);
+      await setDoc(closureRef, closureData);
 
-      if (diffPaise < 0) {
-        const expRef = doc(collection(db, `shops/${shopId}/expenses`));
-        batch.set(expRef, {
-          amount: Math.abs(diffPaise),
-          category: 'cash_adjustment',
-          description: 'Cash Shortage',
-          creatorId: user.uid,
-          createdAt: serverTimestamp(),
-          paidVia: 'cash'
-        });
-      }
-      // Removed Cash Overage fake logic entirely to avoid polluting counts
-
-      await batch.commit();
-
-      toast.success("Day locked and summary saved!");
+      toast.success("Cash count saved!");
       setIsCloseDrawerOpen(false);
       setActualCashCounted('');
       fetchDashboardData();
     } catch (err) {
-      if (err.code === 'permission-denied') {
-        toast.error('Register for today is already closed.');
-      } else {
-        toast.error("Failed to close register. Please try again.");
-      }
+      toast.error("Could not save the cash count. Please try again.");
     } finally {
       setIsClosingRecord(false);
     }
@@ -183,7 +164,7 @@ export default function Dashboard() {
       <div className="bg-slate-100 py-1.5 px-4 flex justify-between items-center text-[11px] font-bold text-slate-500 sticky top-0 z-30">
          <div className="flex items-center gap-1.5">
            {syncStatus.online ? <Cloud size={14} className="text-blue-500" /> : <CloudOff size={14} className="text-amber-500" />}
-           {syncStatus.online ? `Online` : <span className="text-amber-600">Offline — changes saved locally</span>}
+           {syncStatus.online ? `Online` : <span className="text-amber-600">Offline — reconnect to bill or save</span>}
          </div>
          <button aria-label="Refresh Dashboard" onClick={() => fetchDashboardData()} className="active:rotate-180 transition-transform"><RefreshCcw size={14} /></button>
       </div>
@@ -281,7 +262,7 @@ export default function Dashboard() {
            disabled={loading}
            className="w-full bg-slate-900 text-white font-bold h-14 rounded-xl shadow-sm active:scale-95 transition-transform"
          >
-           Close Register
+           Count Cash
          </button>
       </div>
 
@@ -291,7 +272,7 @@ export default function Dashboard() {
           <Drawer.Content className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 fixed bottom-0 left-0 right-0 z-50 h-[85vh]">
             <div className="p-4 bg-slate-50 flex-1 overflow-y-auto rounded-t-[24px] pb-safe">
                <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-slate-200 mb-6" />
-               <h2 className="text-2xl font-black text-slate-900 mb-6 text-center">End of Day Summary</h2>
+               <h2 className="text-2xl font-black text-slate-900 mb-6 text-center">Cash Count</h2>
 
                <div className="space-y-6">
                  {/* Cash Math */}
@@ -343,7 +324,7 @@ export default function Dashboard() {
                        ) : (
                          <div className="text-amber-700 font-bold bg-amber-50 p-3 rounded-lg text-sm">
                            Difference: {formatCurrency(Math.abs(Math.round(parseFloat(actualCashCounted) * 100) - stats.expectedCash))}
-                           <p className="text-xs font-medium mt-1">This will be recorded as a Cash {Math.round(parseFloat(actualCashCounted) * 100) > stats.expectedCash ? 'Overage (Income)' : 'Shortage (Expense)'}.</p>
+                           <p className="text-xs font-medium mt-1">Saved with the count only. It is not added to expenses or income.</p>
                          </div>
                        )}
                      </div>
@@ -355,7 +336,7 @@ export default function Dashboard() {
                    disabled={isClosingRecord || actualCashCounted === '' || isNaN(parseFloat(actualCashCounted))}
                    className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl active:scale-95 disabled:opacity-50"
                  >
-                   {isClosingRecord ? 'Locking...' : 'Lock Day'}
+                   {isClosingRecord ? 'Saving...' : 'Save Count'}
                  </button>
                </div>
             </div>

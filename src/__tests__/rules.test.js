@@ -130,9 +130,11 @@ d('firestore.rules', () => {
 
   describe('dailyClosures', () => {
     const clo = (uid) => ({ expectedCash: 100, actualCash: 90, difference: -10, creatorId: uid, createdAt: serverTimestamp(), date: '2026-01-02' });
-    it('create once, never update', async () => {
+    it('cash count can be re-saved; only own uid, correct date', async () => {
       await assertSucceeds(setDoc(doc(as(MEMBER), `shops/${SHOP}/dailyClosures/2026-01-02`), clo(MEMBER)));
-      await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/dailyClosures/2026-01-02`), clo(MEMBER)));
+      await assertSucceeds(setDoc(doc(as(MEMBER), `shops/${SHOP}/dailyClosures/2026-01-02`), { ...clo(MEMBER), actualCash: 100, difference: 0 }));
+      await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/dailyClosures/2026-01-02`), clo(ADMIN)));
+      await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/dailyClosures/2026-01-03`), clo(MEMBER)));
     });
   });
 
