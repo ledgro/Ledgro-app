@@ -181,7 +181,7 @@ export default function Dashboard() {
       <div className="bg-slate-100 py-1.5 px-4 flex justify-between items-center text-[11px] font-bold text-slate-500 sticky top-0 z-30">
          <div className="flex items-center gap-1.5">
            {syncStatus.online ? <Cloud size={14} className="text-blue-500" /> : <CloudOff size={14} className="text-amber-500" />}
-           {syncStatus.online ? `Online` : <span className="text-amber-600">Offline — reconnect to bill or save</span>}
+           {syncStatus.online ? `Online` : <span className="text-amber-600">Offline: reconnect to bill or save</span>}
          </div>
          <div className="flex items-center gap-4">
            <button
@@ -204,7 +204,7 @@ export default function Dashboard() {
           <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 relative mb-4">
             <button aria-label="Close" onClick={() => { localStorage.setItem('iosInstallPromptDismissed', 'true'); setShowIOSPrompt(false); }} className="absolute top-2 right-2 p-1 text-blue-400">✕</button>
             <p className="font-bold text-blue-900 text-sm mb-1">Add Ledgro to your Home Screen</p>
-            <p className="text-xs text-blue-700">To protect your offline data from being deleted by iOS, tap the share icon below and select "Add to Home Screen".</p>
+            <p className="text-xs text-blue-700">For quicker opening and a full screen app, tap the share icon below and select "Add to Home Screen".</p>
           </div>
         )}
 

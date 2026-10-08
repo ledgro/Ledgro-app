@@ -120,3 +120,21 @@ describe('Dashboard privacy', () => {
     expect(document.querySelectorAll('.blur-md').length).toBeGreaterThan(0);
   });
 });
+
+describe('Legal pages', () => {
+  test.each([
+    ['Terms of Service', () => import('../pages/TermsOfService'), 19],
+    ['Privacy Policy', () => import('../pages/PrivacyPolicy'), 14],
+  ])('%s renders in full with no placeholders or long dashes', async (name, load, count) => {
+    const { default: Page } = await load();
+    const { container } = render(<MemoryRouter><Page /></MemoryRouter>);
+    const text = container.textContent;
+    expect(container.querySelectorAll('section[id^="sec-"]').length).toBe(count);
+    expect(text.split(/\s+/).length).toBeGreaterThan(1200);
+    expect(text).not.toMatch(/[—–]/);
+    expect(text).not.toMatch(/\[[A-Za-z][^\]]*\]/);
+    expect(text).toContain('support@ledgro.in');
+    fireEvent.click(screen.getByRole('button', { name: 'ml' }));
+    expect(container.textContent).toMatch(/ഇംഗ്ലീഷ്/);
+  });
+});
