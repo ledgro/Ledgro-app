@@ -6,7 +6,7 @@ import { measureClockDrift } from '../lib/clockDrift';
 import { serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
-import { Cloud, CloudOff, RefreshCcw } from 'lucide-react';
+import { Cloud, CloudOff, RefreshCcw, Eye, EyeOff } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { Skeleton } from '../components/Skeleton';
 import { Drawer } from 'vaul';
@@ -21,6 +21,23 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState({ online: navigator.onLine, pending: false, lastSynced: 'Just now' });
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
+
+  // Privacy: amounts are blurred every time the dashboard opens. Reveal lasts 30s,
+  // and re-hides when the app goes to the background.
+  const [hidden, setHidden] = useState(true);
+  useEffect(() => {
+    if (hidden) return undefined;
+    const t = setTimeout(() => setHidden(true), 30000);
+    return () => clearTimeout(t);
+  }, [hidden]);
+  useEffect(() => {
+    const onVis = () => { if (document.visibilityState === 'hidden') setHidden(true); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+  const mask = (node) => (hidden
+    ? <span className="blur-md select-none pointer-events-none" aria-hidden="true">{node}</span>
+    : node);
 
   const chartRef = useRef(null);
 
@@ -166,7 +183,18 @@ export default function Dashboard() {
            {syncStatus.online ? <Cloud size={14} className="text-blue-500" /> : <CloudOff size={14} className="text-amber-500" />}
            {syncStatus.online ? `Online` : <span className="text-amber-600">Offline — reconnect to bill or save</span>}
          </div>
-         <button aria-label="Refresh Dashboard" onClick={() => fetchDashboardData()} className="active:rotate-180 transition-transform"><RefreshCcw size={14} /></button>
+         <div className="flex items-center gap-4">
+           <button
+             type="button"
+             aria-label={hidden ? 'Show amounts' : 'Hide amounts'}
+             aria-pressed={!hidden}
+             onClick={() => setHidden((h) => !h)}
+             className="p-2 -m-2 text-slate-500 active:scale-90 transition-transform"
+           >
+             {hidden ? <EyeOff size={18} /> : <Eye size={18} />}
+           </button>
+           <button aria-label="Refresh Dashboard" onClick={() => fetchDashboardData()} className="p-2 -m-2 active:rotate-180 transition-transform"><RefreshCcw size={14} /></button>
+         </div>
       </div>
 
       <main className="p-4 space-y-4">
@@ -192,11 +220,11 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Expected Cash</p>
-                 <h2 className="text-2xl font-black text-slate-900">{formatCurrency(stats.expectedCash)}</h2>
+                 <h2 className="text-2xl font-black text-slate-900">{mask(formatCurrency(stats.expectedCash))}</h2>
               </div>
               <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">In Bank (UPI)</p>
-                 <h2 className="text-2xl font-black text-slate-900">{formatCurrency(stats.upiInBank)}</h2>
+                 <h2 className="text-2xl font-black text-slate-900">{mask(formatCurrency(stats.upiInBank))}</h2>
               </div>
             </div>
 
@@ -206,10 +234,10 @@ export default function Dashboard() {
                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Today's Net Earnings</p>
                  <div className="flex items-end gap-3">
                    <h2 className={cn("text-4xl font-black", stats.netEarnings >= 0 ? "text-green-600" : "text-red-500")}>
-                     {formatCurrency(stats.netEarnings)}
+                     {mask(formatCurrency(stats.netEarnings))}
                    </h2>
                    {stats.vsYesterday !== 0 && (
-                     <span className="text-xs font-medium text-slate-400 mb-1">
+                     <span className={cn("text-xs font-medium text-slate-400 mb-1", hidden && "blur-sm select-none")}>
                        {stats.vsYesterday > 0 ? '↑' : '↓'} {Math.abs(stats.vsYesterday).toFixed(0)}% vs yesterday
                      </span>
                    )}
@@ -217,7 +245,7 @@ export default function Dashboard() {
                </div>
 
                {/* Sparkline Canvas */}
-               <div className="h-16 w-full">
+               <div className={cn("h-16 w-full transition-[filter]", hidden && "blur-sm")}>
                  <Bar
                    ref={chartRef}
                    data={{
@@ -244,10 +272,10 @@ export default function Dashboard() {
             {/* Cash vs UPI split */}
             <div className="grid grid-cols-2 gap-px bg-slate-100 border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
               <div className="bg-white p-4 text-center">
-                <p className="text-lg font-black text-green-600">Cash {formatCurrency(stats.cashSplit)}</p>
+                <p className="text-lg font-black text-green-600">Cash {mask(formatCurrency(stats.cashSplit))}</p>
               </div>
               <div className="bg-white p-4 text-center">
-                <p className="text-lg font-black text-blue-600">UPI {formatCurrency(stats.upiSplit)}</p>
+                <p className="text-lg font-black text-blue-600">UPI {mask(formatCurrency(stats.upiSplit))}</p>
               </div>
             </div>
 
@@ -278,16 +306,16 @@ export default function Dashboard() {
                  {/* Cash Math */}
                  <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm font-mono text-sm">
                    <p className="font-bold font-sans text-slate-900 mb-3 border-b pb-2">Expected Cash in Drawer:</p>
-                   <div className="flex justify-between text-slate-600 mb-1"><span>Cash Sales:</span><span>{formatCurrency(stats.cashSplit)}</span></div>
-                   <div className="flex justify-between text-slate-600 mb-1"><span>- Cash Expenses:</span><span>{formatCurrency(stats.cashSplit - stats.expectedCash)}</span></div>
-                   <div className="flex justify-between font-bold text-slate-900 border-t pt-2 mt-2"><span>Expected Total:</span><span>{formatCurrency(stats.expectedCash)}</span></div>
+                   <div className="flex justify-between text-slate-600 mb-1"><span>Cash Sales:</span><span>{mask(formatCurrency(stats.cashSplit))}</span></div>
+                   <div className="flex justify-between text-slate-600 mb-1"><span>- Cash Expenses:</span><span>{mask(formatCurrency(stats.cashSplit - stats.expectedCash))}</span></div>
+                   <div className="flex justify-between font-bold text-slate-900 border-t pt-2 mt-2"><span>Expected Total:</span><span>{mask(formatCurrency(stats.expectedCash))}</span></div>
                  </div>
 
                  {/* UPI Math */}
                  <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm font-mono text-sm">
                    <p className="font-bold font-sans text-slate-900 mb-3 border-b pb-2">Expected Bank Deposit (UPI):</p>
-                   <div className="flex justify-between text-slate-600 mb-1"><span>UPI Sales:</span><span>{formatCurrency(stats.upiSplit)}</span></div>
-                   <div className="flex justify-between font-bold text-slate-900 border-t pt-2 mt-2"><span>Expected Total:</span><span>{formatCurrency(stats.upiInBank)}</span></div>
+                   <div className="flex justify-between text-slate-600 mb-1"><span>UPI Sales:</span><span>{mask(formatCurrency(stats.upiSplit))}</span></div>
+                   <div className="flex justify-between font-bold text-slate-900 border-t pt-2 mt-2"><span>Expected Total:</span><span>{mask(formatCurrency(stats.upiInBank))}</span></div>
                  </div>
 
                  {/* Verification Input */}
@@ -323,7 +351,7 @@ export default function Dashboard() {
                          <div className="flex items-center gap-2 text-green-600 font-bold bg-green-50 p-3 rounded-lg"><span className="text-xl">✓</span> All balanced</div>
                        ) : (
                          <div className="text-amber-700 font-bold bg-amber-50 p-3 rounded-lg text-sm">
-                           Difference: {formatCurrency(Math.abs(Math.round(parseFloat(actualCashCounted) * 100) - stats.expectedCash))}
+                           Difference: {mask(formatCurrency(Math.abs(Math.round(parseFloat(actualCashCounted) * 100) - stats.expectedCash)))}
                            <p className="text-xs font-medium mt-1">Saved with the count only. It is not added to expenses or income.</p>
                          </div>
                        )}
