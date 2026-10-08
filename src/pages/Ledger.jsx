@@ -10,6 +10,8 @@ import { Drawer } from 'vaul';
 import { formatCurrency, cn, hapticVibrate } from '../lib/utils';
 import { useBodyLock } from '../hooks/useBodyLock';
 import { fetchAllPaged } from '../lib/firestoreUtils';
+import { writeStats, voidEntries } from '../lib/dayStats';
+import { billDelta, dayKey } from '../lib/statsMath';
 import { buildReport, rs } from '../lib/reportExport';
 import { saveFile } from '../lib/shareFile';
 import ExportMenu from '../components/ExportMenu';
@@ -148,6 +150,7 @@ export default function Ledger() {
       });
 
       await addCatalogAdjustments(batch, originalBill.items, { sign: 1 });
+      writeStats(batch, shopId, await voidEntries(shopId, originalBill));
       await batch.commit();
 
       setBills((prev) => prev.map((b) => (b.id === originalBill.id ? { ...b, type: 'reversal', originalBillId: b.id, reversedBy: user.uid, reversedAt: new Date() } : b)));
@@ -241,6 +244,7 @@ export default function Ledger() {
 
       // Returned goods go back on the shelf (tracked items only).
       await addCatalogAdjustments(batch, returnedItemsList, { sign: 1 });
+      writeStats(batch, shopId, [{ key: dayKey(new Date()), delta: billDelta(payload) }]);
       await batch.commit();
 
       setBills((prev) => [{
