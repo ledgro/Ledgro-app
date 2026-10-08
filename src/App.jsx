@@ -16,6 +16,7 @@ const PLScreen = lazy(() => import('./pages/PLScreen'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 import SplashScreen from './components/SplashScreen';
+import OfflineBanner from './components/OfflineBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Protected Route wrapper
@@ -125,6 +126,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
+        <OfflineBanner />
         <RouterProvider router={router} />
       </AuthProvider>
     </ErrorBoundary>

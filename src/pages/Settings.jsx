@@ -70,6 +70,7 @@ export default function Settings() {
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     if (!shopId || !shopName.trim()) return;
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
     setSavingProfile(true);
     try {
       const docRef = doc(db, 'shops', shopId);

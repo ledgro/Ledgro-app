@@ -2,7 +2,7 @@ import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
-import { collection, addDoc, setDoc, doc, updateDoc, deleteDoc, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Drawer } from 'vaul';
@@ -112,6 +112,7 @@ export default function Products() {
 
   const handleSaveProduct = async (e) => {
     e.preventDefault();
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
     if (!shopId || !name.trim() || !price) return;
 
     sessionGuard.assertValidSession(user.uid);
@@ -173,11 +174,7 @@ export default function Products() {
            updatedStockForState = null;
         }
 
-        if (navigator.onLine) {
-           await updateDoc(docRef, payload);
-        } else {
-           updateDoc(docRef, payload).catch(() => console.warn('Offline update deferred'));
-        }
+        await updateDoc(docRef, payload);
 
         addCatalogItem({
           ...editingItem,
@@ -202,15 +199,8 @@ export default function Products() {
         payload.frequency = 0;
 
         const collectionRef = collection(db, `shops/${shopId}/catalog`);
-        let newId = crypto.randomUUID().replace(/-/g, '').substring(0, 20); // Fallback ID if offline
-
-        if (navigator.onLine) {
-           const docRef = await addDoc(collectionRef, payload);
-           newId = docRef.id;
-        } else {
-           const docRef = doc(db, `shops/${shopId}/catalog`, newId);
-           setDoc(docRef, payload).catch(() => console.warn('Offline create deferred'));
-        }
+        const newDocRef = await addDoc(collectionRef, payload);
+        const newId = newDocRef.id;
 
         addCatalogItem({
           ...payload,
@@ -231,6 +221,7 @@ export default function Products() {
   };
 
   const handleDeleteProduct = async () => {
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again.'); return; }
     if (!editingItem || !editingItem.id || !shopId) return;
 
     if (!isAdmin) {
@@ -246,11 +237,7 @@ export default function Products() {
     try {
       const docRef = doc(db, `shops/${shopId}/catalog`, editingItem.id);
 
-      if (navigator.onLine) {
-         await deleteDoc(docRef);
-      } else {
-         deleteDoc(docRef).catch(() => console.warn('Offline delete deferred'));
-      }
+      await deleteDoc(docRef);
 
       removeCatalogItem(editingItem.id);
       toast.success('Product permanently deleted');

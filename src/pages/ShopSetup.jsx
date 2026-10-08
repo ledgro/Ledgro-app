@@ -17,6 +17,7 @@ const ShopSetup = () => {
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!shopName.trim() || !user?.uid) return;
+    if (!navigator.onLine) { setError('You are offline. Reconnect and try again.'); return; }
 
     try {
       setLoading(true);
@@ -52,6 +53,7 @@ const ShopSetup = () => {
       setError("Please enter a valid 20-character invite code");
       return;
     }
+    if (!navigator.onLine) { setError('You are offline. Reconnect and try again.'); return; }
 
     try {
       setLoading(true);
