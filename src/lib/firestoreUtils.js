@@ -49,7 +49,7 @@ export async function deleteCollectionPaged(collectionPath) {
  * (that is the only case firestore.rules allow it).
  */
 export async function deleteShopCascade(shopId) {
-  for (const sub of ['bills', 'expenses', 'catalog', 'dailyClosures']) {
+  for (const sub of ['bills', 'expenses', 'catalog', 'dailyClosures', 'dailyStats']) {
     await deleteCollectionPaged(`shops/${shopId}/${sub}`);
   }
   await deleteDoc(doc(db, 'shops', shopId));

@@ -2,6 +2,8 @@ import { toast } from 'sonner';
 import { useReducer, useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
+import { writeStats, voidEntries } from '../lib/dayStats';
+import { billDelta, dayKey } from '../lib/statsMath';
 import { collection, getDocs, getDoc, writeBatch, doc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Tag, ArrowRight, Share2, PlusCircle, Download } from 'lucide-react';
@@ -267,6 +269,7 @@ export default function POS() {
       if (!pendingBillRefRef.current) pendingBillRefRef.current = doc(collection(db, `shops/${shopId}/bills`));
       const newBillRef = pendingBillRefRef.current;
       batch.set(newBillRef, payload);
+      const statEntries = [{ key: dayKey(new Date()), delta: billDelta(payload) }];
 
       // Stock/frequency bookkeeping, one write per catalog doc
       const stockDelta = new Map(); // id -> signed change
@@ -274,6 +277,7 @@ export default function POS() {
 
       // Editing a bill voids the original and returns its stock
       if (editBill) {
+        statEntries.push(...(await voidEntries(shopId, editBill)));
         batch.update(doc(db, `shops/${shopId}/bills`, editBill.id), {
           type: 'reversal',
           originalBillId: editBill.id,
@@ -322,6 +326,8 @@ export default function POS() {
           updatedAt: serverTimestamp(),
         });
       });
+
+      writeStats(batch, shopId, statEntries);
 
       // Online-only: wait for the server's verdict. A bill is NEVER shown as success unless
       // the server accepted it. The same bill id is reused on retry, so no duplicates.

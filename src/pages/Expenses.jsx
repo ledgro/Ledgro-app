@@ -1,7 +1,9 @@
 import { toast } from 'sonner';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, orderBy, getDocs, addDoc, serverTimestamp, deleteDoc, doc, limit } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, serverTimestamp, writeBatch, doc, limit } from 'firebase/firestore';
+import { writeStats } from '../lib/dayStats';
+import { dayKey, toDate, expenseDelta, negate } from '../lib/statsMath';
 import { db } from '../firebase';
 import { Drawer } from 'vaul';
 import BottomNav from '../components/BottomNav';
@@ -81,8 +83,11 @@ export default function Expenses() {
         clientCreatedAt: new Date().toISOString()
       };
 
-      const expensesRef = collection(db, `shops/${shopId}/expenses`);
-      const newDocRef = await addDoc(expensesRef, payload);
+      const newDocRef = doc(collection(db, `shops/${shopId}/expenses`));
+      const batch = writeBatch(db);
+      batch.set(newDocRef, payload);
+      writeStats(batch, shopId, [{ key: dayKey(new Date()), delta: expenseDelta(payload) }]);
+      await batch.commit();
 
       // Optimistic addition
       setExpenses(prev => [{ id: newDocRef.id, ...payload, createdAt: { toDate: () => new Date() } }, ...prev]);
@@ -111,7 +116,11 @@ export default function Expenses() {
 
     try {
       // 2. Asynchronous backend deletion
-      await deleteDoc(doc(db, `shops/${shopId}/expenses`, id));
+      const gone = previousExpenses.find((e) => e.id === id);
+      const batch = writeBatch(db);
+      batch.delete(doc(db, `shops/${shopId}/expenses`, id));
+      if (gone) writeStats(batch, shopId, [{ key: dayKey(toDate(gone.createdAt)), delta: negate(expenseDelta(gone)) }]);
+      await batch.commit();
     } catch (err) {
       console.error("Failed to delete expense", err);
       // Rollback on failure

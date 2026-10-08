@@ -103,3 +103,20 @@ describe('POS checkout', () => {
     expect(await screen.findByText(/Checkout Successful/i)).toBeTruthy();
   });
 });
+
+describe('Dashboard privacy', () => {
+  test('amounts start blurred, eye reveals, eye hides again', async () => {
+    const { default: Dashboard } = await import('../pages/Dashboard');
+    render(<MemoryRouter><Dashboard /></MemoryRouter>);
+    await act(async () => { await new Promise((r) => setTimeout(r, 60)); });
+
+    const show = await screen.findByRole('button', { name: /show amounts/i });
+    expect(document.querySelectorAll('.blur-md').length).toBeGreaterThan(0);
+
+    fireEvent.click(show);
+    expect(document.querySelectorAll('.blur-md').length).toBe(0);
+
+    fireEvent.click(screen.getByRole('button', { name: /hide amounts/i }));
+    expect(document.querySelectorAll('.blur-md').length).toBeGreaterThan(0);
+  });
+});

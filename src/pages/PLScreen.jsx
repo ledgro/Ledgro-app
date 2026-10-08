@@ -1,9 +1,8 @@
 import { toast } from 'sonner';
 import { useState, useEffect, useRef, useCallback, useDeferredValue } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { where } from 'firebase/firestore';
-import { fetchAllPaged } from '../lib/firestoreUtils';
-import { isCashAdjustment, signedBillTotal } from '../lib/aggregations';
+import { readStatsRange } from '../lib/dayStats';
+import { dayKey, sumStats } from '../lib/statsMath';
 import { rs } from '../lib/reportExport';
 import { shareFile, saveFile, canvasToBlob } from '../lib/shareFile';
 import BottomNav from '../components/BottomNav';
@@ -47,58 +46,14 @@ export default function PLScreen() {
 
     try {
       const toDate = range.to ? endOfDay(range.to) : endOfDay(range.from);
-
-      const rangeC = [where('createdAt', '>=', range.from), where('createdAt', '<=', toDate)];
-      const [billDocs, expDocs] = await Promise.all([
-        fetchAllPaged(`shops/${shopId}/bills`, rangeC),
-        fetchAllPaged(`shops/${shopId}/expenses`, rangeC),
-      ]);
-
-      // Returns whose original bill was voided must not count.
-      const voided = new Set();
-      billDocs.forEach((d) => {
-        const b = d.data();
-        if (b.type === 'reversal' || b.isVoided) { voided.add(d.id); if (b.originalBillId) voided.add(b.originalBillId); }
-      });
-
-      let rev = { total: 0, cash: 0, upi: 0, splitCash: 0, splitUpi: 0 };
-
-      billDocs.forEach(d => {
-        const b = d.data({ serverTimestamps: 'estimate' });
-        if (b.type === 'reversal' || b.isVoided) return;
-        if (b.type === 'return' && voided.has(b.originalBillId)) return;
-
-        const multiplier = b.type === 'return' ? -1 : 1;
-        const total = signedBillTotal(b);
-
-        rev.total += total;
-
-        const method = b.payment?.method || b.paymentMethod;
-        if (method === 'split' && b.payment?.breakdown) {
-           rev.splitCash += (b.payment.breakdown.cash || 0) * multiplier;
-           rev.splitUpi += (b.payment.breakdown.upi || 0) * multiplier;
-        } else if (method === 'upi' || b.refundMethod === 'upi') {
-           rev.upi += total;
-        } else {
-           rev.cash += total;
-        }
-      });
-
-      let expTotal = 0;
-      let expCats = {};
-      expDocs.forEach(d => {
-        const e = d.data({ serverTimestamps: 'estimate' });
-        if (isCashAdjustment(e)) return;
-        const amt = parseFloat(e.amount) || 0;
-        expTotal += amt;
-        const cat = e.category || 'other';
-        expCats[cat] = (expCats[cat] || 0) + amt;
-      });
+      // Stored day totals: one read per day in range, however many bills exist.
+      const days = await readStatsRange(shopId, dayKey(range.from), dayKey(toDate));
+      const t = sumStats([...days.values()]);
 
       return {
-        revenue: rev,
-        expenses: { total: expTotal, byCategory: expCats },
-        netEarnings: rev.total - expTotal
+        revenue: { total: t.rev, cash: t.cash, upi: t.upi, splitCash: t.splitCash, splitUpi: t.splitUpi },
+        expenses: { total: t.exp, byCategory: t.cats },
+        netEarnings: t.rev - t.exp
       };
     } catch (err) {
       console.error(err);

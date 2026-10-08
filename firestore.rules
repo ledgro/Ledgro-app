@@ -176,6 +176,27 @@ service cloud.firestore {
         allow delete: if isSoleAdmin(shopId); // only when the shop itself is being closed
       }
 
+      // Day totals, kept in step with bills and expenses by the app (no Cloud Functions).
+      match /dailyStats/{day} {
+        allow get: if isMember(shopId);
+        allow list: if isMember(shopId) && request.query.limit <= 100;
+        allow create, update: if isMember(shopId)
+          && day.matches('^\\d{4}-\\d{2}-\\d{2}$')
+          && request.resource.data.keys().hasOnly(['date', 'rev', 'cash', 'upi', 'splitCash', 'splitUpi', 'bills', 'exp', 'expCash', 'cats'])
+          && request.resource.data.keys().hasAll(['date', 'rev', 'cash', 'upi', 'splitCash', 'splitUpi', 'bills', 'exp', 'expCash'])
+          && request.resource.data.date == day
+          && request.resource.data.rev is number
+          && request.resource.data.cash is number
+          && request.resource.data.upi is number
+          && request.resource.data.splitCash is number
+          && request.resource.data.splitUpi is number
+          && request.resource.data.bills is number
+          && request.resource.data.exp is number
+          && request.resource.data.expCash is number
+          && request.resource.data.get('cats', {}) is map;
+        allow delete: if isSoleAdmin(shopId); // only when the shop itself is being closed
+      }
+
       match /catalog/{productId} {
         allow read: if isMember(shopId);
         allow create: if isMember(shopId)
