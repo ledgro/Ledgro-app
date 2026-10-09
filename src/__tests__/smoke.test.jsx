@@ -39,6 +39,7 @@ vi.mock('../context/AuthContext', () => ({
 
 // chart.js needs a real canvas; jsdom has none
 vi.mock('react-chartjs-2', () => ({ Bar: () => null }));
+vi.mock('../lib/clockDrift', () => ({ serverNow: async () => new Date(), CLOCK_MSG: 'clock' }));
 
 const firestore = await import('firebase/firestore');
 const { useCatalogStore } = await import('../store/catalogStore');
