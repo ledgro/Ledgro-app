@@ -180,6 +180,26 @@ d('firestore.rules', () => {
     });
   });
 
+  describe('dailyStats', () => {
+    const st = (day, extra = {}) => ({ date: day, rev: 100, cash: 100, upi: 0, splitCash: 0, splitUpi: 0, bills: 1, exp: 0, expCash: 0, cats: {}, ...extra });
+    const path = (day) => `shops/${SHOP}/dailyStats/${day}`;
+    it('member writes valid day; outsider cannot', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), path('2026-01-02')), st('2026-01-02')));
+      await assertFails(setDoc(doc(as(OUTSIDER), path('2026-01-03')), st('2026-01-03')));
+    });
+    it('rejects bad id, mismatched date, extra key, non-number', async () => {
+      await assertFails(setDoc(doc(as(MEMBER), path('bad')), st('bad')));
+      await assertFails(setDoc(doc(as(MEMBER), path('2026-01-02')), st('2026-01-03')));
+      await assertFails(setDoc(doc(as(MEMBER), path('2026-01-02')), st('2026-01-02', { extra: 1 })));
+      await assertFails(setDoc(doc(as(MEMBER), path('2026-01-02')), st('2026-01-02', { rev: 'x' })));
+    });
+    it('members read; member cannot delete', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), path('2026-01-02')), st('2026-01-02')));
+      await assertSucceeds(getDoc(doc(as(MEMBER), path('2026-01-02'))));
+      await assertFails(deleteDoc(doc(as(MEMBER), path('2026-01-02'))));
+    });
+  });
+
   describe('invites', () => {
     it('admin creates; list is blocked', async () => {
       const exp = Timestamp.fromMillis(Date.now() + 30 * 60 * 1000);
