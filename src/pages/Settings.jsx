@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { fetchAllPaged, flushPendingWrites } from '../lib/firestoreUtils';
+import { rebuildStats } from '../lib/dayStats';
 import { buildReport, rs } from '../lib/reportExport';
 import { saveFile } from '../lib/shareFile';
 import ExportMenu from '../components/ExportMenu';
@@ -15,7 +16,9 @@ import { format } from 'date-fns';
 import { checkStorageHealth } from '../lib/storageHealth';
 
 export default function Settings() {
-  const { user, shopId, signOut, deleteAccount } = useAuth();
+  const { user, shopId, shopAdminId, signOut, deleteAccount } = useAuth();
+  const isOwner = !!user?.uid && shopAdminId === user.uid;
+  const [recalculating, setRecalculating] = useState(false);
   const navigate = useNavigate();
 
   // Shop Profile State
@@ -144,6 +147,24 @@ export default function Settings() {
   };
 
   // Full-fidelity machine backup (restore / audit)
+  // Daily totals are stored as bills are made. Bills made before that existed (or any drift)
+  // are fixed by recomputing the last 90 days straight from the real bills and expenses.
+  const handleRecalculate = async () => {
+    if (!shopId || recalculating) return;
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
+    if (!window.confirm('Recalculate daily totals from your bills and expenses of the last 90 days? This replaces the stored totals and reads every bill in that period, which can take a while on a busy shop.')) return;
+    setRecalculating(true);
+    try {
+      const r = await rebuildStats(shopId, 90);
+      toast.success(`Totals recalculated from ${r.bills} bills.`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not recalculate totals. Check your connection and try again.');
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   const handleBackupJson = async () => {
     if (!shopId) return;
     try {
@@ -326,6 +347,11 @@ export default function Settings() {
               <span className="text-sm font-bold text-slate-700">Export data</span>
               <ExportMenu label="PDF / PNG" onPick={handleExportData} className="text-xs font-black uppercase bg-slate-900 text-white px-3 py-1.5 rounded-full active:scale-95" />
             </div>
+            {isOwner && (
+              <button onClick={handleRecalculate} disabled={recalculating} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors text-sm disabled:opacity-50">
+                {recalculating ? 'Recalculating...' : 'Recalculate totals (last 90 days)'}
+              </button>
+            )}
             <button onClick={handleBackupJson} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors text-sm">
               Backup file (JSON)
             </button>
