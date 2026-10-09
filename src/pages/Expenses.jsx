@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { collection, query, orderBy, getDocs, serverTimestamp, writeBatch, doc, limit } from 'firebase/firestore';
 import { writeStats } from '../lib/dayStats';
 import { bizDayKey, toDate, expenseDelta, negate } from '../lib/statsMath';
+import { serverNow } from '../lib/clockDrift';
 import { db } from '../firebase';
 import { Drawer } from 'vaul';
 import BottomNav from '../components/BottomNav';
@@ -86,7 +87,7 @@ export default function Expenses() {
       const newDocRef = doc(collection(db, `shops/${shopId}/expenses`));
       const batch = writeBatch(db);
       batch.set(newDocRef, payload);
-      writeStats(batch, shopId, [{ key: bizDayKey(new Date()), delta: expenseDelta(payload) }]);
+      writeStats(batch, shopId, [{ key: bizDayKey(await serverNow()), delta: expenseDelta(payload) }]);
       await batch.commit();
 
       // Optimistic addition

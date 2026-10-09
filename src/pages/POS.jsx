@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
 import { writeStats, voidEntries } from '../lib/dayStats';
 import { billDelta, bizDayKey } from '../lib/statsMath';
+import { serverNow } from '../lib/clockDrift';
 import { collection, getDocs, getDoc, writeBatch, doc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Tag, ArrowRight, Share2, PlusCircle, Download } from 'lucide-react';
@@ -269,7 +270,7 @@ export default function POS() {
       if (!pendingBillRefRef.current) pendingBillRefRef.current = doc(collection(db, `shops/${shopId}/bills`));
       const newBillRef = pendingBillRefRef.current;
       batch.set(newBillRef, payload);
-      const statEntries = [{ key: bizDayKey(new Date()), delta: billDelta(payload) }];
+      const statEntries = [{ key: bizDayKey(await serverNow()), delta: billDelta(payload) }];
 
       // Stock/frequency bookkeeping, one write per catalog doc
       const stockDelta = new Map(); // id -> signed change

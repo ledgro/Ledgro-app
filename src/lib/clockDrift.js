@@ -49,3 +49,9 @@ export async function measureClockDrift() {
   }
   return null;
 }
+
+/** Server-corrected "now". Uses the hosting Date header offset, falls back to the phone clock. No cloud function. */
+export async function serverNow() {
+  const offset = (await measureClockDrift()) || 0;
+  return new Date(Date.now() + offset);
+}
