@@ -2,7 +2,7 @@ import { toast } from 'sonner';
 import { useState, useEffect, useRef, useCallback, useDeferredValue } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { readStatsRange } from '../lib/dayStats';
-import { dayKey, sumStats } from '../lib/statsMath';
+import { dayKey, bizDate, sumStats } from '../lib/statsMath';
 import { rs } from '../lib/reportExport';
 import { shareFile, saveFile, canvasToBlob } from '../lib/shareFile';
 import BottomNav from '../components/BottomNav';
@@ -22,7 +22,7 @@ export default function PLScreen() {
 
   // Dates
   const [dateRangeType, setDateRangeType] = useState('today'); // today, week, month, custom
-  const [dateRange, setDateRange] = useState({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
+  const [dateRange, setDateRange] = useState({ from: startOfDay(bizDate()), to: endOfDay(bizDate()) });
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [tempRange, setTempRange] = useState({ from: undefined, to: undefined });
   const [vsLastMonth, setVsLastMonth] = useState(false);
@@ -68,9 +68,9 @@ export default function PLScreen() {
       setLoading(true);
 
       let currentRange = dateRange;
-      if (dateRangeType === 'today') currentRange = { from: startOfDay(new Date()), to: endOfDay(new Date()) };
-      else if (dateRangeType === 'week') currentRange = { from: startOfWeek(new Date(), {weekStartsOn:1}), to: endOfDay(new Date()) };
-      else if (dateRangeType === 'month') currentRange = { from: startOfMonth(new Date()), to: endOfDay(new Date()) };
+      if (dateRangeType === 'today') currentRange = { from: startOfDay(bizDate()), to: endOfDay(bizDate()) };
+      else if (dateRangeType === 'week') currentRange = { from: startOfWeek(bizDate(), {weekStartsOn:1}), to: endOfDay(bizDate()) };
+      else if (dateRangeType === 'month') currentRange = { from: startOfMonth(bizDate()), to: endOfDay(bizDate()) };
 
       const currentData = await fetchPLData(currentRange);
 

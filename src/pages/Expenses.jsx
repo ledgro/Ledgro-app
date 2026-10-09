@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { collection, query, orderBy, getDocs, serverTimestamp, writeBatch, doc, limit } from 'firebase/firestore';
 import { writeStats } from '../lib/dayStats';
-import { dayKey, toDate, expenseDelta, negate } from '../lib/statsMath';
+import { bizDayKey, toDate, expenseDelta, negate } from '../lib/statsMath';
 import { db } from '../firebase';
 import { Drawer } from 'vaul';
 import BottomNav from '../components/BottomNav';
@@ -86,7 +86,7 @@ export default function Expenses() {
       const newDocRef = doc(collection(db, `shops/${shopId}/expenses`));
       const batch = writeBatch(db);
       batch.set(newDocRef, payload);
-      writeStats(batch, shopId, [{ key: dayKey(new Date()), delta: expenseDelta(payload) }]);
+      writeStats(batch, shopId, [{ key: bizDayKey(new Date()), delta: expenseDelta(payload) }]);
       await batch.commit();
 
       // Optimistic addition
@@ -119,7 +119,7 @@ export default function Expenses() {
       const gone = previousExpenses.find((e) => e.id === id);
       const batch = writeBatch(db);
       batch.delete(doc(db, `shops/${shopId}/expenses`, id));
-      if (gone) writeStats(batch, shopId, [{ key: dayKey(toDate(gone.createdAt)), delta: negate(expenseDelta(gone)) }]);
+      if (gone) writeStats(batch, shopId, [{ key: bizDayKey(toDate(gone.createdAt)), delta: negate(expenseDelta(gone)) }]);
       await batch.commit();
     } catch (err) {
       console.error("Failed to delete expense", err);

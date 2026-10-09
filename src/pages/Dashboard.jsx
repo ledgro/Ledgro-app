@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback, useDeferredValue } from 'reac
 import { useAuth } from '../context/AuthContext';
 import { checkStorageHealth } from '../lib/storageHealth';
 import { measureClockDrift } from '../lib/clockDrift';
+import { bizDayKey } from '../lib/statsMath';
 import { serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
@@ -145,7 +146,7 @@ export default function Dashboard() {
         return;
       }
       const nowC = new Date(Date.now() + offset);
-      const closureDocId = `${nowC.getFullYear()}-${String(nowC.getMonth() + 1).padStart(2, '0')}-${String(nowC.getDate()).padStart(2, '0')}`;
+      const closureDocId = bizDayKey(nowC);
       setClosureDate(closureDocId);
       const diffPaise = Math.round(parsedActual * 100) - stats.expectedCash;
 

@@ -16,6 +16,16 @@ export function signedBillTotal(b) {
 
 export const dayKey = (d) => format(d, 'yyyy-MM-dd');
 
+// Business day rolls over at 04:30, not midnight. A sale at 01:00 belongs to the day before.
+export const DAY_CUTOFF_MIN = 4 * 60 + 30;
+const CUT_MS = DAY_CUTOFF_MIN * 60 * 1000;
+/** Date whose calendar day equals the business day of `d` (default now). Use for "today" and ranges. */
+export const bizDate = (d = new Date()) => new Date(d.getTime() - CUT_MS);
+/** Day key (yyyy-MM-dd) of the business day an event timestamp falls in. */
+export const bizDayKey = (d = new Date()) => dayKey(bizDate(d));
+/** Real start of a business day given its calendar date: 04:30 local that day. */
+export const bizDayStart = (day) => { const x = new Date(day); x.setHours(0, 0, 0, 0); return new Date(x.getTime() + CUT_MS); };
+
 export function toDate(ts) {
   if (!ts) return new Date();
   if (typeof ts.toDate === 'function') return ts.toDate();
@@ -90,11 +100,11 @@ export function buildDayStats(bills, expenses) {
   bills.forEach((b) => {
     if (b.type === 'reversal' || b.isVoided) return;
     if (b.type === 'return' && voided.has(b.originalBillId)) return;
-    addInto(get(dayKey(toDate(b.createdAt))), billDelta(b));
+    addInto(get(bizDayKey(toDate(b.createdAt))), billDelta(b));
   });
   expenses.forEach((e) => {
     if (isCashAdjustment(e)) return;
-    addInto(get(dayKey(toDate(e.createdAt))), expenseDelta(e));
+    addInto(get(bizDayKey(toDate(e.createdAt))), expenseDelta(e));
   });
   return map;
 }
