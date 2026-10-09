@@ -11,7 +11,8 @@ import { formatCurrency, cn, hapticVibrate } from '../lib/utils';
 import { useBodyLock } from '../hooks/useBodyLock';
 import { fetchAllPaged } from '../lib/firestoreUtils';
 import { writeStats, voidEntries } from '../lib/dayStats';
-import { billDelta, dayKey } from '../lib/statsMath';
+import { billDelta, bizDayKey } from '../lib/statsMath';
+import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
 import { buildReport, rs } from '../lib/reportExport';
 import { saveFile } from '../lib/shareFile';
 import ExportMenu from '../components/ExportMenu';
@@ -244,7 +245,7 @@ export default function Ledger() {
 
       // Returned goods go back on the shelf (tracked items only).
       await addCatalogAdjustments(batch, returnedItemsList, { sign: 1 });
-      writeStats(batch, shopId, [{ key: dayKey(new Date()), delta: billDelta(payload) }]);
+      writeStats(batch, shopId, [{ key: bizDayKey(await serverNow()), delta: billDelta(payload) }]);
       await batch.commit();
 
       setBills((prev) => [{
@@ -258,7 +259,7 @@ export default function Ledger() {
       if (hapticOn()) hapticVibrate([50, 30, 50]);
     } catch (e) {
       console.error(e);
-      toast.error('Failed to process return');
+      toast.error(e?.message === 'CLOCK' ? CLOCK_MSG : 'Failed to process return');
       if (hapticOn()) hapticVibrate([100, 50, 100]);
     } finally {
       setProcessingReturn(false);

@@ -1,6 +1,6 @@
 import { subDays } from 'date-fns';
 import { readStatsRange } from './dayStats';
-import { dayKey, emptyStats } from './statsMath';
+import { dayKey, bizDate, emptyStats } from './statsMath';
 
 export { isCashAdjustment, signedBillTotal } from './statsMath';
 
@@ -8,7 +8,7 @@ export { isCashAdjustment, signedBillTotal } from './statsMath';
 export async function computeDailyAggregations(shopId) {
   if (!shopId) return null;
 
-  const today = new Date();
+  const today = bizDate();
   const keys = [];
   for (let i = 6; i >= 0; i--) keys.push(dayKey(subDays(today, i)));
   const stats = await readStatsRange(shopId, keys[0], keys[6]);

@@ -1,6 +1,6 @@
 import { collection, doc, getDocs, increment, limit, orderBy, query, startAfter, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { billDelta, dayKey, emptyStats, mergeEntries, negate, toDate, buildDayStats } from './statsMath';
+import { billDelta, dayKey, bizDayKey, bizDate, bizDayStart, emptyStats, mergeEntries, negate, toDate, buildDayStats } from './statsMath';
 import { fetchAllPaged } from './firestoreUtils';
 
 const NUM_KEYS = ['rev', 'cash', 'upi', 'splitCash', 'splitUpi', 'bills', 'exp', 'expCash'];
@@ -25,11 +25,11 @@ export function writeStats(batch, shopId, entries) {
  * excluded by the reports too, so they come out of their days as well.
  */
 export async function voidEntries(shopId, original) {
-  const entries = [{ key: dayKey(toDate(original.createdAt)), delta: negate(billDelta({ ...original, type: original.type === 'return' ? 'return' : 'sale' })) }];
+  const entries = [{ key: bizDayKey(toDate(original.createdAt)), delta: negate(billDelta({ ...original, type: original.type === 'return' ? 'return' : 'sale' })) }];
   const snap = await getDocs(query(collection(db, `shops/${shopId}/bills`), where('originalBillId', '==', original.id), limit(100)));
   snap.docs.forEach((d) => {
     const r = d.data({ serverTimestamps: 'estimate' });
-    if (r.type === 'return') entries.push({ key: dayKey(toDate(r.createdAt)), delta: negate(billDelta(r)) });
+    if (r.type === 'return') entries.push({ key: bizDayKey(toDate(r.createdAt)), delta: negate(billDelta(r)) });
   });
   return entries;
 }
@@ -57,7 +57,8 @@ export async function readStatsRange(shopId, fromKey, toKey) {
 export async function rebuildStats(shopId, days = 90) {
   const { writeBatch } = await import('firebase/firestore');
   const to = new Date();
-  const from = new Date(); from.setDate(from.getDate() - days); from.setHours(0, 0, 0, 0);
+  const first = bizDate(); first.setDate(first.getDate() - days); first.setHours(0, 0, 0, 0);
+  const from = bizDayStart(first);
   const range = [where('createdAt', '>=', from), where('createdAt', '<=', to)];
   const [bd, ed] = await Promise.all([
     fetchAllPaged(`shops/${shopId}/bills`, range),
@@ -68,7 +69,7 @@ export async function rebuildStats(shopId, days = 90) {
   const built = buildDayStats(bills, expenses);
 
   const keys = [];
-  for (let i = 0; i <= days; i++) { const d = new Date(from); d.setDate(from.getDate() + i); keys.push(dayKey(d)); }
+  for (let i = 0; i <= days; i++) { const d = new Date(first); d.setDate(first.getDate() + i); keys.push(dayKey(d)); }
   for (let i = 0; i < keys.length; i += 400) {
     const batch = writeBatch(db);
     keys.slice(i, i + 400).forEach((key) => {
