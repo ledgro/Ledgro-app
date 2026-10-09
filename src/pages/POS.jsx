@@ -19,8 +19,7 @@ import html2canvas from 'html2canvas-pro';
 
 import { useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { hapticVibrate, sanitizeText } from '../lib/utils';
-import { putData } from '../lib/idb';
+import { hapticVibrate } from '../lib/utils';
 
 function generateBillNumber(uid) {
   const now = new Date();

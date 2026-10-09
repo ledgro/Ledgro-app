@@ -9,7 +9,6 @@ import { motion } from 'framer-motion';
 import { Zap, Plus, Home, Users, Package, Trash2, ArrowRight } from 'lucide-react';
 import { Skeleton } from '../components/Skeleton';
 import { useBodyLock } from '../hooks/useBodyLock';
-import { hapticVibrate } from '../lib/utils';
 
 const CATEGORIES = [
   { id: 'electricity', label: 'Electricity', icon: Zap },

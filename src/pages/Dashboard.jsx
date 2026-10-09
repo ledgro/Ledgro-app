@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback, useDeferredValue } from 'reac
 import { useAuth } from '../context/AuthContext';
 import { checkStorageHealth } from '../lib/storageHealth';
 import { measureClockDrift } from '../lib/clockDrift';
-import { collection, query, where, getDocs, limit, addDoc, serverTimestamp, doc, setDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Cloud, CloudOff, RefreshCcw } from 'lucide-react';
