@@ -2,7 +2,7 @@ import { toast } from 'sonner';
 import { useState, useEffect, useRef, useCallback, useDeferredValue } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { checkStorageHealth } from '../lib/storageHealth';
-import { measureClockDrift } from '../lib/clockDrift';
+import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
 import { bizDayKey } from '../lib/statsMath';
 import { serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -140,12 +140,7 @@ export default function Dashboard() {
 
     try {
       // Use the server-corrected clock: a wrong phone clock must not lock the wrong day.
-      const offset = (await measureClockDrift()) || 0;
-      if (Math.abs(offset) > 120000) {
-        toast.error('Phone clock is off by more than 2 minutes. Fix date & time, then retry.');
-        return;
-      }
-      const nowC = new Date(Date.now() + offset);
+      const nowC = await serverNow();
       const closureDocId = bizDayKey(nowC);
       setClosureDate(closureDocId);
       const diffPaise = Math.round(parsedActual * 100) - stats.expectedCash;
@@ -169,7 +164,7 @@ export default function Dashboard() {
       setActualCashCounted('');
       fetchDashboardData();
     } catch (err) {
-      toast.error("Could not save the cash count. Please try again.");
+      toast.error(err?.message === 'CLOCK' ? CLOCK_MSG : "Could not save the cash count. Please try again.");
     } finally {
       setIsClosingRecord(false);
     }

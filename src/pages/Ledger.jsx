@@ -12,7 +12,7 @@ import { useBodyLock } from '../hooks/useBodyLock';
 import { fetchAllPaged } from '../lib/firestoreUtils';
 import { writeStats, voidEntries } from '../lib/dayStats';
 import { billDelta, bizDayKey } from '../lib/statsMath';
-import { serverNow } from '../lib/clockDrift';
+import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
 import { buildReport, rs } from '../lib/reportExport';
 import { saveFile } from '../lib/shareFile';
 import ExportMenu from '../components/ExportMenu';
@@ -259,7 +259,7 @@ export default function Ledger() {
       if (hapticOn()) hapticVibrate([50, 30, 50]);
     } catch (e) {
       console.error(e);
-      toast.error('Failed to process return');
+      toast.error(e?.message === 'CLOCK' ? CLOCK_MSG : 'Failed to process return');
       if (hapticOn()) hapticVibrate([100, 50, 100]);
     } finally {
       setProcessingReturn(false);

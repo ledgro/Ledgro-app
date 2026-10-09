@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { collection, query, orderBy, getDocs, serverTimestamp, writeBatch, doc, limit } from 'firebase/firestore';
 import { writeStats } from '../lib/dayStats';
 import { bizDayKey, toDate, expenseDelta, negate } from '../lib/statsMath';
-import { serverNow } from '../lib/clockDrift';
+import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
 import { db } from '../firebase';
 import { Drawer } from 'vaul';
 import BottomNav from '../components/BottomNav';
@@ -102,7 +102,7 @@ export default function Expenses() {
       hapticVibrate(10);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to add expense");
+      toast.error(err?.message === 'CLOCK' ? CLOCK_MSG : "Failed to add expense");
     } finally {
       setSubmitting(false);
     }
