@@ -182,21 +182,49 @@ d('firestore.rules', () => {
 
   describe('dailyStats', () => {
     const st = (day, extra = {}) => ({ date: day, rev: 100, cash: 100, upi: 0, splitCash: 0, splitUpi: 0, bills: 1, exp: 0, expCash: 0, cats: {}, ...extra });
+        // business day in India time, 04:30 cutoff (same as the rules)
+    const biz = (offsetDays = 0) => {
+      const d = new Date(Date.now() + 60 * 60 * 1000 + offsetDays * 86400000);
+      return d.toISOString().slice(0, 10);
+    };
     const path = (day) => `shops/${SHOP}/dailyStats/${day}`;
-    it('member writes valid day; outsider cannot', async () => {
-      await assertSucceeds(setDoc(doc(as(MEMBER), path('2026-01-02')), st('2026-01-02')));
-      await assertFails(setDoc(doc(as(OUTSIDER), path('2026-01-03')), st('2026-01-03')));
+    it('admin writes valid day; outsider cannot', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), path(biz(0))), st(biz(0))));
+      await assertFails(setDoc(doc(as(OUTSIDER), path(biz(0))), st(biz(0))));
     });
     it('rejects bad id, mismatched date, extra key, non-number', async () => {
-      await assertFails(setDoc(doc(as(MEMBER), path('bad')), st('bad')));
-      await assertFails(setDoc(doc(as(MEMBER), path('2026-01-02')), st('2026-01-03')));
-      await assertFails(setDoc(doc(as(MEMBER), path('2026-01-02')), st('2026-01-02', { extra: 1 })));
-      await assertFails(setDoc(doc(as(MEMBER), path('2026-01-02')), st('2026-01-02', { rev: 'x' })));
+      await assertFails(setDoc(doc(as(ADMIN), path('bad')), st('bad')));
+      await assertFails(setDoc(doc(as(MEMBER), path(biz(0))), st(biz(1))));
+      await assertFails(setDoc(doc(as(MEMBER), path(biz(0))), st(biz(0), { extra: 1 })));
+      await assertFails(setDoc(doc(as(MEMBER), path(biz(0))), st(biz(0), { rev: 'x' })));
+    });
+    it('member: today and yesterday ok, older and future rejected', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), path(biz(0))), st(biz(0))));
+      await assertSucceeds(setDoc(doc(as(MEMBER), path(biz(-1))), st(biz(-1))));
+      await assertFails(setDoc(doc(as(MEMBER), path(biz(-5))), st(biz(-5))));
+      await assertFails(setDoc(doc(as(MEMBER), path(biz(3))), st(biz(3))));
+    });
+    it('admin may write older days (rebuild, old expense delete), not future', async () => {
+      await assertSucceeds(setDoc(doc(as(ADMIN), path(biz(-30))), st(biz(-30))));
+      await assertFails(setDoc(doc(as(ADMIN), path(biz(3))), st(biz(3))));
+    });
+    it('no future days; members only today or yesterday; admin may fix older days', async () => {
+      const biz = (offsetMs) => {
+        const b = new Date(Date.now() + offsetMs + 3600 * 1000); // UTC+1h = India time minus 04:30
+        return `${b.getUTCFullYear()}-${String(b.getUTCMonth() + 1).padStart(2, '0')}-${String(b.getUTCDate()).padStart(2, '0')}`;
+      };
+      const today = biz(0), yest = biz(-86400000), old = biz(-5 * 86400000), future = biz(2 * 86400000);
+      await assertSucceeds(setDoc(doc(as(MEMBER), path(today)), st(today)));
+      await assertSucceeds(setDoc(doc(as(MEMBER), path(yest)), st(yest)));
+      await assertFails(setDoc(doc(as(MEMBER), path(old)), st(old)));
+      await assertFails(setDoc(doc(as(MEMBER), path(future)), st(future)));
+      await assertSucceeds(setDoc(doc(as(ADMIN), path(old)), st(old)));
+      await assertFails(setDoc(doc(as(ADMIN), path(future)), st(future)));
     });
     it('members read; member cannot delete', async () => {
-      await assertSucceeds(setDoc(doc(as(MEMBER), path('2026-01-02')), st('2026-01-02')));
-      await assertSucceeds(getDoc(doc(as(MEMBER), path('2026-01-02'))));
-      await assertFails(deleteDoc(doc(as(MEMBER), path('2026-01-02'))));
+      await assertSucceeds(setDoc(doc(as(MEMBER), path(biz(0))), st(biz(0))));
+      await assertSucceeds(getDoc(doc(as(MEMBER), path(biz(0)))));
+      await assertFails(deleteDoc(doc(as(MEMBER), path(biz(0)))));
     });
   });
 

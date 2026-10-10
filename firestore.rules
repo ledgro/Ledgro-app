@@ -2,6 +2,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Business day (India time, day rolls at 04:30) as yyyy-MM-dd, from a server timestamp.
+    // India is UTC+5:30, so shifting UTC by +1h gives the calendar date of (IST - 4:30).
+    function bizDay(t) {
+      let b = t + duration.value(1, 'h');
+      return string(b.year()) + '-'
+        + (b.month() < 10 ? '0' : '') + string(b.month()) + '-'
+        + (b.day() < 10 ? '0' : '') + string(b.day());
+    }
+
     function isAuthenticated() {
       return request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
@@ -185,6 +194,8 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['date', 'rev', 'cash', 'upi', 'splitCash', 'splitUpi', 'bills', 'exp', 'expCash', 'cats'])
           && request.resource.data.keys().hasAll(['date', 'rev', 'cash', 'upi', 'splitCash', 'splitUpi', 'bills', 'exp', 'expCash'])
           && request.resource.data.date == day
+          && day <= bizDay(request.time)
+          && (isAdmin(shopId) || day >= bizDay(request.time - duration.value(1, 'd')))
           && request.resource.data.rev is number
           && request.resource.data.cash is number
           && request.resource.data.upi is number
