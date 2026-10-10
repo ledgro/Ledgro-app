@@ -17,14 +17,19 @@ export function signedBillTotal(b) {
 export const dayKey = (d) => format(d, 'yyyy-MM-dd');
 
 // Business day rolls over at 04:30, not midnight. A sale at 01:00 belongs to the day before.
-export const DAY_CUTOFF_MIN = 4 * 60 + 30;
-const CUT_MS = DAY_CUTOFF_MIN * 60 * 1000;
+export const DEFAULT_DAY_CUTOFF_MIN = 4 * 60 + 30;
+let cutMs = DEFAULT_DAY_CUTOFF_MIN * 60 * 1000;
+/** Set from the shop's saved setting (minutes after midnight, 0 to 330). Out-of-range values fall back to the default. */
+export function setDayCutoff(min) {
+  const m = Number.isInteger(min) && min >= 0 && min <= 330 ? min : DEFAULT_DAY_CUTOFF_MIN;
+  cutMs = m * 60 * 1000;
+}
 /** Date whose calendar day equals the business day of `d` (default now). Use for "today" and ranges. */
-export const bizDate = (d = new Date()) => new Date(d.getTime() - CUT_MS);
+export const bizDate = (d = new Date()) => new Date(d.getTime() - cutMs);
 /** Day key (yyyy-MM-dd) of the business day an event timestamp falls in. */
 export const bizDayKey = (d = new Date()) => dayKey(bizDate(d));
 /** Real start of a business day given its calendar date: 04:30 local that day. */
-export const bizDayStart = (day) => { const x = new Date(day); x.setHours(0, 0, 0, 0); return new Date(x.getTime() + CUT_MS); };
+export const bizDayStart = (day) => { const x = new Date(day); x.setHours(0, 0, 0, 0); return new Date(x.getTime() + cutMs); };
 
 export function toDate(ts) {
   if (!ts) return new Date();

@@ -148,6 +148,12 @@ d('firestore.rules', () => {
       await assertFails(deleteDoc(doc(as(MEMBER), `shops/${SHOP}/catalog/c1`)));
       await assertSucceeds(deleteDoc(doc(as(ADMIN), `shops/${SHOP}/catalog/c1`)));
     });
+    it('source and cost price accepted with limits', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), `shops/${SHOP}/catalog/c2`), { ...item, source: 'VIBBRO', costPrice: 58000 }));
+      await assertSucceeds(updateDoc(doc(as(MEMBER), `shops/${SHOP}/catalog/c2`), { costPrice: null, source: '' }));
+      await assertFails(updateDoc(doc(as(MEMBER), `shops/${SHOP}/catalog/c2`), { costPrice: -5 }));
+      await assertFails(updateDoc(doc(as(MEMBER), `shops/${SHOP}/catalog/c2`), { source: 'x'.repeat(61) }));
+    });
   });
 
   describe('shops', () => {
@@ -158,6 +164,13 @@ d('firestore.rules', () => {
     it('admin updates profile within limits', async () => {
       await assertSucceeds(updateDoc(doc(as(ADMIN), 'shops', SHOP), { phone: '123', address: 'a', tagline: 't', updatedAt: serverTimestamp() }));
       await assertFails(updateDoc(doc(as(ADMIN), 'shops', SHOP), { tagline: 'x'.repeat(101) }));
+    });
+    it('admin sets day start within 0..330 minutes; member cannot', async () => {
+      await assertSucceeds(updateDoc(doc(as(ADMIN), 'shops', SHOP), { dayCutoffMin: 0, updatedAt: serverTimestamp() }));
+      await assertFails(updateDoc(doc(as(ADMIN), 'shops', SHOP), { dayCutoffMin: 400 }));
+      await assertFails(updateDoc(doc(as(ADMIN), 'shops', SHOP), { dayCutoffMin: -1 }));
+      await assertFails(updateDoc(doc(as(ADMIN), 'shops', SHOP), { dayCutoffMin: 'x' }));
+      await assertFails(updateDoc(doc(as(MEMBER), 'shops', SHOP), { dayCutoffMin: 120 }));
     });
     it('member cannot edit profile but can leave', async () => {
       await assertFails(updateDoc(doc(as(MEMBER), 'shops', SHOP), { name: 'Hacked' }));

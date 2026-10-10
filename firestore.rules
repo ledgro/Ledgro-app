@@ -3,9 +3,10 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Business day (India time, day rolls at 04:30) as yyyy-MM-dd, from a server timestamp.
-    // India is UTC+5:30, so shifting UTC by +1h gives the calendar date of (IST - 4:30).
-    function bizDay(t) {
-      let b = t + duration.value(1, 'h');
+    // India is UTC+5:30, so UTC + (330 - cutoff) minutes gives the calendar date of (IST - cutoff).
+    // The shop's cutoff (minutes after midnight, 0 to 330, default 270 = 04:30) moves the shift.
+    function bizDay(shopId, t) {
+      let b = t + duration.value(330 - getShop(shopId).get('dayCutoffMin', 270), 'm');
       return string(b.year()) + '-'
         + (b.month() < 10 ? '0' : '') + string(b.month()) + '-'
         + (b.day() < 10 ? '0' : '') + string(b.day());
@@ -58,8 +59,9 @@ service cloud.firestore {
 
       allow update: if (
           resource.data.members[request.auth.uid] == 'admin'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'members', 'ownerId', 'phone', 'address', 'tagline', 'updatedAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'members', 'ownerId', 'phone', 'address', 'tagline', 'dayCutoffMin', 'updatedAt'])
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) || isValidString(request.resource.data.name, 1, 60))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['dayCutoffMin']) || (request.resource.data.dayCutoffMin is int && request.resource.data.dayCutoffMin >= 0 && request.resource.data.dayCutoffMin <= 330))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['phone']) || isValidString(request.resource.data.phone, 0, 30))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['address']) || isValidString(request.resource.data.address, 0, 200))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['tagline']) || isValidString(request.resource.data.tagline, 0, 100))
@@ -194,8 +196,8 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['date', 'rev', 'cash', 'upi', 'splitCash', 'splitUpi', 'bills', 'exp', 'expCash', 'cats'])
           && request.resource.data.keys().hasAll(['date', 'rev', 'cash', 'upi', 'splitCash', 'splitUpi', 'bills', 'exp', 'expCash'])
           && request.resource.data.date == day
-          && day <= bizDay(request.time)
-          && (isAdmin(shopId) || day >= bizDay(request.time - duration.value(1, 'd')))
+          && day <= bizDay(shopId, request.time)
+          && (isAdmin(shopId) || day >= bizDay(shopId, request.time - duration.value(1, 'd')))
           && request.resource.data.rev is number
           && request.resource.data.cash is number
           && request.resource.data.upi is number
@@ -211,19 +213,23 @@ service cloud.firestore {
       match /catalog/{productId} {
         allow read: if isMember(shopId);
         allow create: if isMember(shopId)
-          && request.resource.data.keys().hasOnly(['name', 'lastUsedPrice', 'unit', 'stockCount', 'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency', 'createdAt', 'createdBy', 'addedBy'])
+          && request.resource.data.keys().hasOnly(['name', 'lastUsedPrice', 'unit', 'stockCount', 'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency', 'createdAt', 'createdBy', 'addedBy', 'source', 'costPrice'])
           && isValidString(request.resource.data.name, 1, 100)
           && request.resource.data.lastUsedPrice is number && request.resource.data.lastUsedPrice >= 0
-          && (request.resource.data.get('stockCount', null) == null || (request.resource.data.stockCount is number && request.resource.data.stockCount >= 0));
+          && (request.resource.data.get('stockCount', null) == null || (request.resource.data.stockCount is number && request.resource.data.stockCount >= 0))
+          && isValidString(request.resource.data.get('source', ''), 0, 60)
+          && (request.resource.data.get('costPrice', null) == null || (request.resource.data.costPrice is number && request.resource.data.costPrice >= 0));
         // Any member may change stock in either direction: cashiers restock on
         // returns/voids and the Products screen lets staff correct counts.
         allow update: if isMember(shopId)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['stockCount']) || (request.resource.data.stockCount == null || (request.resource.data.stockCount is number && request.resource.data.stockCount >= 0)))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastUsedPrice']) || (request.resource.data.lastUsedPrice is number && request.resource.data.lastUsedPrice >= 0))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) || isValidString(request.resource.data.name, 1, 100))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['source']) || isValidString(request.resource.data.source, 0, 60))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['costPrice']) || request.resource.data.costPrice == null || (request.resource.data.costPrice is number && request.resource.data.costPrice >= 0))
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly([
-              'name', 'lastUsedPrice', 'unit', 'stockCount',
+              'source', 'costPrice', 'name', 'lastUsedPrice', 'unit', 'stockCount',
               'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency'
             ]);
         // Products screen offers permanent delete to admins only.

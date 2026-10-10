@@ -6,6 +6,7 @@ import { sessionGuard } from '../lib/SessionGuard';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteField, deleteDoc, onSnapshot, terminate, clearIndexedDbPersistence } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../firebase';
 import { deleteShopCascade, flushPendingWrites } from '../lib/firestoreUtils';
+import { setDayCutoff } from '../lib/statsMath';
 import SplashScreen from '../components/SplashScreen';
 
 const AuthContext = createContext();
@@ -58,7 +59,7 @@ export const AuthProvider = ({ children }) => {
   const [shopId, setShopId] = useState(null);
   const [shopAdminId, setShopAdminId] = useState(null);
   const [shopName, setShopName] = useState('');
-  const [shopProfile, setShopProfile] = useState({ address: '', phone: '', tagline: '' });
+  const [shopProfile, setShopProfile] = useState({ address: '', phone: '', tagline: '', dayCutoffMin: 270 });
   const [shopError, setShopError] = useState(false);
   const [lookupNonce, setLookupNonce] = useState(0);
 
@@ -156,6 +157,7 @@ export const AuthProvider = ({ children }) => {
           setShopId(foundShop.id);
           setShopAdminId(data.ownerId);
           setShopName(data.name);
+          setDayCutoff(data.dayCutoffMin);
         } else if (fulfilled.length === results.length) {
           // every query succeeded and found nothing: genuinely no shop yet
           clearShop();
@@ -206,7 +208,8 @@ export const AuthProvider = ({ children }) => {
       }
       setShopAdminId((prev) => (data.ownerId && data.ownerId !== prev ? data.ownerId : prev));
       setShopName((prev) => (data.name && data.name !== prev ? data.name : prev));
-      setShopProfile({ address: data.address || '', phone: data.phone || '', tagline: data.tagline || '' });
+      setDayCutoff(data.dayCutoffMin);
+      setShopProfile({ address: data.address || '', phone: data.phone || '', tagline: data.tagline || '', dayCutoffMin: Number.isInteger(data.dayCutoffMin) ? data.dayCutoffMin : 270 });
     }, (err) => {
       if (err?.code === 'permission-denied') revoke();
       else console.warn('Shop listener error', err);
