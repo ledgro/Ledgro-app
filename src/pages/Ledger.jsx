@@ -11,7 +11,7 @@ import { formatCurrency, cn, hapticVibrate } from '../lib/utils';
 import { useBodyLock } from '../hooks/useBodyLock';
 import { fetchAllPaged } from '../lib/firestoreUtils';
 import { writeStats, voidEntries } from '../lib/dayStats';
-import { billDelta, bizDayKey } from '../lib/statsMath';
+import { billDelta, bizDayKey, bizDayStart, bizDate, dayKey } from '../lib/statsMath';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
 import { buildReport, rs } from '../lib/reportExport';
 import { saveFile } from '../lib/shareFile';
@@ -38,6 +38,8 @@ export default function Ledger() {
   const [bills, setBills] = useState([]);
   const lastDoc = useRef(null);
   const [hasMore, setHasMore] = useState(true);
+  // '' = newest first across all days; otherwise one business day (yyyy-MM-dd)
+  const [day, setDay] = useState('');
   const [loading, setLoading] = useState(false);
   const loadingRef = useRef(false);
   const [reversingId, setReversingId] = useState(null);
@@ -61,6 +63,12 @@ export default function Ledger() {
   const { ref, inView } = useInView();
   const ledgerListRef = useRef(null);
 
+  const shiftDay = (delta) => {
+    const d = new Date(`${day}T00:00:00`);
+    d.setDate(d.getDate() + delta);
+    setDay(dayKey(d));
+  };
+
   const fetchBills = useCallback(async (isNextPage = false) => {
     if (!shopId || loadingRef.current) return;
 
@@ -68,9 +76,16 @@ export default function Ledger() {
     setLoading(true);
     try {
       const billsRef = collection(db, `shops/${shopId}/bills`);
+      const range = [];
+      if (day) {
+        const start = bizDayStart(new Date(`${day}T00:00:00`));
+        const end = new Date(start.getTime());
+        end.setDate(end.getDate() + 1);
+        range.push(where('createdAt', '>=', start), where('createdAt', '<', end));
+      }
       const q = isNextPage && lastDoc.current
-        ? query(billsRef, orderBy('createdAt', 'desc'), startAfter(lastDoc.current), limit(PAGE))
-        : query(billsRef, orderBy('createdAt', 'desc'), limit(PAGE));
+        ? query(billsRef, ...range, orderBy('createdAt', 'desc'), startAfter(lastDoc.current), limit(PAGE))
+        : query(billsRef, ...range, orderBy('createdAt', 'desc'), limit(PAGE));
 
       const snap = await getDocs(q);
       const newBills = snap.docs.map((d) => {
@@ -97,12 +112,13 @@ export default function Ledger() {
       loadingRef.current = false;
       setLoading(false);
     }
-  }, [shopId]);
+  }, [shopId, day]);
 
   useEffect(() => {
     if (shopId) {
       lastDoc.current = null;
       setHasMore(true);
+      setBills([]);
       fetchBills();
     }
   }, [shopId, fetchBills]);
@@ -373,6 +389,19 @@ export default function Ledger() {
               {f}
             </button>
           ))}
+        </div>
+
+        <div className="flex items-center gap-2 pt-1">
+          <button type="button" aria-label="Previous day" disabled={!day} onClick={() => shiftDay(-1)}
+            className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-600 disabled:opacity-40">&lsaquo;</button>
+          <input type="date" aria-label="Pick a day" value={day} max={dayKey(bizDate())} onChange={(e) => setDay(e.target.value)}
+            className="flex-1 min-w-0 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-700" />
+          <button type="button" aria-label="Next day" disabled={!day || day >= dayKey(bizDate())} onClick={() => shiftDay(1)}
+            className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-600 disabled:opacity-40">&rsaquo;</button>
+          {day && (
+            <button type="button" onClick={() => setDay('')}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider text-blue-600">Latest</button>
+          )}
         </div>
 
         <div className="flex justify-between items-center pt-1">
