@@ -5,7 +5,8 @@ import { collection, query, where, getDocs, getDoc, orderBy, limit, startAfter, 
 import { db } from '../firebase';
 import { useInView } from 'react-intersection-observer';
 import BottomNav from '../components/BottomNav';
-import { CheckCircle2, XCircle, RefreshCcw, Search, ArrowLeftRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { CheckCircle2, XCircle, RefreshCcw, Search, ArrowLeftRight, Pencil } from 'lucide-react';
 import { Drawer } from 'vaul';
 import { formatCurrency, cn, hapticVibrate } from '../lib/utils';
 import { useBodyLock } from '../hooks/useBodyLock';
@@ -33,7 +34,8 @@ const unitRefundOf = (item) => {
 };
 
 export default function Ledger() {
-  const { user, shopId } = useAuth();
+  const { user, shopId, shopAdminId } = useAuth();
+  const navigate = useNavigate();
 
   const [bills, setBills] = useState([]);
   const lastDoc = useRef(null);
@@ -145,6 +147,35 @@ export default function Ledger() {
       if (typeof data.stockCount === 'number') updates.stockCount = increment(sign * qtyById.get(ids[i]));
       if (Object.keys(updates).length) batch.update(res.value.ref, updates);
     });
+  };
+
+  /** Same rule as void: within 24h, by the bill's creator or the owner. Rules enforce it again on save. */
+  const canEditBill = (b) => {
+    if (!b || b.type !== 'sale' || b.isVoided) return false;
+    const created = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+    if (!created || Date.now() - created > 24 * 60 * 60 * 1000) return false;
+    return b.creatorId === user?.uid || user?.uid === shopAdminId;
+  };
+
+  /** Opens the bill in POS. Saving voids this bill and writes a new one (bills are never changed in place). */
+  const handleEditBill = (b) => {
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again.'); return; }
+    if (!window.confirm('Edit this bill? Saving cancels the old bill and creates a new one with a new bill number.')) return;
+    const editBill = {
+      id: b.id,
+      type: b.type,
+      items: b.items || [],
+      subtotal: b.subtotal,
+      grandTotal: b.grandTotal,
+      globalDiscount: b.globalDiscount || null,
+      globalDiscountAmt: b.globalDiscountAmt || 0,
+      payment: b.payment || null,
+      paymentMethod: b.paymentMethod || null,
+      creatorId: b.creatorId,
+      createdAt: b.createdAt.toDate(),
+    };
+    setSelectedBill(null);
+    navigate('/pos', { state: { editBill } });
   };
 
   const handleVoidBill = async (originalBill) => {
@@ -514,6 +545,14 @@ export default function Ledger() {
 
                   {!selectedBill.isVoided && selectedBill.type !== 'return' && selectedBill.type !== 'reversal' && (
                      <div className="grid grid-cols-2 gap-3">
+                       {canEditBill(selectedBill) && (
+                         <button
+                           onClick={() => handleEditBill(selectedBill)}
+                           className="col-span-2 w-full bg-blue-50 text-blue-700 font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-100 transition-colors shadow-sm"
+                         >
+                           <Pencil size={20} /> Edit Bill
+                         </button>
+                       )}
                        <button
                          onClick={openReturnDrawer}
                          className="w-full bg-orange-50 text-orange-600 font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-orange-100 transition-colors shadow-sm"
