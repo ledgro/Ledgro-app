@@ -636,7 +636,7 @@ export default function POS() {
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
                       <input
-                        type="number"
+                        type="number" inputMode="decimal"
                         disabled
                         value={Math.max(0, (grandTotal / 100) - (parseFloat(splitCash) || 0))}
                         className="w-full pl-7 pr-3 h-12 border border-slate-200 bg-slate-100 rounded-xl font-bold text-slate-500"
