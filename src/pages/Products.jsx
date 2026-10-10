@@ -273,9 +273,9 @@ export default function Products() {
         onClick={() => openDrawer(item)}
         className="w-full text-left bg-white p-4 rounded-2xl shadow-subtle border border-slate-100 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform mb-3"
       >
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-bold text-slate-900 text-lg truncate max-w-[200px]">{item.name}</h3>
+            <h3 className="font-bold text-slate-900 text-lg truncate">{item.name}</h3>
             {item.category && (
               <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-xs font-semibold truncate max-w-[80px]">
                 {item.category}
@@ -289,10 +289,10 @@ export default function Products() {
             {item.source && (<><span>•</span><span className="truncate max-w-[110px]">from {item.source}</span></>)}
           </div>
         </div>
-        <div className="flex flex-col items-end">
+        <div className="flex flex-col items-end shrink-0 pl-2">
           {item.stockCount != null && (
             <div className={cn(
-              "px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1",
+              "px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1 whitespace-nowrap",
               isLowStock ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700"
             )}>
               {isLowStock && <AlertCircle size={14} />}

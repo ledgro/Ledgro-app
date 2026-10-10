@@ -484,7 +484,8 @@ export default function Ledger() {
 
                   <div className="flex justify-between items-end mt-3">
                     <div className="text-sm font-medium text-slate-500 flex items-center gap-2">
-                      <span>{bill.items?.length || 0} items</span>
+                      <span>{bill.items?.length || 0} {(bill.items?.length || 0) === 1 ? 'item' : 'items'}</span>
+                      {bill.billNo && (<><span>•</span><span className="text-xs text-slate-400 font-mono">#{bill.billNo}</span></>)}
                       <span>•</span>
                       {bill.payment?.method === 'split' ? (
                         <div className="flex items-center text-[10px] font-bold bg-slate-100 rounded overflow-hidden">
