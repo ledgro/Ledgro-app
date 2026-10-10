@@ -16,7 +16,7 @@ import { format } from 'date-fns';
 import { checkStorageHealth } from '../lib/storageHealth';
 
 export default function Settings() {
-  const { user, shopId, shopAdminId, signOut, deleteAccount } = useAuth();
+  const { user, shopId, shopAdminId, shopProfile, signOut, deleteAccount } = useAuth();
   const isOwner = !!user?.uid && shopAdminId === user.uid;
   const [recalculating, setRecalculating] = useState(false);
   const navigate = useNavigate();
@@ -69,6 +69,21 @@ export default function Settings() {
     localStorage.setItem('ledgro_haptic', String(hapticFeedback));
     localStorage.setItem('ledgro_autoReset', String(autoReset)); } catch { /* storage blocked */ }
   }, [defaultPayment, hapticFeedback, autoReset]);
+
+  const CUTOFF_OPTIONS = [[0, '12:00 AM (midnight)'], [120, '2:00 AM'], [180, '3:00 AM'], [240, '4:00 AM'], [270, '4:30 AM'], [300, '5:00 AM'], [330, '5:30 AM']];
+  const handleCutoff = async (e) => {
+    const min = Number(e.target.value);
+    if (!shopId || !Number.isInteger(min)) return;
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
+    if (!window.confirm('Change when the business day starts? Past totals keep their old days until you tap Recalculate totals.')) return;
+    try {
+      await updateDoc(doc(db, 'shops', shopId), { dayCutoffMin: min, updatedAt: serverTimestamp() });
+      toast.success('Day start saved. Tap Recalculate totals to fix past days.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not save day start.');
+    }
+  };
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
@@ -347,6 +362,14 @@ export default function Settings() {
               <span className="text-sm font-bold text-slate-700">Export data</span>
               <ExportMenu label="PDF / PNG" onPick={handleExportData} className="text-xs font-black uppercase bg-slate-900 text-white px-3 py-1.5 rounded-full active:scale-95" />
             </div>
+            {isOwner && (
+              <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 h-12">
+                <span className="text-sm font-bold text-slate-700">Business day starts</span>
+                <select aria-label="Business day starts" value={shopProfile?.dayCutoffMin ?? 270} onChange={handleCutoff} className="text-sm font-bold bg-white border border-slate-200 rounded-lg px-2 py-1">
+                  {CUTOFF_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+            )}
             {isOwner && (
               <button onClick={handleRecalculate} disabled={recalculating} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors text-sm disabled:opacity-50">
                 {recalculating ? 'Recalculating...' : 'Recalculate totals (last 90 days)'}

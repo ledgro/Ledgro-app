@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, Menu, Plus, PackageSearch, Receipt, Users, Settings, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, FileText, Menu, Plus, PackageSearch, Receipt, Users, Settings, TrendingUp, ArrowLeftRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Drawer } from 'vaul';
 import { useState } from 'react';
@@ -22,6 +22,7 @@ export default function BottomNav() {
 
   const moreItems = [
     { path: '/expenses', label: 'Expenses', icon: Receipt },
+    { path: '/transfers', label: 'Transfers', icon: ArrowLeftRight },
     { path: '/members', label: 'Members', icon: Users },
     { path: '/settings', label: 'Settings', icon: Settings },
     { path: '/pnl', label: 'P&L', icon: TrendingUp },

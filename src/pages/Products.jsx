@@ -35,6 +35,8 @@ export default function Products() {
   const [lowStockAlert, setLowStockAlert] = useState('');
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
+  const [source, setSource] = useState('');
+  const [costPrice, setCostPrice] = useState('');
   const [isActive, setIsActive] = useState(true);
 
 
@@ -96,6 +98,8 @@ export default function Products() {
       setLowStockAlert(item.lowStockAlert?.toString() || '');
       setCategory(item.category || '');
       setDescription(item.description || '');
+      setSource(item.source || '');
+      setCostPrice(item.costPrice != null ? (item.costPrice / 100).toString() : '');
       setIsActive(item.isActive !== false);
     } else {
       setName('');
@@ -105,6 +109,8 @@ export default function Products() {
       setLowStockAlert('');
       setCategory('');
       setDescription('');
+      setSource('');
+      setCostPrice('');
       setIsActive(true);
     }
     setIsDrawerOpen(true);
@@ -124,6 +130,11 @@ export default function Products() {
     }
 
     const stockNum = stockCount !== '' ? parseFloat(stockCount) : null;
+    const costNum = costPrice !== '' ? parseFloat(costPrice) : null;
+    if (costNum !== null && (isNaN(costNum) || costNum < 0)) {
+      toast.error('Please enter a valid cost price');
+      return;
+    }
     const alertNum = lowStockAlert !== '' ? parseFloat(lowStockAlert) : null;
 
     if (stockNum !== null && (isNaN(stockNum) || stockNum < 0)) {
@@ -145,6 +156,8 @@ export default function Products() {
         lowStockAlert: alertNum,
         category: normalizedCategory,
         description: sanitizeText(description.trim()),
+        source: sanitizeText(source.trim()).slice(0, 60),
+        costPrice: costNum !== null ? Math.round(costNum * 100) : null,
         isActive: isActive,
         updatedAt: serverTimestamp(),
       };
@@ -273,6 +286,7 @@ export default function Products() {
             <span className="text-blue-600 font-bold">{formatCurrency(item.lastUsedPrice)}</span>
             <span>•</span>
             <span>{item.unit || 'piece'}</span>
+            {item.source && (<><span>•</span><span className="truncate max-w-[110px]">from {item.source}</span></>)}
           </div>
         </div>
         <div className="flex flex-col items-end">
@@ -439,6 +453,24 @@ export default function Products() {
                 {/* Inventory Management */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Inventory</h3>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Bought from (optional)</label>
+                    <input
+                      type="text" value={source} onChange={(e) => setSource(e.target.value)} maxLength={60}
+                      className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
+                      placeholder="Brand or shop, e.g. VIBBRO"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Cost price (optional)</label>
+                    <input
+                      type="number" inputMode="decimal" step="0.01" min="0" value={costPrice} onChange={(e) => setCostPrice(e.target.value.slice(0, 10))}
+                      className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
+                      placeholder="What you paid per piece"
+                    />
+                  </div>
 
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Stock Count</label>
