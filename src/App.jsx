@@ -11,6 +11,7 @@ const Ledger = lazy(() => import('./pages/Ledger'));
 const Expenses = lazy(() => import('./pages/Expenses'));
 const Members = lazy(() => import('./pages/Members'));
 const Products = lazy(() => import('./pages/Products'));
+const Transfers = lazy(() => import('./pages/Transfers'));
 const Settings = lazy(() => import('./pages/Settings'));
 const PLScreen = lazy(() => import('./pages/PLScreen'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
@@ -112,6 +113,7 @@ const router = createHashRouter([
       { path: '/ledger', element: <ProtectedRoute><Ledger /></ProtectedRoute> },
       { path: '/expenses', element: <ProtectedRoute><Expenses /></ProtectedRoute> },
       { path: '/products', element: <ProtectedRoute><Products /></ProtectedRoute> },
+      { path: '/transfers', element: <ProtectedRoute><Transfers /></ProtectedRoute> },
       { path: '/members', element: <ProtectedRoute><Members /></ProtectedRoute> },
       { path: '/settings', element: <ProtectedRoute><Settings /></ProtectedRoute> },
       { path: '/pnl', element: <ProtectedRoute><PLScreen /></ProtectedRoute> },

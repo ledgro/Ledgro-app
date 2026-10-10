@@ -210,6 +210,24 @@ service cloud.firestore {
         allow delete: if isSoleAdmin(shopId); // only when the shop itself is being closed
       }
 
+      // Stock moving to or from another shop. Append only; never counted as a sale.
+      match /transfers/{transferId} {
+        allow get: if isMember(shopId);
+        allow list: if isMember(shopId) && request.query.limit <= 100;
+        allow create: if isMember(shopId)
+          && request.resource.data.keys().hasOnly(['direction', 'party', 'productId', 'name', 'qty', 'unitPrice', 'creatorId', 'createdAt'])
+          && request.resource.data.keys().hasAll(['direction', 'party', 'productId', 'name', 'qty', 'creatorId', 'createdAt'])
+          && request.resource.data.direction in ['in', 'out']
+          && isValidString(request.resource.data.party, 1, 60)
+          && isValidString(request.resource.data.name, 1, 100)
+          && isValidString(request.resource.data.productId, 1, 128)
+          && request.resource.data.qty is number && request.resource.data.qty > 0 && request.resource.data.qty <= 100000
+          && (request.resource.data.get('unitPrice', null) == null || (request.resource.data.unitPrice is number && request.resource.data.unitPrice >= 0))
+          && request.resource.data.creatorId == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+        allow delete: if isSoleAdmin(shopId); // only when the shop itself is being closed
+      }
+
       match /catalog/{productId} {
         allow read: if isMember(shopId);
         allow create: if isMember(shopId)

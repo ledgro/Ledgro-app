@@ -156,6 +156,30 @@ d('firestore.rules', () => {
     });
   });
 
+  describe('transfers', () => {
+    const tr = (uid, extra = {}) => ({ direction: 'in', party: 'VIBBRO', productId: 'c1', name: 'Heels shoe', qty: 3, unitPrice: 58000, creatorId: uid, createdAt: serverTimestamp(), ...extra });
+    const col = `shops/${SHOP}/transfers`;
+    it('member creates own valid transfer; outsider cannot', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), `${col}/t1`), tr(MEMBER)));
+      await assertSucceeds(setDoc(doc(as(MEMBER), `${col}/t2`), tr(MEMBER, { direction: 'out', unitPrice: null })));
+      await assertFails(setDoc(doc(as(OUTSIDER), `${col}/t3`), tr(OUTSIDER)));
+    });
+    it('rejects other uid, bad direction, zero qty, extra key, edits and member delete', async () => {
+      await assertFails(setDoc(doc(as(MEMBER), `${col}/t4`), tr(ADMIN)));
+      await assertFails(setDoc(doc(as(MEMBER), `${col}/t5`), tr(MEMBER, { direction: 'sideways' })));
+      await assertFails(setDoc(doc(as(MEMBER), `${col}/t6`), tr(MEMBER, { qty: 0 })));
+      await assertFails(setDoc(doc(as(MEMBER), `${col}/t7`), tr(MEMBER, { extra: 1 })));
+      await assertSucceeds(setDoc(doc(as(MEMBER), `${col}/t8`), tr(MEMBER)));
+      await assertFails(updateDoc(doc(as(MEMBER), `${col}/t8`), { qty: 99 }));
+      await assertFails(deleteDoc(doc(as(ADMIN), `${col}/t8`)));
+    });
+    it('members read', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), `${col}/t9`), tr(MEMBER)));
+      await assertSucceeds(getDocs(query(collection(as(ADMIN), col), limit(10))));
+      await assertFails(getDocs(query(collection(as(OUTSIDER), col), limit(10))));
+    });
+  });
+
   describe('shops', () => {
     it('outsider cannot read', async () => {
       await assertFails(getDoc(doc(as(OUTSIDER), 'shops', SHOP)));
