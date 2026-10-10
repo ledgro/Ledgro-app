@@ -3,7 +3,7 @@ import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, setPer
 import { listenForSessionEvents } from '../lib/sessionBroadcast';
 import { clearStore } from '../lib/idb';
 import { sessionGuard } from '../lib/SessionGuard';
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteField, deleteDoc, getDocFromCache, onSnapshot, terminate, clearIndexedDbPersistence } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteField, deleteDoc, onSnapshot, terminate, clearIndexedDbPersistence } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../firebase';
 import { deleteShopCascade, flushPendingWrites } from '../lib/firestoreUtils';
 import SplashScreen from '../components/SplashScreen';
@@ -14,7 +14,10 @@ const SESSION_DURATION = 3 * 24 * 60 * 60 * 1000; // 3 days in ms
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
 
+// Legacy keys from older versions: only ever deleted now, never read or written.
 const OFFLINE_KEYS = ['ledgro_offline_shopId', 'ledgro_offline_shopAdminId', 'ledgro_offline_shopName', 'lastLoginTime'];
+
+try { OFFLINE_KEYS.slice(0, 3).forEach((k) => localStorage.removeItem(k)); } catch { /* storage unavailable */ }
 
 function clearLocalSession() {
   OFFLINE_KEYS.forEach((k) => localStorage.removeItem(k));
@@ -133,40 +136,8 @@ export const AuthProvider = ({ children }) => {
       try {
         setShopError(false);
 
-        // Fast path: remembered shop on this device
-        const cachedShopId = localStorage.getItem('ledgro_offline_shopId');
-        if (cachedShopId) {
-          try {
-            const shopDocRef = doc(db, 'shops', cachedShopId);
-            let shopSnap;
-            try {
-              shopSnap = await getDocFromCache(shopDocRef);
-            } catch {
-              shopSnap = await getDoc(shopDocRef);
-            }
-            if (currentRequestId !== requestCounter.current) return;
-
-            if (shopSnap.exists()) {
-              const data = shopSnap.data({ serverTimestamps: 'estimate' });
-              if (data.members && data.members[currentUser.uid]) {
-                setHasShop(true);
-                setShopId(cachedShopId);
-                setShopAdminId(data.ownerId);
-                setShopName(data.name);
-                localStorage.setItem('ledgro_offline_shopAdminId', data.ownerId);
-                localStorage.setItem('ledgro_offline_shopName', data.name);
-                setLoading(false);
-                return;
-              }
-            }
-            // removed from shop, or shop deleted
-            OFFLINE_KEYS.slice(0, 3).forEach((k) => localStorage.removeItem(k));
-          } catch (fastPathError) {
-            console.warn('Direct fetch failed, falling back to query.', fastPathError);
-          }
-        }
-
-        // Slow path: find the shop by membership. Equality filters (not `in`) so
+        // Shop and role always come from the server (nothing is remembered on the device).
+        // Find the shop by membership. Equality filters (not `in`) so
         // firestore.rules can prove the query only returns shops the user belongs to.
         // allSettled: one rejected query must not hide a shop found by the other.
         const shopsRef = collection(db, 'shops');
@@ -185,9 +156,6 @@ export const AuthProvider = ({ children }) => {
           setShopId(foundShop.id);
           setShopAdminId(data.ownerId);
           setShopName(data.name);
-          localStorage.setItem('ledgro_offline_shopId', foundShop.id);
-          localStorage.setItem('ledgro_offline_shopAdminId', data.ownerId);
-          localStorage.setItem('ledgro_offline_shopName', data.name);
         } else if (fulfilled.length === results.length) {
           // every query succeeded and found nothing: genuinely no shop yet
           clearShop();
@@ -199,15 +167,7 @@ export const AuthProvider = ({ children }) => {
       } catch (error) {
         console.error('Error checking for shop:', error);
         if (currentRequestId !== requestCounter.current) return;
-        const cachedShopId = localStorage.getItem('ledgro_offline_shopId');
-        if (cachedShopId) {
-          setHasShop(true);
-          setShopId(cachedShopId);
-          setShopAdminId(localStorage.getItem('ledgro_offline_shopAdminId'));
-          setShopName(localStorage.getItem('ledgro_offline_shopName') || '');
-        } else {
-          setShopError(true);
-        }
+        setShopError(true);
       }
 
       if (currentRequestId === requestCounter.current) {
