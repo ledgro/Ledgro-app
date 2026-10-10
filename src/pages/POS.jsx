@@ -510,7 +510,7 @@ export default function POS() {
 
         {/* Fast-Access Pinned Grid */}
         {fastAccessItems.length > 0 && (
-          <div className="px-4 pb-4 overflow-x-auto no-scrollbar">
+          <div className="px-4 pt-2 pb-4 overflow-x-auto no-scrollbar">
             <div className="flex gap-2">
               {fastAccessItems.map((fItem) => (
                 <button

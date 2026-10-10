@@ -197,7 +197,7 @@ export default function Expenses() {
                     <button
                          type="button"
                          aria-label="Delete Expense"
-                         className="absolute inset-y-0 right-0 bg-red-50 text-red-600 flex items-center justify-center w-0 overflow-hidden group-active:w-20 lg:group-hover:w-20 transition-all duration-300 ease-out z-10 border-l border-red-100 shadow-[-10px_0_15px_-5px_rgba(0,0,0,0.05)] cursor-pointer"
+                         className="absolute inset-y-0 right-0 bg-red-50 text-red-600 flex items-center justify-center w-0 overflow-hidden group-active:w-20 lg:group-hover:w-20 transition-all duration-300 ease-out z-10 border-red-100 group-active:border-l lg:group-hover:border-l group-active:shadow-[-10px_0_15px_-5px_rgba(0,0,0,0.05)] cursor-pointer"
                          onClick={() => handleDeleteExpense(expense.id)}
                     >
                        <Trash2 size={20} strokeWidth={2.5} />
