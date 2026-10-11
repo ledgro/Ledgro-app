@@ -37,6 +37,24 @@ export default function Expenses() {
   const [submitting, setSubmitting] = useState(false);
   const [paidVia, setPaidVia] = useState('cash'); // 'cash' | 'upi'
   const [fetchError, setFetchError] = useState(false);
+  const [editing, setEditing] = useState(null); // expense being edited, or null when adding
+
+  /** Owner any time; the person who added it within 24 hours. Rules enforce the same on save. */
+  const canEdit = (e) => {
+    if (isAdmin) return true;
+    const created = e.createdAt?.toDate ? e.createdAt.toDate().getTime() : 0;
+    return e.creatorId === user?.uid && created > 0 && Date.now() - created < 24 * 60 * 60 * 1000;
+  };
+
+  const openEdit = (e) => {
+    if (!canEdit(e)) return;
+    setEditing(e);
+    setAmount(String((e.amount || 0) / 100));
+    setDescription(e.description || '');
+    setCategory(e.category || CATEGORIES[0].id);
+    setPaidVia(e.paidVia || 'cash');
+    setIsOpen(true);
+  };
 
   const fetchExpenses = useCallback(async () => {
     if (!shopId) return;
@@ -73,6 +91,32 @@ export default function Expenses() {
     }
 
     setSubmitting(true);
+    if (editing) {
+      try {
+        const next = { amount: parsedAmount, description: description.trim().slice(0, 200), category, paidVia };
+        const key = bizDayKey(toDate(editing.createdAt));
+        const batch = writeBatch(db);
+        batch.update(doc(db, `shops/${shopId}/expenses`, editing.id), { ...next, updatedAt: serverTimestamp() });
+        // Take the old amount out of its day and put the new one in, in the same save.
+        writeStats(batch, shopId, [
+          { key, delta: negate(expenseDelta(editing)) },
+          { key, delta: expenseDelta({ ...editing, ...next }) },
+        ]);
+        await batch.commit();
+        setExpenses((prev) => prev.map((x) => (x.id === editing.id ? { ...x, ...next } : x)));
+        setEditing(null);
+        setAmount(''); setDescription(''); setPaidVia('cash'); setCategory(CATEGORIES[0].id);
+        setIsOpen(false);
+        hapticVibrate(10);
+        toast.success('Expense updated');
+      } catch (err) {
+        console.error(err);
+        toast.error('Could not update the expense. Nothing was changed.');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
     try {
       const payload = {
         amount: parsedAmount,
@@ -176,7 +220,8 @@ export default function Expenses() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   key={expense.id}
-                  className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4 relative overflow-hidden group"
+                  className={`bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4 relative overflow-hidden group ${canEdit(expense) ? 'cursor-pointer' : ''}`}
+                  onClick={(ev) => { if (ev.target.closest('button[aria-label="Delete Expense"]')) return; openEdit(expense); }}
                 >
                   <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm shrink-0">
                     <Icon size={20} strokeWidth={2.5} />
@@ -213,6 +258,7 @@ export default function Expenses() {
       <Drawer.Root open={isOpen} onOpenChange={(open) => {
          setIsOpen(open);
          if (!open) {
+            setEditing(null);
             setAmount('');
             setDescription('');
             setCategory(CATEGORIES[0].id);
@@ -225,7 +271,7 @@ export default function Expenses() {
               <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-gray-300 mb-6" />
               <div className="max-w-md mx-auto">
                 <Drawer.Title className="font-bold text-gray-900 mb-6 text-xl">
-                  Add Expense
+                  {editing ? 'Edit Expense' : 'Add Expense'}
                 </Drawer.Title>
 
               <form onSubmit={handleAddExpense} className="space-y-6">
@@ -297,8 +343,17 @@ export default function Expenses() {
                     disabled={submitting || !amount}
                     className="w-full bg-indigo-600 text-white font-bold py-4 px-4 rounded-xl flex items-center justify-center gap-2 active:bg-indigo-700 disabled:opacity-50 transition-colors"
                   >
-                    {submitting ? 'Saving...' : 'Save Expense'} <ArrowRight size={20} />
+                    {submitting ? 'Saving...' : editing ? 'Save Changes' : 'Save Expense'} <ArrowRight size={20} />
                   </button>
+                  {editing && isAdmin && (
+                    <button
+                      type="button"
+                      onClick={async () => { const id = editing.id; setIsOpen(false); setEditing(null); await handleDeleteExpense(id); }}
+                      className="w-full bg-red-50 text-red-600 font-bold py-3 px-4 rounded-xl active:bg-red-100 transition-colors"
+                    >
+                      Delete Expense
+                    </button>
+                  )}
                 </form>
               </div>
             </div>
