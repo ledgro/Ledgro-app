@@ -3,10 +3,11 @@ import { useReducer, useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
 import ProductGrid from '../components/ProductGrid';
+import { useCatalogLoader } from '../hooks/useCatalogLoader';
 import { writeStats, voidEntries } from '../lib/dayStats';
 import { billDelta, bizDayKey } from '../lib/statsMath';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
-import { collection, getDocs, getDoc, writeBatch, doc, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, getDoc, writeBatch, doc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Tag, ArrowRight, Share2, PlusCircle, Download } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -59,7 +60,6 @@ export default function POS() {
   const { user, shopId, shopName, shopProfile } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const hydrateCatalog = useCatalogStore((s) => s.hydrateCatalog);
   const addCatalogItem = useCatalogStore((s) => s.addItem);
 
   const [state, dispatch] = useReducer(billReducer, initialBillState);
@@ -137,20 +137,7 @@ export default function POS() {
     }
   }, [editBill, state.items.length, checkoutSuccess]);
 
-  // Load catalog on mount
-  useEffect(() => {
-    const fetchCatalog = async () => {
-      if (!shopId) return;
-      try {
-        const snap = await getDocs(collection(db, `shops/${shopId}/catalog`));
-        const loaded = snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }));
-        hydrateCatalog(loaded);
-      } catch (err) {
-        console.error('Failed to load catalog', err);
-      }
-    };
-    fetchCatalog();
-  }, [hydrateCatalog, shopId]);
+  useCatalogLoader(shopId);
 
   // Drawer state
   const [isDiscountOpen, setIsDiscountOpen] = useState(false);
@@ -578,7 +565,7 @@ export default function POS() {
             {/* Totals Breakdown */}
             <div className="flex justify-between items-center mb-3">
               <div className="text-sm text-gray-500">
-                <span className="font-medium text-gray-900">{items.length}</span> items
+                <span className="font-medium text-gray-900">{items.length}</span> {items.length === 1 ? 'item' : 'items'}
               </div>
               <div className="flex items-center gap-3">
                 <button
