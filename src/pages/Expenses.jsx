@@ -9,7 +9,7 @@ import { db } from '../firebase';
 import { Drawer } from 'vaul';
 import BottomNav from '../components/BottomNav';
 import { motion } from 'framer-motion';
-import { Zap, Plus, Home, Users, Package, Trash2, ArrowRight } from 'lucide-react';
+import { Zap, Plus, Home, Users, Package, Trash2 } from 'lucide-react';
 import { Skeleton } from '../components/Skeleton';
 import { useBodyLock } from '../hooks/useBodyLock';
 import { hapticVibrate } from '../lib/utils';
@@ -343,7 +343,7 @@ export default function Expenses() {
                     disabled={submitting || !amount}
                     className="w-full bg-indigo-600 text-white font-bold py-4 px-4 rounded-xl flex items-center justify-center gap-2 active:bg-indigo-700 disabled:opacity-50 transition-colors"
                   >
-                    {submitting ? 'Saving...' : editing ? 'Save Changes' : 'Save Expense'} <ArrowRight size={20} />
+                    {submitting ? 'Saving...' : editing ? 'Save Changes' : 'Save Expense'}
                   </button>
                   {editing && isAdmin && (
                     <button

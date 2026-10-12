@@ -19,19 +19,7 @@ export default defineConfig({
         // never serve the app shell for Firebase auth handler / well-known files
         navigateFallbackDenylist: [/^\/__\//, /^\/\.well-known\//],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // Bump up cache limit for index bundle
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365
-              }
-            }
-          }
-        ]
+        globPatterns: ['**/*.{js,css,html,woff2}'], // precache the self-hosted logo font so it is instant and works offline
       },
       manifest: {
         id: '/',

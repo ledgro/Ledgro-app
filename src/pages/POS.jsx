@@ -9,7 +9,7 @@ import { billDelta, bizDayKey } from '../lib/statsMath';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
 import { collection, getDoc, writeBatch, doc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Tag, ArrowRight, Share2, PlusCircle, Download } from 'lucide-react';
+import { Tag, Share2, PlusCircle, Download } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSpring, animated } from '@react-spring/web';
 
@@ -646,7 +646,7 @@ export default function POS() {
                 disabled={isCheckingOut || (paymentMethod === 'split' && (!splitCash || Math.round(parseFloat(splitCash) * 100) >= grandTotal))}
                 className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-all active:scale-[0.98] shadow-sm mt-1"
               >
-                {isCheckingOut ? 'Processing...' : 'Confirm Checkout'} <ArrowRight size={20} />
+                {isCheckingOut ? 'Processing...' : 'Confirm Checkout'}
               </button>
             </div>
           </div>

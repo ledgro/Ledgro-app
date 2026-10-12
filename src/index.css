@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Bruno Ace";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/bruno-ace-latin.woff2") format("woff2");
+}
+
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
@@ -8,7 +16,11 @@
   --color-success: #10B981;
   --radius-card: 12px;
   --radius-sheet: 24px;
-  --shadow-subtle: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+  --shadow-subtle: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.625rem;
+  --radius-3xl: 0.875rem;
   --font-bruno: "Bruno Ace", sans-serif;
 }
 
