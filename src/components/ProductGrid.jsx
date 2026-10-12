@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import CategoryChips from './CategoryChips';
 
 const ALL = '__all__';
 const MAX_TILES = 120;
@@ -36,27 +37,14 @@ export default function ProductGrid({ items, onAdd }) {
   const current = categories.includes(active) ? active : ALL;
   const shown = (current === ALL ? products : products.filter((p) => (p.category || '').trim() === current)).slice(0, MAX_TILES);
 
-  const chip = (value, label) => (
-    <button
-      key={value}
-      type="button"
-      onClick={() => setActive(value)}
-      aria-pressed={current === value}
-      className={`flex-shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-        current === value ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 active:bg-slate-200'
-      }`}
-    >
-      {label}
-    </button>
-  );
-
   return (
     <section aria-label="Products" className="px-4 pb-4">
       {categories.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-3">
-          {chip(ALL, 'All')}
-          {categories.map((c) => chip(c, c))}
-        </div>
+        <CategoryChips
+          value={current}
+          onChange={setActive}
+          options={[{ value: ALL, label: 'All' }, ...categories.map((c) => ({ value: c, label: c }))]}
+        />
       )}
       <div className="grid grid-cols-2 gap-2">
         {shown.map((p) => {
