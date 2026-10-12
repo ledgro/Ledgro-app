@@ -2,6 +2,7 @@ import { toast } from 'sonner';
 import { useReducer, useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
+import ProductGrid from '../components/ProductGrid';
 import { writeStats, voidEntries } from '../lib/dayStats';
 import { billDelta, bizDayKey } from '../lib/statsMath';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
@@ -509,7 +510,7 @@ export default function POS() {
         </div>
 
         {/* Fast-Access Pinned Grid */}
-        {fastAccessItems.length > 0 && (
+        {items.length > 0 && fastAccessItems.length > 0 && (
           <div className="px-4 pt-2 pb-4 overflow-x-auto no-scrollbar">
             <div className="flex gap-2">
               {fastAccessItems.map((fItem) => (
@@ -536,9 +537,15 @@ export default function POS() {
 
         <div className="px-4 flex-1 mt-2">
           {items.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-400 mt-20">
-              <p>Search or add an item to begin</p>
-            </div>
+            storeCatalogItems.some((i) => i.id && i.isActive !== false) ? (
+              <div className="-mx-4">
+                <ProductGrid items={storeCatalogItems} onAdd={handleAddItem} />
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-gray-400 mt-20">
+                <p>Search or add an item to begin</p>
+              </div>
+            )
           ) : (
             <div className="flex flex-col">
               <AnimatePresence mode="popLayout">
