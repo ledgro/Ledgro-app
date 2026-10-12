@@ -6,7 +6,7 @@ import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, increme
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Drawer } from 'vaul';
-import { PackagePlus, ArrowRight, Search, Plus, Archive, ChevronDown, ChevronUp, AlertCircle, Edit2, Trash2 } from 'lucide-react';
+import { PackagePlus, Search, Plus, Archive, ChevronDown, ChevronUp, AlertCircle, Edit2, Trash2 } from 'lucide-react';
 import { formatCurrency, sanitizeText, cn } from '../lib/utils';
 import { sessionGuard } from '../lib/SessionGuard';
 import { useCatalogLoader } from '../hooks/useCatalogLoader';
@@ -569,7 +569,7 @@ export default function Products() {
                 disabled={submitting || !name.trim() || !price}
                 className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
               >
-                {submitting ? 'Saving...' : (editingItem ? 'Update Product' : 'Add to Catalog')} <ArrowRight size={20} />
+                {submitting ? 'Saving...' : (editingItem ? 'Update Product' : 'Add to Catalog')}
               </button>
             </div>
           </Drawer.Content>
