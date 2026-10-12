@@ -2,7 +2,6 @@ import { toast } from 'sonner';
 import { useReducer, useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
-import ProductGrid from '../components/ProductGrid';
 import { useCatalogLoader } from '../hooks/useCatalogLoader';
 import { writeStats, voidEntries } from '../lib/dayStats';
 import { billDelta, bizDayKey } from '../lib/statsMath';
@@ -13,7 +12,7 @@ import { Tag, Share2, PlusCircle, Download } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSpring, animated } from '@react-spring/web';
 
-import SearchInput from '../components/SearchInput';
+import SearchSheet from '../components/SearchSheet';
 import CartItem from '../components/CartItem';
 import DiscountDrawer from '../components/DiscountDrawer';
 import Receipt from '../components/Receipt';
@@ -143,14 +142,11 @@ export default function POS() {
   const [isDiscountOpen, setIsDiscountOpen] = useState(false);
   const [activeDiscountItem, setActiveDiscountItem] = useState(null); // null means global discount
 
-  // Derive top 8 most frequent active items for fast-access grid
-  const storeCatalogItems = useCatalogStore((s) => s.items);
-  const fastAccessItems = useMemo(() => {
-    return storeCatalogItems
-      .filter((i) => i.id && i.isActive !== false)
-      .sort((a, b) => (b.frequency || 0) - (a.frequency || 0))
-      .slice(0, 8);
-  }, [storeCatalogItems]);
+  const cartQty = useMemo(() => {
+    const m = new Map();
+    items.forEach((i) => { if (i.catalogId) m.set(i.catalogId, (m.get(i.catalogId) || 0) + (Number(i.qty) || 0)); });
+    return m;
+  }, [items]);
 
   const handleAddItem = (item) => {
     dispatch({ type: 'ADD_ITEM', payload: item });
@@ -493,46 +489,15 @@ export default function POS() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col pb-40"> {/* pb-40 ensures we don't hide behind sticky footer */}
         <div className="p-4 pb-2 sticky top-[60px] z-20 bg-white/80 backdrop-blur-md">
-          <SearchInput onAddItem={handleAddItem} />
+          <SearchSheet onAddItem={handleAddItem} cartQty={cartQty} itemCount={items.length} />
         </div>
-
-        {/* Fast-Access Pinned Grid */}
-        {items.length > 0 && fastAccessItems.length > 0 && (
-          <div className="px-4 pt-2 pb-4 overflow-x-auto no-scrollbar">
-            <div className="flex gap-2">
-              {fastAccessItems.map((fItem) => (
-                <button
-                  key={fItem.id}
-                  onClick={() => handleAddItem({
-                    name: fItem.name,
-                    unitPriceAtSale: fItem.lastUsedPrice || 0,
-                    catalogVersionTimestamp: fItem.updatedAt?.toMillis?.() || Date.now(),
-                    catalogId: fItem.id,
-                    qty: 1,
-                    unit: fItem.unit || 'unit',
-                  })}
-                  className="flex-shrink-0 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2 flex flex-col items-center justify-center active:bg-blue-100 transition-colors shadow-sm"
-                  style={{ minWidth: '100px' }}
-                >
-                  <span className="font-bold text-slate-800 text-sm truncate w-full text-center">{fItem.name}</span>
-                  <span className="text-blue-600 font-bold text-xs mt-0.5">₹{((fItem.lastUsedPrice || 0) / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div className="px-4 flex-1 mt-2">
           {items.length === 0 ? (
-            storeCatalogItems.some((i) => i.id && i.isActive !== false) ? (
-              <div className="-mx-4">
-                <ProductGrid items={storeCatalogItems} onAdd={handleAddItem} />
-              </div>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-gray-400 mt-20">
-                <p>Search or add an item to begin</p>
-              </div>
-            )
+            <div className="flex flex-col items-center justify-center text-slate-400 mt-24 text-center">
+              <p className="font-medium">No items yet</p>
+              <p className="text-sm mt-1">Tap search to add items</p>
+            </div>
           ) : (
             <div className="flex flex-col">
               <AnimatePresence mode="popLayout">
