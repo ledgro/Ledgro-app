@@ -6,10 +6,11 @@ import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, increme
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Drawer } from 'vaul';
-import { PackagePlus, Search, Plus, Archive, ChevronDown, ChevronUp, AlertCircle, Edit2, Trash2 } from 'lucide-react';
+import { PackagePlus, Search, Plus, Archive, ChevronDown, ChevronUp, Edit2, Trash2 } from 'lucide-react';
 import { formatCurrency, sanitizeText, cn } from '../lib/utils';
 import { sessionGuard } from '../lib/SessionGuard';
 import { useCatalogLoader } from '../hooks/useCatalogLoader';
+import CategoryChips from '../components/CategoryChips';
 
 export default function Products() {
   const billCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
@@ -24,7 +25,8 @@ export default function Products() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showInactive, setShowInactive] = useState(false);
-  const [sortBy, setSortBy] = useState('recently_added');
+  const [sortBy] = useState('recently_added');
+  const [filter, setFilter] = useState('__all__');
 
   // Bottom Sheet State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -49,7 +51,12 @@ export default function Products() {
   const activeProducts = useMemo(() => {
     let filtered = catalogItems
       .filter(item => item.isActive !== false)
-      .filter(item => item.name?.toLowerCase().includes(searchQuery.toLowerCase()));
+      .filter(item => item.name?.toLowerCase().includes(searchQuery.toLowerCase()))
+      .filter(item => {
+        if (filter === '__all__') return true;
+        if (filter === '__low__') return item.stockCount != null && item.lowStockAlert != null && item.stockCount <= item.lowStockAlert;
+        return (item.category || '').trim() === filter;
+      });
 
 
     filtered = filtered.sort((a, b) => {
@@ -83,7 +90,13 @@ export default function Products() {
 
 
     return filtered;
-  }, [catalogItems, searchQuery, sortBy]);
+  }, [catalogItems, searchQuery, sortBy, filter]);
+
+  const filterOptions = useMemo(() => {
+    const cats = [...new Set(catalogItems.filter((i) => i.isActive !== false).map((i) => (i.category || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const hasLow = catalogItems.some((i) => i.isActive !== false && i.stockCount != null && i.lowStockAlert != null && i.stockCount <= i.lowStockAlert);
+    return [{ value: '__all__', label: 'All' }, ...(hasLow ? [{ value: '__low__', label: 'Low stock' }] : []), ...cats.map((c) => ({ value: c, label: c }))];
+  }, [catalogItems]);
 
   const inactiveProducts = useMemo(() => {
     return catalogItems
@@ -267,85 +280,58 @@ export default function Products() {
   };
 
   const renderProductRow = (item) => {
-    const isLowStock = item.lowStockAlert != null && item.stockCount != null && item.stockCount <= item.lowStockAlert;
+    const tracked = item.stockCount != null;
+    const out = tracked && item.stockCount <= 0;
+    const low = tracked && item.lowStockAlert != null && item.stockCount <= item.lowStockAlert;
 
     return (
       <button
         type="button"
         key={item.id}
         onClick={() => openDrawer(item)}
-        className="w-full text-left bg-white p-4 rounded-2xl shadow-subtle border border-slate-100 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform mb-3"
+        className="flex w-full items-center justify-between border-b border-slate-100 py-3 text-left active:bg-slate-50"
       >
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-bold text-slate-900 text-lg truncate">{item.name}</h3>
-            {item.category && (
-              <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-xs font-semibold truncate max-w-[80px]">
-                {item.category}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-3 text-sm font-medium text-slate-500">
-            <span className="text-blue-600 font-bold">{formatCurrency(item.lastUsedPrice)}</span>
-            <span>•</span>
-            <span>{item.unit || 'piece'}</span>
-            {item.source && (<><span>•</span><span className="truncate max-w-[110px]">from {item.source}</span></>)}
-          </div>
+        <div className="min-w-0 flex-1 pr-3">
+          <h3 className="truncate text-base font-semibold text-slate-900">{item.name}</h3>
+          <p className="mt-0.5 truncate text-sm text-slate-500">
+            <span className="font-bold text-blue-600">{formatCurrency(item.lastUsedPrice)}</span>
+            {' · '}{item.unit || 'piece'}
+            {item.source ? ` · from ${item.source}` : ''}
+          </p>
         </div>
-        <div className="flex flex-col items-end shrink-0 pl-2">
-          {item.stockCount != null && (
-            <div className={cn(
-              "px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1 whitespace-nowrap",
-              isLowStock ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700"
-            )}>
-              {isLowStock && <AlertCircle size={14} />}
-              {item.stockCount} {item.unit || 'unit'}
-            </div>
-          )}
-        </div>
+        {tracked && (
+          <span className={cn('shrink-0 text-sm font-bold', out ? 'text-red-600' : low ? 'text-amber-600' : 'text-green-700')}>
+            {out ? 'Out' : `${item.stockCount} ${item.unit || 'unit'}`}
+          </span>
+        )}
       </button>
     );
   };
 
   return (
     <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-20">
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 py-4 flex flex-col gap-4 shadow-sm">
-        <div className="flex items-center justify-between">
+      <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 pt-4 pb-1">
+        <div className="mb-3 flex items-center justify-between">
           <h1 className="text-xl font-bold text-slate-900">Products</h1>
           <button
+            type="button"
             onClick={() => openDrawer()}
-            className="bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm"
+            className="flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white active:scale-95 transition-transform"
           >
-            <Plus size={18} /> Add Product
+            <Plus size={16} /> New
           </button>
         </div>
-
-
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-slate-400" />
-            </div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="block w-full h-11 pl-10 pr-3 border border-slate-200 rounded-xl shadow-subtle bg-slate-50 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium transition-all text-sm"
-              placeholder="Search..."
-            />
-          </div>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="h-11 px-3 border border-slate-200 rounded-xl shadow-subtle bg-white text-slate-700 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"
-          >
-            <option value="recently_added">Newest</option>
-            <option value="oldest">Oldest</option>
-            <option value="a_z">A-Z</option>
-            <option value="low_stock">Lowest Stock</option>
-            <option value="high_stock">Highest Stock</option>
-          </select>
+        <div className="relative mb-3">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="block h-12 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Search products..."
+          />
         </div>
+        {filterOptions.length > 2 && <CategoryChips options={filterOptions} value={filter} onChange={setFilter} />}
       </header>
 
       <main className="p-4 flex-1">
@@ -353,11 +339,10 @@ export default function Products() {
           <div className="flex flex-col items-center justify-center h-48 text-center text-slate-500">
             <PackagePlus size={48} className="text-slate-300 mb-4" />
             <p className="font-semibold text-lg">No active products found.</p>
-            <p className="text-sm">Click "Add Product" to get started.</p>
+            <p className="text-sm">Tap "New" to add your first product.</p>
           </div>
         ) : (
           <div>
-            <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">Active Catalog</h2>
             {activeProducts.map(renderProductRow)}
           </div>
         )}
@@ -569,7 +554,7 @@ export default function Products() {
                 disabled={submitting || !name.trim() || !price}
                 className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
               >
-                {submitting ? 'Saving...' : (editingItem ? 'Update Product' : 'Add to Catalog')}
+                {submitting ? 'Saving...' : (editingItem ? 'Update Product' : 'Save product')}
               </button>
             </div>
           </Drawer.Content>
