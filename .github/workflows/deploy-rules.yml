@@ -2,7 +2,7 @@ name: Deploy Firestore rules
 
 # Publishes firestore.rules to Firebase whenever it changes on main (after the rules tests pass).
 # One-time setup: add the repository secret FIREBASE_SERVICE_ACCOUNT (service account JSON key,
-# role "Firebase Rules Admin"). Until the secret exists this workflow fails safely and changes nothing.
+# roles "Firebase Rules Admin" + "Service Usage Consumer"). Until the secret exists this workflow fails safely and changes nothing.
 
 on:
   push:
