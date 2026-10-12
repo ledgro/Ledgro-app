@@ -137,7 +137,7 @@ export default function POS() {
     }
   }, [editBill, state.items.length, checkoutSuccess]);
 
-  useCatalogLoader(shopId);
+  useCatalogLoader(shopId, { force: true });
 
   // Drawer state
   const [isDiscountOpen, setIsDiscountOpen] = useState(false);
