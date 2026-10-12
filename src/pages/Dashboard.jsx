@@ -14,6 +14,7 @@ import { Drawer } from 'vaul';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import { computeDailyAggregations } from '../lib/aggregations';
+import { QuickActions, LowStock, RecentBills } from '../components/DashboardExtras';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
@@ -212,18 +213,6 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
-            {/* Top Cards */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
-                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Expected Cash</p>
-                 <h2 className="text-2xl font-black text-slate-900">{mask(formatCurrency(stats.expectedCash))}</h2>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
-                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">In Bank (UPI)</p>
-                 <h2 className="text-2xl font-black text-slate-900">{mask(formatCurrency(stats.upiInBank))}</h2>
-              </div>
-            </div>
-
             {/* Net Earnings & Sparkline */}
             <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                <div className="mb-4">
@@ -265,6 +254,20 @@ export default function Dashboard() {
                </div>
             </div>
 
+            <QuickActions />
+
+            {/* Top Cards */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
+                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Expected Cash</p>
+                 <h2 className="text-2xl font-black text-slate-900">{mask(formatCurrency(stats.expectedCash))}</h2>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
+                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">In Bank (UPI)</p>
+                 <h2 className="text-2xl font-black text-slate-900">{mask(formatCurrency(stats.upiInBank))}</h2>
+              </div>
+            </div>
+
             {/* Cash vs UPI split */}
             <div className="grid grid-cols-2 gap-px bg-slate-100 border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
               <div className="bg-white p-4 text-center">
@@ -274,6 +277,9 @@ export default function Dashboard() {
                 <p className="text-lg font-black text-blue-600">UPI {mask(formatCurrency(stats.upiSplit))}</p>
               </div>
             </div>
+
+            <LowStock shopId={shopId} />
+            <RecentBills shopId={shopId} mask={mask} />
 
           </>
         )}
