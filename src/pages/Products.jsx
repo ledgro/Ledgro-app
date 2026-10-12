@@ -9,6 +9,7 @@ import { Drawer } from 'vaul';
 import { PackagePlus, ArrowRight, Search, Plus, Archive, ChevronDown, ChevronUp, AlertCircle, Edit2, Trash2 } from 'lucide-react';
 import { formatCurrency, sanitizeText, cn } from '../lib/utils';
 import { sessionGuard } from '../lib/SessionGuard';
+import { useCatalogLoader } from '../hooks/useCatalogLoader';
 
 export default function Products() {
   const billCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
@@ -16,6 +17,8 @@ export default function Products() {
   const catalogItems = useCatalogStore((state) => state.items);
   const addCatalogItem = useCatalogStore((state) => state.addItem);
   const removeCatalogItem = useCatalogStore((state) => state.removeItem);
+
+  useCatalogLoader(shopId);
 
   const isAdmin = user?.uid === shopAdminId;
 
