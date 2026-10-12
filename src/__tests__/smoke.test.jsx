@@ -92,7 +92,9 @@ describe('POS checkout', () => {
     const { default: POS } = await import('../pages/POS');
     render(<MemoryRouter><POS /></MemoryRouter>);
 
+    fireEvent.click(await screen.findByRole('button', { name: /search items/i }));
     fireEvent.click(await screen.findByText('Rice'));
+    fireEvent.click(await screen.findByRole('button', { name: /^done/i }));
     fireEvent.click(await screen.findByText(/Confirm Checkout/i));
 
     await waitFor(() => expect(firestore.__batch.set).toHaveBeenCalled());
