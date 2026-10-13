@@ -3,7 +3,6 @@ export const initialBillState = {
   globalDiscount: { type: 'flat', value: 0 },
 };
 
-// Generates a UUID for list reconciliation
 const generateId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -25,7 +24,6 @@ export function billReducer(state = initialBillState, action) {
       );
 
       if (existingItemIndex > -1) {
-        // Increment quantity if exact item exists
         const newItems = [...state.items];
         newItems[existingItemIndex] = {
           ...newItems[existingItemIndex],
@@ -34,7 +32,6 @@ export function billReducer(state = initialBillState, action) {
         return { ...state, items: newItems };
       }
 
-      // Add new item
       return {
         ...state,
         items: [
@@ -98,7 +95,7 @@ export function billReducer(state = initialBillState, action) {
         ...state,
         items: (action.payload.items || []).map(item => ({
           ...item,
-          id: generateId(), // ensure new UI IDs so editing works
+          id: generateId(),
           lineDiscount: item.lineDiscount || { type: 'flat', value: 0 }
         })),
         globalDiscount: action.payload.globalDiscount || { type: 'flat', value: 0 }
@@ -110,7 +107,6 @@ export function billReducer(state = initialBillState, action) {
   }
 }
 
-// Selectors for complex mathematical derivations
 export function allocateDiscount(lineItems, totalDiscountPaise) {
   if (!lineItems.length || totalDiscountPaise <= 0) return lineItems;
 
@@ -167,7 +163,7 @@ export const calculateBillTotals = (state) => {
 
     return {
       ...item,
-      unitPriceAtSale: price, // Ensure this exists on the output object as it's required by POS
+      unitPriceAtSale: price,
       rawTotal: rawTotalPaise,
       discountAmt: discountAmtPaise,
       finalLineTotal
@@ -186,7 +182,6 @@ export const calculateBillTotals = (state) => {
     globalDiscountAmtPaise = Math.min(Math.max(0, Math.round(gDiscValue)), subtotal);
   }
 
-  // Allocate global discount across line items using Largest Remainder Method
   if (globalDiscountAmtPaise > 0 && subtotal > 0) {
     processedItems = allocateDiscount(processedItems, globalDiscountAmtPaise).map(item => ({
       ...item,
@@ -201,6 +196,6 @@ export const calculateBillTotals = (state) => {
     items: processedItems,
     subtotal,
     globalDiscountAmt: globalDiscountAmtPaise,
-    grandTotal // already integer
+    grandTotal
   };
 };

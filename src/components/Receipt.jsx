@@ -1,14 +1,11 @@
 import { forwardRef, useMemo } from 'react';
 import { formatCurrency } from '../lib/utils';
 
-
 const Receipt = forwardRef(({ billData }, ref) => {
-  // Use useAuth inside the component, but handle if it's called outside somehow
   const shopProfile = billData?.shopProfile || {};
 
   const { items = [], subtotal = 0, globalDiscountAmt = 0, grandTotal = 0, paymentMethod, shopName, createdAt, clientCreatedAt, payment } = billData || {};
 
-  // 1. Fix date to be exact time of sale
   const dateStr = useMemo(() => {
     if (!billData) return '';
     if (clientCreatedAt) return new Date(clientCreatedAt).toLocaleString();
@@ -30,7 +27,6 @@ const Receipt = forwardRef(({ billData }, ref) => {
 
   if (!billData) return null;
 
-  // 7. Extract settings variables
   const finalShopName = shopName || shopProfile?.name || 'SHOP';
   const address = shopProfile?.address;
   const phone = shopProfile?.phone;
@@ -69,7 +65,6 @@ const Receipt = forwardRef(({ billData }, ref) => {
         </div>
 
         {items.map((item, i) => {
-          // 4. Guard and format unit price
           const price = item.unitPriceAtSale ?? item.unitPrice ?? 0;
 
           return (

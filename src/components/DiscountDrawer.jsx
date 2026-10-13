@@ -5,7 +5,6 @@ export default function DiscountDrawer({ isOpen, onClose, targetItem, globalDisc
   const [discountType, setDiscountType] = useState('flat'); // 'flat' | 'percent'
   const [discountValue, setDiscountValue] = useState('');
 
-  // Hydrate local state when drawer opens
   useEffect(() => {
     if (isOpen) {
       if (targetItem && targetItem.lineDiscount) {

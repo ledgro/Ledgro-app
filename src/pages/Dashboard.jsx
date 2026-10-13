@@ -25,7 +25,6 @@ export default function Dashboard() {
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
 
   // Privacy: amounts are blurred every time the dashboard opens. Reveal lasts 30s,
-  // and re-hides when the app goes to the background.
   const [hidden, setHidden] = useState(true);
   useEffect(() => {
     if (hidden) return undefined;
@@ -43,14 +42,11 @@ export default function Dashboard() {
 
   const chartRef = useRef(null);
 
-
-
-  // Stats
   const [rawStats, setStats] = useState({
     expectedCash: 0,
     upiInBank: 0,
     netEarnings: 0,
-    vsYesterday: 0, // percentage string or value
+    vsYesterday: 0,
     cashSplit: 0,
     upiSplit: 0,
     staffCount: {},
@@ -58,7 +54,7 @@ export default function Dashboard() {
   });
 
   const stats = useDeferredValue(rawStats);
-  const [actualCashCounted, setActualCashCounted] = useState(''); // Moved out of deferred stats
+  const [actualCashCounted, setActualCashCounted] = useState('');
   const [closureDate, setClosureDate] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -155,7 +151,6 @@ export default function Dashboard() {
         date: closureDocId
       };
 
-      // Cash count: can be re-saved any time today (latest count wins). Nothing is locked
       // and no expense is created: it only records expected vs counted.
       const closureRef = doc(db, `shops/${shopId}/dailyClosures`, closureDocId);
       await setDoc(closureRef, closureData);
@@ -174,7 +169,6 @@ export default function Dashboard() {
   return (
     <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-24">
 
-      {/* Top Bar Sync */}
       <div className="bg-slate-100 py-1.5 px-4 flex justify-between items-center text-[11px] font-bold text-slate-500 sticky top-0 z-30">
          <div className="flex items-center gap-1.5">
            {syncStatus.online ? <Cloud size={14} className="text-blue-500" /> : <CloudOff size={14} className="text-amber-500" />}
@@ -213,7 +207,6 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
-            {/* Net Earnings & Sparkline */}
             <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                <div className="mb-4">
                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Today's Net Earnings</p>
@@ -229,7 +222,6 @@ export default function Dashboard() {
                  </div>
                </div>
 
-               {/* Sparkline Canvas */}
                <div className={cn("h-16 w-full transition-[filter]", hidden && "blur-sm")}>
                  <Bar
                    ref={chartRef}
@@ -237,7 +229,7 @@ export default function Dashboard() {
                      labels: ['1','2','3','4','5','6','7'],
                      datasets: [{
                        data: stats.weekData,
-                       backgroundColor: (ctx) => ctx.dataIndex === 6 ? '#2563EB' : '#CBD5E1', // Today is index 6, primary blue
+                       backgroundColor: (ctx) => ctx.dataIndex === 6 ? '#2563EB' : '#CBD5E1',
                        borderRadius: 4
                      }]
                    }}
@@ -256,7 +248,6 @@ export default function Dashboard() {
 
             <QuickActions />
 
-            {/* Top Cards */}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Expected Cash</p>
@@ -268,7 +259,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Cash vs UPI split */}
             <div className="grid grid-cols-2 gap-px bg-slate-100 border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
               <div className="bg-white p-4 text-center">
                 <p className="text-lg font-black text-green-600">Cash {mask(formatCurrency(stats.cashSplit))}</p>
@@ -285,7 +275,6 @@ export default function Dashboard() {
         )}
       </main>
 
-      {/* Persistent Close Register Button */}
       <div className="px-4 mt-2">
          <button
            onClick={() => setIsCloseDrawerOpen(true)}
@@ -305,7 +294,6 @@ export default function Dashboard() {
                <h2 className="text-2xl font-black text-slate-900 mb-6 text-center">Cash Count</h2>
 
                <div className="space-y-6">
-                 {/* Cash Math */}
                  <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm font-mono text-sm">
                    <p className="font-bold font-sans text-slate-900 mb-3 border-b pb-2">Expected Cash in Drawer:</p>
                    <div className="flex justify-between text-slate-600 mb-1"><span>Cash Sales:</span><span>{mask(formatCurrency(stats.cashSplit))}</span></div>
@@ -313,14 +301,12 @@ export default function Dashboard() {
                    <div className="flex justify-between font-bold text-slate-900 border-t pt-2 mt-2"><span>Expected Total:</span><span>{mask(formatCurrency(stats.expectedCash))}</span></div>
                  </div>
 
-                 {/* UPI Math */}
                  <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm font-mono text-sm">
                    <p className="font-bold font-sans text-slate-900 mb-3 border-b pb-2">Expected Bank Deposit (UPI):</p>
                    <div className="flex justify-between text-slate-600 mb-1"><span>UPI Sales:</span><span>{mask(formatCurrency(stats.upiSplit))}</span></div>
                    <div className="flex justify-between font-bold text-slate-900 border-t pt-2 mt-2"><span>Expected Total:</span><span>{mask(formatCurrency(stats.upiInBank))}</span></div>
                  </div>
 
-                 {/* Verification Input */}
                  <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                    <div>
                      <label className="block text-sm font-bold text-slate-700 mb-2">Closure Date</label>

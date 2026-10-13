@@ -20,14 +20,12 @@ export default function PLScreen() {
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState('simple'); // 'simple' | 'detailed'
 
-  // Dates
-  const [dateRangeType, setDateRangeType] = useState('today'); // today, week, month, custom
+  const [dateRangeType, setDateRangeType] = useState('today');
   const [dateRange, setDateRange] = useState({ from: startOfDay(bizDate()), to: endOfDay(bizDate()) });
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [tempRange, setTempRange] = useState({ from: undefined, to: undefined });
   const [vsLastMonth, setVsLastMonth] = useState(false);
 
-  // Data
   const [rawdata, setData] = useState({
     revenue: { total: 0, cash: 0, upi: 0, splitCash: 0, splitUpi: 0 },
     expenses: { total: 0, byCategory: {} },
@@ -46,7 +44,6 @@ export default function PLScreen() {
 
     try {
       const toDate = range.to ? endOfDay(range.to) : endOfDay(range.from);
-      // Stored day totals: one read per day in range, however many bills exist.
       const days = await readStatsRange(shopId, dayKey(range.from), dayKey(toDate));
       const t = sumStats([...days.values()]);
 
@@ -91,7 +88,6 @@ export default function PLScreen() {
     load();
     return () => { active = false; };
   }, [dateRangeType, dateRange, vsLastMonth, fetchPLData]);
-
 
   const handleShare = async () => {
     if (!reportRef.current) return;
@@ -172,7 +168,6 @@ export default function PLScreen() {
       toast.error('Could not create the PDF.');
     }
   };
-
 
   return (
     <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-20">

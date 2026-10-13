@@ -48,7 +48,6 @@ export default function Transfers() {
 
   const parties = useMemo(() => [...new Set(transfers.map((t) => t.party).filter(Boolean))], [transfers]);
 
-  // Per shop totals over the loaded transfers (latest 100)
   const summary = useMemo(() => {
     const m = new Map();
     transfers.forEach((t) => {
@@ -86,7 +85,6 @@ export default function Transfers() {
       let catalogId;
       if (existing) {
         catalogId = existing.id;
-        // Untracked stock (null) stays untracked.
         if (existing.stockCount != null) {
           batch.update(doc(db, `shops/${shopId}/catalog`, existing.id), {
             stockCount: increment(direction === 'in' ? qtyNum : -qtyNum),

@@ -53,14 +53,12 @@ export default function BottomNav() {
       <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 pb-safe z-40">
         <div className="relative flex justify-between items-center h-[64px] px-2">
 
-          {/* Left Items */}
           <div className="flex w-[40%] justify-around items-center h-full">
             {leftNavItems.map((item) => (
               <NavItem key={item.path} {...item} active={location.pathname === item.path} />
             ))}
           </div>
 
-          {/* Center Elevated FAB (New Bill) */}
           <div className="absolute left-1/2 -translate-x-1/2 -top-6 flex justify-center w-[20%]">
             <Link
               to="/pos"
@@ -77,13 +75,11 @@ export default function BottomNav() {
             </Link>
           </div>
 
-          {/* Right Items */}
           <div className="flex w-[40%] justify-around items-center h-full">
             {rightNavItems.map((item) => (
               <NavItem key={item.path} {...item} active={location.pathname === item.path} />
             ))}
 
-            {/* More Menu Button */}
             <button
               onClick={() => setIsMoreOpen(true)}
               aria-label="More options"
@@ -103,7 +99,6 @@ export default function BottomNav() {
         </div>
       </nav>
 
-      {/* More Drawer */}
       <Drawer.Root open={isMoreOpen} onOpenChange={setIsMoreOpen}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />

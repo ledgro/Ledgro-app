@@ -21,21 +21,16 @@ export default function Settings() {
   const [recalculating, setRecalculating] = useState(false);
   const navigate = useNavigate();
 
-  // Shop Profile State
   const [shopName, setShopName] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [tagline, setTagline] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // App Preferences State (localStorage)
   const [defaultPayment, setDefaultPayment] = useState(() => localStorage.getItem('ledgro_defaultPayment') || 'cash');
   const [hapticFeedback, setHapticFeedback] = useState(() => localStorage.getItem('ledgro_haptic') !== 'false');
   const [autoReset, setAutoReset] = useState(() => localStorage.getItem('ledgro_autoReset') !== 'false');
   const [storageHealth, setStorageHealth] = useState(null);
-
-
-
 
   useEffect(() => {
     checkStorageHealth().then(setStorageHealth);
@@ -60,9 +55,6 @@ export default function Settings() {
     };
     fetchShopProfile();
   }, [shopId]);
-
-  // Sync preferences to localStorage
-
 
   useEffect(() => {
     try { localStorage.setItem('ledgro_defaultPayment', defaultPayment);
@@ -120,7 +112,6 @@ export default function Settings() {
     return { bills, expenses };
   };
 
-  // PDF / PNG report of bills (expenses follow in the same list)
   const handleExportData = async (fmt) => {
     if (!shopId) return;
     try {
@@ -161,9 +152,6 @@ export default function Settings() {
     }
   };
 
-  // Full-fidelity machine backup (restore / audit)
-  // Daily totals are stored as bills are made. Bills made before that existed (or any drift)
-  // are fixed by recomputing the last 90 days straight from the real bills and expenses.
   const handleRecalculate = async () => {
     if (!shopId || recalculating) return;
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
@@ -257,7 +245,6 @@ export default function Settings() {
       </header>
 
       <main className="p-4 space-y-6">
-        {/* Shop Profile Section */}
         <section className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
           <div className="flex items-center gap-2 text-slate-900 font-bold mb-4">
             <Store size={20} className="text-blue-600" />
@@ -286,7 +273,6 @@ export default function Settings() {
           </form>
         </section>
 
-        {/* App Preferences */}
         <section className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
           <div className="flex items-center gap-2 text-slate-900 font-bold mb-4">
             <Settings2 size={20} className="text-blue-600" />
@@ -330,7 +316,6 @@ export default function Settings() {
           </div>
         </section>
 
-        {/* Data Management */}
         <section className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
           <div className="flex items-center gap-2 text-slate-900 font-bold mb-4">
             <Database size={20} className="text-blue-600" />
@@ -384,7 +369,6 @@ export default function Settings() {
           </div>
         </section>
 
-        {/* Account */}
         <section className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
            <div className="flex items-center gap-2 text-slate-900 font-bold mb-4">
              <User size={20} className="text-blue-600" />

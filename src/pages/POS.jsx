@@ -68,18 +68,16 @@ export default function POS() {
   const timedOutRef = useRef(false);
   const receiptRef = useRef(null);
 
-  // Checkout state (declared before any effect/hook that reads it)
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const [lastBill, setLastBill] = useState(null);
   const [receiptFormat, setReceiptFormat] = useState('png'); // 'png' | 'pdf'
-  const [receiptFiles, setReceiptFiles] = useState(null); // pre-rendered { png, pdf } blobs
+  const [receiptFiles, setReceiptFiles] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState(() => (localStorage.getItem('ledgro_defaultPayment') === 'upi' ? 'upi' : 'cash')); // 'cash' | 'upi' | 'split'
   const [splitCash, setSplitCash] = useState('');
 
   const { items, subtotal, globalDiscountAmt, grandTotal } = useMemo(() => calculateBillTotals(state), [state]);
 
-  // Identity + live cart for the update/recovery logic in main.jsx and ErrorBoundary
   useEffect(() => {
     window.__LEDGRO_UID__ = user?.uid;
     window.__LEDGRO_SHOPID__ = shopId;
@@ -91,12 +89,10 @@ export default function POS() {
   }, [state, isCheckingOut]);
 
   useEffect(() => () => {
-    // leaving the POS screen: nothing is "in progress" any more
     window.__LEDGRO_CART_STATE__ = null;
     window.__LEDGRO_CHECKOUT_ACTIVE__ = false;
   }, []);
 
-  // Restore a cart saved just before an update-reload
   useEffect(() => {
     const recovered = localStorage.getItem('ledgro-cart-recovery');
     if (!recovered) return;
@@ -118,12 +114,10 @@ export default function POS() {
   const springTotal = useSpring({ val: grandTotal, config: { stiffness: 200, damping: 20 } });
   const editBill = location.state?.editBill || null;
 
-  // Init from edit
   useEffect(() => {
     if (editBill && state.items.length === 0 && !checkoutSuccess) {
       dispatch({ type: 'INIT_FROM_EDIT', payload: editBill });
 
-      // If it was a split payment, re-initialize the split UI
       if (editBill.payment?.method === 'split') {
         setPaymentMethod('split');
         setSplitCash(((editBill.payment.breakdown?.cash || 0) / 100).toString());
@@ -138,9 +132,8 @@ export default function POS() {
 
   useCatalogLoader(shopId, { force: true });
 
-  // Drawer state
   const [isDiscountOpen, setIsDiscountOpen] = useState(false);
-  const [activeDiscountItem, setActiveDiscountItem] = useState(null); // null means global discount
+  const [activeDiscountItem, setActiveDiscountItem] = useState(null);
 
   const cartQty = useMemo(() => {
     const m = new Map();
@@ -153,8 +146,6 @@ export default function POS() {
     if (localStorage.getItem('ledgro_haptic') !== 'false') {
       hapticVibrate(10);
     }
-    // Remember typed items locally so they show up in search straight away.
-    // The catalog document itself is created at checkout (together with the bill).
     if (!item.catalogId) {
       addCatalogItem({ name: item.name, lastUsedPrice: item.unitPriceAtSale, unit: item.unit || 'piece' });
     }
@@ -173,7 +164,6 @@ export default function POS() {
   const handleCheckout = async () => {
     if (items.length === 0 || !shopId || isSubmittingRef.current) return;
 
-    // Split payment sanity
     const cashPaise = paymentMethod === 'split' ? Math.round((parseFloat(splitCash) || 0) * 100) : 0;
     if (paymentMethod === 'split' && (cashPaise <= 0 || cashPaise >= grandTotal)) {
       toast.error('Enter a cash amount between 0 and the bill total.');
@@ -184,8 +174,7 @@ export default function POS() {
     const catalogMap = new Map(catalogItems.filter((c) => c.id).map((c) => [c.id, c]));
     const catalogByName = new Map(catalogItems.filter((c) => c.id).map((c) => [normName(c.name), c]));
 
-    // 1. Resolve every cart line to a catalog document (existing, or one to create)
-    const newCatalog = new Map(); // normalized name -> { id, ref, name, price, unit }
+    const newCatalog = new Map();
     const resolved = items.map((line) => {
       let catalogId = line.catalogId && catalogMap.has(line.catalogId) ? line.catalogId : null;
       if (!catalogId) {
@@ -206,7 +195,6 @@ export default function POS() {
       return { ...line, catalogId };
     });
 
-    // 2. Aggregate per catalog doc (several cart lines can share one product)
     const soldQty = new Map();
     resolved.forEach((l) => soldQty.set(l.catalogId, (soldQty.get(l.catalogId) || 0) + (Number(l.qty) || 0)));
 
@@ -257,10 +245,9 @@ export default function POS() {
       const statEntries = [{ key: bizDayKey(await serverNow()), delta: billDelta(payload) }];
 
       // Stock/frequency bookkeeping, one write per catalog doc
-      const stockDelta = new Map(); // id -> signed change
+      const stockDelta = new Map();
       soldQty.forEach((qty, id) => stockDelta.set(id, -qty));
 
-      // Editing a bill voids the original and returns its stock
       if (editBill) {
         statEntries.push(...(await voidEntries(shopId, editBill)));
         batch.update(doc(db, `shops/${shopId}/bills`, editBill.id), {
@@ -280,7 +267,7 @@ export default function POS() {
       const touched = new Set([...soldQty.keys(), ...stockDelta.keys()]);
       touched.forEach((id) => {
         const cat = catalogMap.get(id);
-        if (!cat) return; // brand-new product, created below
+        if (!cat) return;
         const updates = {};
         if (!editBill && soldQty.has(id)) updates.frequency = increment(1);
         let delta = stockDelta.get(id) || 0;
@@ -297,7 +284,6 @@ export default function POS() {
         }
       });
 
-      // Brand-new products typed at the till
       newCatalog.forEach((fresh) => {
         batch.set(fresh.ref, {
           name: fresh.name,
@@ -320,7 +306,7 @@ export default function POS() {
       // After a timeout the first attempt may have landed. If the bill exists, do not write again.
       let alreadySaved = false;
       if (timedOutRef.current) {
-        try { alreadySaved = (await getDoc(newBillRef)).exists(); } catch { /* treat as not saved */ }
+        try { alreadySaved = (await getDoc(newBillRef)).exists(); } catch { /* treat as not saved */ } { /* treat as not saved */ }
       }
       if (!alreadySaved) {
         await Promise.race([
@@ -420,7 +406,6 @@ export default function POS() {
     setLastBill(null);
     dispatch({ type: 'CLEAR_BILL' });
     navigate('.', { replace: true, state: {} });
-    // let a pending app update install now that the sale is fully finished
     window.dispatchEvent(new Event('ledgro:checkout-complete'));
   };
 
@@ -475,7 +460,6 @@ export default function POS() {
 
   return (
     <div className="h-[100dvh] overflow-y-auto bg-white flex flex-col">
-      {/* Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex justify-between items-center">
         <h1 className="text-xl font-bold text-gray-900">{editBill ? 'Correct & Edit Bill' : 'New Bill'}</h1>
       </header>
@@ -486,7 +470,6 @@ export default function POS() {
         </div>
       )}
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col pb-40"> {/* pb-40 ensures we don't hide behind sticky footer */}
         <div className="p-4 pb-2 sticky top-[60px] z-20 bg-white/80 backdrop-blur-md">
           <SearchSheet onAddItem={handleAddItem} cartQty={cartQty} itemCount={items.length} />
@@ -523,11 +506,9 @@ export default function POS() {
         </div>
       </main>
 
-      {/* Sticky Bottom Bar Checkout (Stacked above BottomNav) */}
       {items.length > 0 && (
         <div className="fixed bottom-[64px] left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-30 pb-safe">
           <div className="p-4 max-w-md mx-auto">
-            {/* Totals Breakdown */}
             <div className="flex justify-between items-center mb-3">
               <div className="text-sm text-gray-500">
                 <span className="font-medium text-gray-900">{items.length}</span> {items.length === 1 ? 'item' : 'items'}
@@ -553,7 +534,6 @@ export default function POS() {
               </div>
             </div>
 
-            {/* Checkout Actions & Payment Toggle */}
             <div className="flex flex-col gap-3">
               <div className="flex bg-slate-100 p-1 rounded-xl">
                 {['cash', 'upi', 'split'].map((method) => (
@@ -561,7 +541,7 @@ export default function POS() {
                     key={method}
                     onClick={() => {
                       setPaymentMethod(method);
-                      if (method !== 'split') setSplitCash(''); // reset
+                      if (method !== 'split') setSplitCash('');
                     }}
                     className={`flex-1 py-2 text-sm font-bold uppercase tracking-wider rounded-lg transition-all ${
                       paymentMethod === method ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'
@@ -572,7 +552,6 @@ export default function POS() {
                 ))}
               </div>
 
-              {/* Split Payment UI */}
               {paymentMethod === 'split' && (
                 <div className="flex gap-2">
                   <div className="flex-1">
@@ -618,7 +597,6 @@ export default function POS() {
         </div>
       )}
 
-      {/* Discount Drawer */}
       <DiscountDrawer
         isOpen={isDiscountOpen}
         onClose={() => setIsDiscountOpen(false)}

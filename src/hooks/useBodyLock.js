@@ -20,7 +20,6 @@ export function useBodyLock(isLocked) {
         window.scrollTo(0, scrollY);
       };
     } else {
-      // Standard overflow lock for other browsers
       const originalOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
 

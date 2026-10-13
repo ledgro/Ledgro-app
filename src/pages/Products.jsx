@@ -28,11 +28,9 @@ export default function Products() {
   const [sortBy] = useState('recently_added');
   const [filter, setFilter] = useState('__all__');
 
-  // Bottom Sheet State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState(null); // null means "Add New"
+  const [editingItem, setEditingItem] = useState(null);
 
-  // Form State
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [unit, setUnit] = useState('piece');
@@ -44,10 +42,8 @@ export default function Products() {
   const [costPrice, setCostPrice] = useState('');
   const [isActive, setIsActive] = useState(true);
 
-
   const [submitting, setSubmitting] = useState(false);
 
-  // Filter products
   const activeProducts = useMemo(() => {
     let filtered = catalogItems
       .filter(item => item.isActive !== false)
@@ -58,23 +54,18 @@ export default function Products() {
         return (item.category || '').trim() === filter;
       });
 
-
     filtered = filtered.sort((a, b) => {
-      // Always pull active low-stock items to the top regardless of standard sort
       const aIsLow = a.stockCount != null && a.lowStockAlert != null && a.stockCount <= a.lowStockAlert;
       const bIsLow = b.stockCount != null && b.lowStockAlert != null && b.stockCount <= b.lowStockAlert;
       if (aIsLow && !bIsLow) return -1;
       if (!aIsLow && bIsLow) return 1;
 
-
-      // Standard sorting
       switch (sortBy) {
         case 'a_z':
           return (a.name || '').localeCompare(b.name || '');
         case 'oldest':
           return (a.createdAt?.toMillis ? a.createdAt.toMillis() : 0) - (b.createdAt?.toMillis ? b.createdAt.toMillis() : 0);
         case 'low_stock':
-          // Put null/untracked items at the bottom
           if (a.stockCount == null && b.stockCount != null) return 1;
           if (a.stockCount != null && b.stockCount == null) return -1;
           return (a.stockCount || 0) - (b.stockCount || 0);
@@ -87,7 +78,6 @@ export default function Products() {
           return (b.createdAt?.toMillis ? b.createdAt.toMillis() : 0) - (a.createdAt?.toMillis ? a.createdAt.toMillis() : 0);
       }
     });
-
 
     return filtered;
   }, [catalogItems, searchQuery, sortBy, filter]);
@@ -161,7 +151,6 @@ export default function Products() {
     setSubmitting(true);
 
     try {
-      // Normalize category (Title Case)
       const cleanCategory = sanitizeText(category.trim());
       const normalizedCategory = cleanCategory ? cleanCategory.charAt(0).toUpperCase() + cleanCategory.slice(1).toLowerCase() : '';
 
@@ -183,11 +172,9 @@ export default function Products() {
         const docRef = doc(db, `shops/${shopId}/catalog`, editingItem.id);
         const payload = { ...basePayload };
 
-        // For stock, calculate the delta if we are tracking it, rather than overwriting
         let updatedStockForState = editingItem.stockCount;
         if (stockNum !== null) {
            if (editingItem.stockCount == null) {
-             // Starting to track stock for the first time
              payload.stockCount = stockNum;
              updatedStockForState = stockNum;
            } else {
@@ -209,7 +196,7 @@ export default function Products() {
           ...editingItem,
           ...basePayload,
           stockCount: updatedStockForState,
-          updatedAt: new Date() // optimistic local time
+          updatedAt: new Date()
         });
         toast.success('Product updated');
       } else {
@@ -221,7 +208,6 @@ export default function Products() {
            return;
         }
 
-        // Add new
         const payload = { ...basePayload, stockCount: stockNum };
         payload.createdBy = user.uid;
         payload.createdAt = serverTimestamp();
@@ -347,7 +333,6 @@ export default function Products() {
           </div>
         )}
 
-        {/* Inactive Products Section */}
         {inactiveProducts.length > 0 && (
           <div className="mt-8">
             <button
@@ -360,7 +345,6 @@ export default function Products() {
               </div>
               {showInactive ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
             </button>
-
 
             {showInactive && (
               <div className="mt-4 opacity-75">
@@ -392,7 +376,6 @@ export default function Products() {
             <div className="flex-1 overflow-y-auto p-4 pb-[200px] relative">
               <form id="product-form" onSubmit={handleSaveProduct} className="space-y-6">
 
-                {/* Basic Details */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Product Info</h3>
 
@@ -438,7 +421,6 @@ export default function Products() {
 
                 <hr className="border-slate-100" />
 
-                {/* Inventory Management */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Inventory</h3>
 
@@ -493,7 +475,6 @@ export default function Products() {
 
                 <hr className="border-slate-100" />
 
-                {/* Category */}
                 <div className="space-y-3">
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Category</h3>
                   <input
@@ -517,7 +498,6 @@ export default function Products() {
 
                 <hr className="border-slate-100" />
 
-                {/* Status */}
                 <div className="space-y-4">
                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Status</h3>
                    <label className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer">
@@ -535,7 +515,6 @@ export default function Products() {
 
               </form>
             </div>
-
 
             <div className="p-4 bg-white border-t border-slate-100 pb-safe absolute bottom-0 left-0 right-0 flex gap-2">
               {editingItem && (

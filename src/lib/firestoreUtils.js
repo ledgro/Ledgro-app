@@ -4,9 +4,8 @@ import {
 import { db } from '../firebase';
 
 // firestore.rules only allow `list` queries with limit <= 100, so every
-// "give me everything" read has to go through fixed-size pages.
 export const PAGE_SIZE = 100;
-const MAX_PAGES = 200; // hard stop: 20,000 docs per call
+const MAX_PAGES = 200;
 
 /**
  * Read every document of a collection that matches `constraints`

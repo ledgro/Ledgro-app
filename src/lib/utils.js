@@ -39,13 +39,11 @@ export const formatCurrency = (value) => {
 
 export function hapticVibrate(pattern) {
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
-    // pattern can be a number (ms) or array of numbers
     navigator.vibrate(pattern);
   }
 }
 
 export function sanitizeText(input) {
   if (!input) return '';
-  // React already escapes text for rendering, so we just trim and optionally limit length
   return String(input).trim().slice(0, 500); // 500 is an arbitrary generous limit to prevent crazy long string abuse
 }

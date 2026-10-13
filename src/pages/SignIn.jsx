@@ -13,7 +13,6 @@ const SignIn = () => {
     const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
     const isAndroid = /android/i.test(ua);
 
-    // Check for common in-app browsers
     const isIAB = (
       ua.indexOf('FBAN') > -1 ||
       ua.indexOf('FBAV') > -1 ||
@@ -34,7 +33,6 @@ const SignIn = () => {
     return { isIAB, targetBrowser };
   }, []);
 
-
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -42,7 +40,6 @@ const SignIn = () => {
   const [lang, setLang] = useState('en');
 
   useEffect(() => {
-    // Wait for the sign-in flow (including the consent setDoc) to complete before navigating away
     if (user && !isSigningIn) {
       if (hasShop) {
         navigate('/dashboard');
@@ -64,7 +61,6 @@ const SignIn = () => {
       await signInWithGoogle();
 
       if (auth.currentUser) {
-        // Check if consent record exists, if not, write it
         const userRef = doc(db, 'users', auth.currentUser.uid);
         let userSnap;
         try {
@@ -90,15 +86,14 @@ const SignIn = () => {
             console.error("Consent write failed:", consentError);
             await auth.signOut(); // using auth directly since useAuth hook destructuring might be missing
             setError(lang === 'en' ? "Failed to save consent. Please try again." : "സമ്മതം രേഖപ്പെടുത്താൻ കഴിഞ്ഞില്ല. വീണ്ടും ശ്രമിക്കുക.");
-            return; // Halt redirect
+            return;
           }
         }
       }
     } catch (err) {
       console.error(err);
-      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
-        // Silently ignore user cancellations
-      } else {
+      const cancelled = err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request';
+      if (!cancelled) {
         setError(lang === 'en' ? 'Failed to sign in. Please try again.' : 'സൈൻ ഇൻ പരാജയപ്പെട്ടു. വീണ്ടും ശ്രമിക്കുക.');
       }
     } finally {

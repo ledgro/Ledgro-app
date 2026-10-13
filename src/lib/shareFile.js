@@ -1,15 +1,11 @@
 // Share / save a generated file (PNG or PDF) in a way that also works on iOS.
-//
 import { toast } from 'sonner';
 
 // iOS notes:
 //  - navigator.share({files}) only works inside a user tap. If we render the
 //    image AFTER the tap (html2canvas takes ~1s) iOS rejects it with
 //    NotAllowedError. So callers must pre-render the Blob and call this
-//    synchronously from the click handler.
-//  - <a download> on a blob does nothing useful in an installed (standalone)
 //    iOS PWA, so on iOS we go through the share sheet (Save to Files / Photos)
-//    and fall back to opening the file in a viewer tab.
 
 export const isIOS = () =>
   /iphone|ipad|ipod/i.test(navigator.userAgent) ||
@@ -84,7 +80,7 @@ export const canvasToBlob = (canvas, type = 'image/png') =>
 /** Wrap a canvas in a one-page PDF sized to the image (good for receipts). */
 export async function canvasToPdfBlob(canvas) {
   const { jsPDF } = await import('jspdf');
-  const wMm = 80; // receipt roll width
+  const wMm = 80;
   const hMm = (canvas.height / canvas.width) * wMm;
   const pdf = new jsPDF({ unit: 'mm', format: [wMm, Math.max(hMm, 20)] });
   pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, wMm, hMm);

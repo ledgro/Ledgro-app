@@ -1,6 +1,5 @@
 import { toast } from 'sonner';
 
-// Errors nobody caught used to vanish into the browser console, leaving a screen that
 // looks empty or frozen. Show them on screen instead, in plain words plus the raw code.
 const recent = new Map();
 
