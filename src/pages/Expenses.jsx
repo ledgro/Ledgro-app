@@ -27,7 +27,6 @@ export default function Expenses() {
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Drawer state
   const [isOpen, setIsOpen] = useState(false);
   const [amount, setAmount] = useState('');
 
@@ -37,7 +36,7 @@ export default function Expenses() {
   const [submitting, setSubmitting] = useState(false);
   const [paidVia, setPaidVia] = useState('cash'); // 'cash' | 'upi'
   const [fetchError, setFetchError] = useState(false);
-  const [editing, setEditing] = useState(null); // expense being edited, or null when adding
+  const [editing, setEditing] = useState(null);
 
   /** Owner any time; the person who added it within 24 hours. Rules enforce the same on save. */
   const canEdit = (e) => {
@@ -97,7 +96,6 @@ export default function Expenses() {
         const key = bizDayKey(toDate(editing.createdAt));
         const batch = writeBatch(db);
         batch.update(doc(db, `shops/${shopId}/expenses`, editing.id), { ...next, updatedAt: serverTimestamp() });
-        // Take the old amount out of its day and put the new one in, in the same save.
         writeStats(batch, shopId, [
           { key, delta: negate(expenseDelta(editing)) },
           { key, delta: expenseDelta({ ...editing, ...next }) },
@@ -134,10 +132,8 @@ export default function Expenses() {
       writeStats(batch, shopId, [{ key: bizDayKey(await serverNow()), delta: expenseDelta(payload) }]);
       await batch.commit();
 
-      // Optimistic addition
       setExpenses(prev => [{ id: newDocRef.id, ...payload, createdAt: { toDate: () => new Date() } }, ...prev]);
 
-      // Reset form
       setPaidVia('cash');
       setAmount('');
       setDescription('');
@@ -155,12 +151,10 @@ export default function Expenses() {
   const handleDeleteExpense = async (id) => {
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
     if (!window.confirm("Are you sure you want to delete this expense?")) return;
-    // 1. Optimistic UI update (instantly remove from screen)
     const previousExpenses = [...expenses];
     setExpenses(prev => prev.filter(e => e.id !== id));
 
     try {
-      // 2. Asynchronous backend deletion
       const gone = previousExpenses.find((e) => e.id === id);
       const batch = writeBatch(db);
       batch.delete(doc(db, `shops/${shopId}/expenses`, id));
@@ -168,7 +162,6 @@ export default function Expenses() {
       await batch.commit();
     } catch (err) {
       console.error("Failed to delete expense", err);
-      // Rollback on failure
       setExpenses(previousExpenses);
       toast.error("Failed to delete expense. Reverted.");
     }
@@ -237,7 +230,6 @@ export default function Expenses() {
                     <p className="font-black text-slate-900 text-lg">₹{(expense.amount / 100).toLocaleString('en-IN')}</p>
                   </div>
 
-                  {/* Swipe Actions Overlay (Simplified for Desktop/PWA ease) */}
                   {isAdmin && (
                     <button
                          type="button"

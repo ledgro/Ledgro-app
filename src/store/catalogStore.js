@@ -15,7 +15,6 @@ export const useCatalogStore = create((set, get) => ({
   addItem: (item) => {
     if (!item || !item.name) return;
     set((state) => {
-      // If updating an existing item (based on id)
       if (item.id) {
         const existingIndex = state.items.findIndex(i => i.id === item.id);
         if (existingIndex !== -1) {
@@ -67,11 +66,9 @@ export const useCatalogStore = create((set, get) => ({
 
     const matches = items.filter(item => {
       const normalizedName = String(item.name).normalize('NFC').trim().toLowerCase();
-      // Allow substring search for better UX (e.g. searching 'atta' matches 'Aashirvaad Atta')
       return normalizedName.includes(normalizedQuery);
     });
 
-    // Sort by frequency (desc) if available, and cap at 20
     return matches.sort((a, b) => (b.frequency || 0) - (a.frequency || 0)).slice(0, 20);
   }
 }));

@@ -1,5 +1,4 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { getAuth, GoogleAuthProvider, setPersistence, indexedDBLocalPersistence } from 'firebase/auth';
 import {
   initializeFirestore,
@@ -22,23 +21,8 @@ const firebaseConfig = {
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-export let appCheck = null;
-/*
-if (typeof window !== 'undefined' && import.meta.env.MODE !== 'test') {
-  // If in dev, we can set FIREBASE_APPCHECK_DEBUG_TOKEN flag on window
-  if (import.meta.env.DEV) {
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-  }
-
-  appCheck = initializeAppCheck(app, {
-    provider: new ReCaptchaEnterpriseProvider('6Ld_REAqAAAAAA9pP2Y4V_T2-V_P9Y9K9Q9V9V9Y'), // Replace with actual site key in console later
-    isTokenAutoRefreshEnabled: true
-  });
-}
-*/
 const auth = getAuth(app);
 
-// Explicitly set persistence to indexedDB
 setPersistence(auth, indexedDBLocalPersistence).catch((err) => {
   console.warn('IndexedDB persistence unavailable:', err);
 });

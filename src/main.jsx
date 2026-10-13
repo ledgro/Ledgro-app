@@ -5,7 +5,6 @@ import { Toaster, toast } from 'sonner';
 import { registerSW } from 'virtual:pwa-register'
 import { installErrorOverlay } from './lib/errorOverlay'
 
-// Stash cart to localStorage on preload error
 window.addEventListener('vite:preloadError', (event) => {
   event.preventDefault();
 
@@ -23,7 +22,6 @@ window.addEventListener('vite:preloadError', (event) => {
     return;
   }
 
-  // Save current cart state before reload
   const cartState = window.__LEDGRO_CART_STATE__;
   const uid = window.__LEDGRO_UID__;
   const shopId = window.__LEDGRO_SHOPID__;
@@ -35,7 +33,7 @@ window.addEventListener('vite:preloadError', (event) => {
         shopId,
         savedAt: new Date().toISOString()
       }));
-    } catch { /* storage full or blocked */ }
+    } catch { /* ignore */ } { /* storage full or blocked */ }
   }
 
   sessionStorage.setItem('ledgro-last-reload', Date.now().toString());
@@ -53,18 +51,15 @@ window.addEventListener('vite:preloadError', (event) => {
   }
 });
 
-// Force PWA cache auto-reload
 const updateSW = registerSW({
   onRegisteredSW(swUrl, registration) {
     if (registration) {
-      // Check for updates every 60 minutes
       setInterval(() => {
         if (navigator.onLine) {
            registration.update().catch(err => console.warn(err));
         }
       }, 60 * 60 * 1000);
 
-      // Also check when coming back from background
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && navigator.onLine) {
            registration.update().catch(err => console.warn(err));
@@ -73,7 +68,6 @@ const updateSW = registerSW({
     }
   },
   onNeedRefresh() {
-    // Wait until checkout finishes before prompting
     if (window.__LEDGRO_CHECKOUT_ACTIVE__ || (window.__LEDGRO_CART_STATE__ && window.__LEDGRO_CART_STATE__.items?.length > 0)) {
        toast.info("Update available. Finish your sale, then tap here to refresh.", {
           duration: Infinity,
@@ -95,7 +89,6 @@ const updateSW = registerSW({
 })
 
 // ---- Startup safety net -------------------------------------------------------------
-// A blank white page is the worst failure: nobody can tell what is wrong. If the app
 // cannot start (missing build setting, stale cache, broken script) show the reason and
 // a one-tap reset instead.
 let lastStartupError = '';

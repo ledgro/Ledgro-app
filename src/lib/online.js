@@ -15,5 +15,3 @@ export function useOnline() {
   }, []);
   return online;
 }
-
-export const OFFLINE_MSG = 'You are offline. Connect to the internet and try again. Nothing was saved.';

@@ -53,7 +53,6 @@ export default function Members() {
     try {
       while (!isUnique && attempts < 5) {
         // Without functions to rate limit, we must use a sufficiently long code (e.g. 20 chars minimum or UUID)
-        // to completely eliminate brute force viability even if they hit the database directly.
         code = crypto.randomUUID().replace(/-/g, '').substring(0, 20).toUpperCase();
         inviteRef = doc(db, 'invites', code);
         const inviteSnap = await getDoc(inviteRef);
@@ -67,7 +66,7 @@ export default function Members() {
         throw new Error("Could not generate a unique invite code after multiple attempts.");
       }
 
-      const expiresAtMs = Date.now() + (30 * 60 * 1000); // 30 mins from now
+      const expiresAtMs = Date.now() + (30 * 60 * 1000);
       const expiresAt = Timestamp.fromMillis(expiresAtMs);
       await setDoc(inviteRef, {
         shopId,

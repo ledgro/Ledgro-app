@@ -13,15 +13,6 @@ export function broadcastSessionTerminated(uid) {
   }
 }
 
-export function broadcastSessionChanged(uid) {
-  if (!channel) return;
-  try {
-    channel.postMessage({ type: 'SESSION_CHANGED', uid });
-  } catch (err) {
-    console.warn('Failed to broadcast session changed', err);
-  }
-}
-
 export function listenForSessionEvents(onTerminated, onChanged) {
   if (!channel) return () => {};
 

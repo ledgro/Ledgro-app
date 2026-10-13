@@ -6,24 +6,20 @@ import { toast } from 'sonner';
 export default function CartItem({ item, dispatch, onOpenDiscount }) {
   const [localQty, setLocalQty] = useState(item.qty.toString());
 
-  // Sync if external state changes
   useEffect(() => {
     setLocalQty(item.qty.toString());
   }, [item.qty]);
 
   const handleQtyChange = (val) => {
-    // Strip everything except digits and one dot
     let cleanVal = val.replace(/[^0-9.]/g, '');
     const parts = cleanVal.split('.');
     if (parts.length > 2) {
       cleanVal = parts[0] + '.' + parts.slice(1).join('');
     }
-    // Limit to 3 decimal places
     if (parts[1] && parts[1].length > 3) {
       cleanVal = parts[0] + '.' + parts[1].slice(0, 3);
     }
 
-    // Cap at 9999
     if (parseFloat(cleanVal) > 9999) cleanVal = '9999';
 
     setLocalQty(cleanVal);

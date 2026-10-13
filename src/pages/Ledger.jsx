@@ -48,17 +48,15 @@ export default function Ledger() {
   const [selectedBill, setSelectedBill] = useState(null);
   const [processingReturn, setProcessingReturn] = useState(false);
 
-  // Search and Filter
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState(''); // 'cash', 'upi', 'split', 'return'
+  const [activeFilter, setActiveFilter] = useState('');
   const [showVoided, setShowVoided] = useState(false);
   const deferredQuery = useDeferredValue(searchQuery);
   const [recentSearches, setRecentSearches] = useState(readRecentSearches);
 
-  // Return Drawer State
   const [isReturnDrawerOpen, setIsReturnDrawerOpen] = useState(false);
-  const [returnItems, setReturnItems] = useState({}); // { index: qtyToReturn }
-  const [alreadyReturned, setAlreadyReturned] = useState({}); // { index: qty returned earlier }
+  const [returnItems, setReturnItems] = useState({});
+  const [alreadyReturned, setAlreadyReturned] = useState({});
   const [refundMethod, setRefundMethod] = useState('cash');
 
   useBodyLock(!!selectedBill || isReturnDrawerOpen);
@@ -394,7 +392,6 @@ export default function Ledger() {
           <ExportMenu label="Export" onPick={handleExportLedger} className="text-blue-600 font-bold text-sm flex items-center gap-1 active:scale-95 disabled:opacity-50 bg-blue-50 px-3 py-1.5 rounded-full" />
         </div>
 
-        {/* Search Bar */}
         <div className="relative">
            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
            <input
@@ -407,7 +404,6 @@ export default function Ledger() {
            />
         </div>
 
-        {/* Filter Chips */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
           {['cash', 'upi', 'split', 'return'].map(f => (
             <button
@@ -446,7 +442,6 @@ export default function Ledger() {
       </header>
 
       <main className="flex-1 p-4">
-        {/* Recent Searches */}
         {!searchQuery && recentSearches.length > 0 && (
            <div className="mb-4 flex flex-wrap gap-2">
              <span className="text-xs font-bold text-slate-400 uppercase w-full">Recent Searches</span>
@@ -512,7 +507,6 @@ export default function Ledger() {
         )}
       </main>
 
-      {/* Bill Preview Drawer */}
       <Drawer.Root open={!!selectedBill && !isReturnDrawerOpen} onOpenChange={(open) => !open && setSelectedBill(null)}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
@@ -579,7 +573,6 @@ export default function Ledger() {
         </Drawer.Portal>
       </Drawer.Root>
 
-      {/* Process Return Drawer */}
       <Drawer.Root open={isReturnDrawerOpen} onOpenChange={(open) => { setIsReturnDrawerOpen(open); if(!open) setSelectedBill(null); }}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />

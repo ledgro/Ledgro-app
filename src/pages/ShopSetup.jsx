@@ -82,13 +82,11 @@ const ShopSetup = () => {
         shopIdToJoin = inviteData.shopId;
         const shopRef = doc(db, 'shops', shopIdToJoin);
 
-        // Claim the invite
         transaction.update(inviteRef, {
           claimedBy: user.uid,
           claimedAt: serverTimestamp()
         });
 
-        // Add user to shop
         transaction.update(shopRef, {
           [`members.${user.uid}`]: 'member',
           consumedInviteCode: code

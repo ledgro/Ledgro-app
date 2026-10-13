@@ -10,7 +10,7 @@ import { setDayCutoff } from '../lib/statsMath';
 import SplashScreen from '../components/SplashScreen';
 
 const AuthContext = createContext();
-const SESSION_DURATION = 3 * 24 * 60 * 60 * 1000; // 3 days in ms
+const SESSION_DURATION = 3 * 24 * 60 * 60 * 1000;
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
@@ -64,7 +64,6 @@ export const AuthProvider = ({ children }) => {
   const [lookupNonce, setLookupNonce] = useState(0);
 
   const requestCounter = useRef(0);
-  // set while this device is deliberately leaving / deleting, so the
   // "you were removed" listener below doesn't fight the voluntary flow
   const voluntaryExitRef = useRef(false);
 
@@ -181,7 +180,6 @@ export const AuthProvider = ({ children }) => {
   }, [lookupNonce]);
 
   // Live shop listener: keeps owner/name/profile fresh AND logs out a user who
-  // was removed from the shop (or whose shop was deleted) on ANY screen, not
   // only the Members page.
   useEffect(() => {
     if (!user?.uid || !shopId || !hasShop) return undefined;
@@ -277,7 +275,6 @@ export const AuthProvider = ({ children }) => {
       throw e;
     }
     // Firestore was terminated above; a clean reload is the only safe way to
-    // get a working instance for the next sign-in.
     window.location.replace('/');
   }, []);
 
@@ -289,7 +286,6 @@ export const AuthProvider = ({ children }) => {
     if (!auth.currentUser) return;
 
     try {
-      // Re-authenticate before any destructive operation
       await reauthenticateWithPopup(auth.currentUser, googleProvider);
     } catch (error) {
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
@@ -300,7 +296,6 @@ export const AuthProvider = ({ children }) => {
 
     const uid = auth.currentUser.uid;
 
-    // Make sure nothing the user already recorded is still waiting to upload
     const flushed = await flushPendingWrites();
     if (!flushed) {
       throw new Error('You have unsynced offline data. Connect to the internet and wait for it to sync before deleting your account.');
@@ -320,7 +315,6 @@ export const AuthProvider = ({ children }) => {
 
           if (members[uid] === 'admin' && otherAdmins.length === 0) {
             if (memberCount === 1) {
-              // sole member: close the shop and all its records
               await deleteShopCascade(shopId);
             } else {
               throw new Error('You are the only Admin. You must promote another member to Admin before deleting your account to prevent locking the shop.');
@@ -340,14 +334,12 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Failed to remove account from shop. Please check your internet connection.');
     }
 
-    // consent record
     try {
       await deleteDoc(doc(db, 'users', uid));
     } catch (err) {
       console.warn('Failed to delete user consent record:', err);
     }
 
-    // the auth account itself
     try {
       await deleteUser(auth.currentUser);
     } catch (error) {

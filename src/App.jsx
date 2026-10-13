@@ -20,17 +20,15 @@ import SplashScreen from './components/SplashScreen';
 import OfflineBanner from './components/OfflineBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
-// Protected Route wrapper
 const ProtectedRoute = ({ children, requireNoShop = false }) => {
   const { user, hasShop } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (hasShop === null) return null; // Wait for resolving shop status
+  if (hasShop === null) return null;
   if (requireNoShop && hasShop) return <Navigate to="/dashboard" replace />;
   if (!requireNoShop && hasShop === false) return <Navigate to="/setup" replace />;
   return children;
 };
 
-// Auth Route wrapper
 const AuthRoute = ({ children }) => {
   const { user, hasShop } = useAuth();
   if (user) {

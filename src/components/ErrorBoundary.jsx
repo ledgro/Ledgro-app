@@ -13,7 +13,6 @@ export class ErrorBoundary extends Component {
   componentDidCatch(error, info) {
     console.error('Ledgro Error Boundary:', error, info);
 
-    // Save in-progress cart just in case
     try {
       const cartState = window.__LEDGRO_CART_STATE__;
       const uid = window.__LEDGRO_UID__;
@@ -25,7 +24,6 @@ export class ErrorBoundary extends Component {
       }
     } catch(e) {}
 
-    // Auto-recover chunk load errors once per session
     if (error.name === 'ChunkLoadError' || error.message.includes('dynamically imported module')) {
       const lastReload = sessionStorage.getItem('ledgro-chunk-reload');
       if (!lastReload || Date.now() - parseInt(lastReload) > 10000) {
