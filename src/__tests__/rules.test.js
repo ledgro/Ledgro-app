@@ -5,7 +5,7 @@
 import { describe, it, beforeAll, afterAll, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, collection, query, limit, serverTimestamp, deleteField, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, collection, query, limit, serverTimestamp, deleteField, Timestamp, writeBatch } from 'firebase/firestore';
 
 const HAS_EMULATOR = !!globalThis.process.env.FIRESTORE_EMULATOR_HOST;
 const d = HAS_EMULATOR ? describe : describe.skip;
@@ -14,6 +14,8 @@ const SHOP = 'shop1';
 const ADMIN = 'adminUid';
 const MEMBER = 'memberUid';
 const OUTSIDER = 'outsiderUid';
+
+const bizDate = (offsetDays = 0) => new Date(Date.now() + 60 * 60 * 1000 + offsetDays * 86400000).toISOString().slice(0, 10);
 
 d('firestore.rules', () => {
   let env;
@@ -77,17 +79,77 @@ d('firestore.rules', () => {
         subtotal: -5000, grandTotal: -5000, paymentMethod: 'cash', refundMethod: 'cash',
         billNo: 'R-A-1', clientCreatedAt: Date.now(), createdAt: serverTimestamp(), ...extra,
       });
-      it('valid return succeeds', async () => {
-        await assertSucceeds(setDoc(doc(as(MEMBER), `shops/${SHOP}/bills/r1`), ret()));
+      const origRef = () => doc(as(MEMBER), `shops/${SHOP}/bills/orig`);
+      const returnBatch = (id, amount, newReturnedAmt, extra = {}) => {
+        const db = as(MEMBER);
+        const b = writeBatch(db);
+        b.set(doc(db, `shops/${SHOP}/bills/${id}`), ret({ subtotal: -amount, grandTotal: -amount, ...extra }));
+        if (newReturnedAmt !== null) b.update(doc(db, `shops/${SHOP}/bills/orig`), { returnedAmt: newReturnedAmt });
+        return b.commit();
+      };
+      it('valid return succeeds when returnedAmt is updated in the same batch', async () => {
+        await assertSucceeds(returnBatch('r1', 5000, 5000));
+      });
+      it('return without updating returnedAmt fails', async () => {
+        await assertFails(returnBatch('r1', 5000, null));
+        await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/bills/r1`), ret()));
+      });
+      it('return with a mismatched returnedAmt fails', async () => {
+        await assertFails(returnBatch('r1', 5000, 4000));
+        await assertFails(returnBatch('r1', 5000, 6000));
       });
       it('return cannot exceed the original total', async () => {
-        await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/bills/r1`), ret({ subtotal: -20000, grandTotal: -20000 })));
+        await assertFails(returnBatch('r1', 20000, 20000));
+      });
+      it('returns cannot add up to more than the original total', async () => {
+        await assertSucceeds(returnBatch('r1', 6000, 6000));
+        await assertFails(returnBatch('r2', 6000, 12000));
+        await assertSucceeds(returnBatch('r3', 4000, 10000));
+        await assertFails(returnBatch('r4', 1, 10001));
+      });
+      it('zero-value return fails', async () => {
+        await assertFails(returnBatch('r1', 0, 0));
       });
       it('return of a missing bill fails', async () => {
-        await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/bills/r1`), ret({ originalBillId: 'nope' })));
+        await assertFails(returnBatch('r1', 5000, null, { originalBillId: 'nope' }));
+      });
+      it('return against a voided sale fails', async () => {
+        await env.withSecurityRulesDisabled(async (ctx) => {
+          await updateDoc(doc(ctx.firestore(), `shops/${SHOP}/bills/orig`), { type: 'reversal' });
+        });
+        await assertFails(returnBatch('r1', 5000, 5000));
+      });
+      it('return against another return fails', async () => {
+        await assertSucceeds(returnBatch('r1', 5000, 5000));
+        const db = as(MEMBER);
+        await assertFails(setDoc(doc(db, `shops/${SHOP}/bills/r2`), ret({ originalBillId: 'r1', subtotal: -100, grandTotal: -100 })));
+      });
+      it('returnedAmt cannot be changed on its own to lower or exceed limits', async () => {
+        await assertFails(updateDoc(origRef(), { returnedAmt: 20000 }));
+        await assertSucceeds(returnBatch('r1', 5000, 5000));
+        await assertFails(updateDoc(origRef(), { returnedAmt: 1000 }));
+      });
+      it('a sale with returns cannot be voided', async () => {
+        await assertSucceeds(returnBatch('r1', 5000, 5000));
+        await assertFails(updateDoc(origRef(), {
+          type: 'reversal', originalBillId: 'orig', reversedBy: MEMBER, reversedAt: serverTimestamp(),
+        }));
+      });
+      it('realistic return batch (5 stock updates + day stats) stays within rule limits', async () => {
+        await env.withSecurityRulesDisabled(async (ctx) => {
+          for (let i = 0; i < 5; i++) await setDoc(doc(ctx.firestore(), `shops/${SHOP}/catalog/p${i}`), { name: `P${i}`, stockCount: 10, unit: 'pcs' });
+        });
+        const db = as(MEMBER);
+        const b = writeBatch(db);
+        b.set(doc(db, `shops/${SHOP}/bills/r1`), ret());
+        b.update(doc(db, `shops/${SHOP}/bills/orig`), { returnedAmt: 5000 });
+        for (let i = 0; i < 5; i++) b.update(doc(db, `shops/${SHOP}/catalog/p${i}`), { stockCount: 11, updatedAt: serverTimestamp() });
+        const day = bizDate(0);
+        b.set(doc(db, `shops/${SHOP}/dailyStats/${day}`), { date: day, rev: -5000, cash: -5000, upi: 0, splitCash: 0, splitUpi: 0, bills: 0, exp: 0, expCash: 0, cats: {} });
+        await assertSucceeds(b.commit());
       });
       it('return with disallowed keys (shopId/status) fails', async () => {
-        await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/bills/r1`), ret({ shopId: SHOP, status: 'active' })));
+        await assertFails(returnBatch('r1', 5000, 5000, { shopId: SHOP, status: 'active' }));
       });
       it('creator can void own sale (sale -> reversal)', async () => {
         await assertSucceeds(updateDoc(doc(as(MEMBER), `shops/${SHOP}/bills/orig`), {
@@ -129,12 +191,23 @@ d('firestore.rules', () => {
   });
 
   describe('dailyClosures', () => {
-    const clo = (uid) => ({ expectedCash: 100, actualCash: 90, difference: -10, creatorId: uid, createdAt: serverTimestamp(), date: '2026-01-02' });
+    const clo = (uid, day, extra = {}) => ({ expectedCash: 100, actualCash: 90, difference: -10, creatorId: uid, createdAt: serverTimestamp(), date: day, ...extra });
+    const path = (day) => `shops/${SHOP}/dailyClosures/${day}`;
     it('cash count can be re-saved; only own uid, correct date', async () => {
-      await assertSucceeds(setDoc(doc(as(MEMBER), `shops/${SHOP}/dailyClosures/2026-01-02`), clo(MEMBER)));
-      await assertSucceeds(setDoc(doc(as(MEMBER), `shops/${SHOP}/dailyClosures/2026-01-02`), { ...clo(MEMBER), actualCash: 100, difference: 0 }));
-      await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/dailyClosures/2026-01-02`), clo(ADMIN)));
-      await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/dailyClosures/2026-01-03`), clo(MEMBER)));
+      const today = bizDate(0);
+      await assertSucceeds(setDoc(doc(as(MEMBER), path(today)), clo(MEMBER, today)));
+      await assertSucceeds(setDoc(doc(as(MEMBER), path(today)), clo(MEMBER, today, { actualCash: 100, difference: 0 })));
+      await assertFails(setDoc(doc(as(MEMBER), path(today)), clo(ADMIN, today)));
+      await assertFails(setDoc(doc(as(MEMBER), path(today)), clo(MEMBER, bizDate(-1))));
+    });
+    it('member can write yesterday but not older or future days', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), path(bizDate(-1))), clo(MEMBER, bizDate(-1))));
+      await assertFails(setDoc(doc(as(MEMBER), path(bizDate(-5))), clo(MEMBER, bizDate(-5))));
+      await assertFails(setDoc(doc(as(MEMBER), path(bizDate(3))), clo(MEMBER, bizDate(3))));
+    });
+    it('admin can write older days but not future days', async () => {
+      await assertSucceeds(setDoc(doc(as(ADMIN), path(bizDate(-30))), clo(ADMIN, bizDate(-30))));
+      await assertFails(setDoc(doc(as(ADMIN), path(bizDate(3))), clo(ADMIN, bizDate(3))));
     });
   });
 
@@ -219,7 +292,6 @@ d('firestore.rules', () => {
 
   describe('dailyStats', () => {
     const st = (day, extra = {}) => ({ date: day, rev: 100, cash: 100, upi: 0, splitCash: 0, splitUpi: 0, bills: 1, exp: 0, expCash: 0, cats: {}, ...extra });
-        // business day in India time, 04:30 cutoff (same as the rules)
     const biz = (offsetDays = 0) => {
       const d = new Date(Date.now() + 60 * 60 * 1000 + offsetDays * 86400000);
       return d.toISOString().slice(0, 10);
