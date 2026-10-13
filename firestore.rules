@@ -2,9 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Business day (India time, day rolls at 04:30) as yyyy-MM-dd, from a server timestamp.
-    // India is UTC+5:30, so UTC + (330 - cutoff) minutes gives the calendar date of (IST - cutoff).
-    // The shop's cutoff (minutes after midnight, 0 to 330, default 270 = 04:30) moves the shift.
+    // IST is UTC+5:30; shifting by (330 - cutoff) minutes makes the UTC date equal the business day.
     function bizDay(shopId, t) {
       let b = t + duration.value(330 - getShop(shopId).get('dayCutoffMin', 270), 'm');
       return string(b.year()) + '-'
@@ -20,7 +18,6 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/shops/$(shopId)).data;
     }
 
-    // Role validation helper (ensures no arbitrary roles are passed into maps)
     function mapValuesAreRoles(memberMap) {
       return memberMap.values().hasOnly(['admin', 'member']);
     }
@@ -35,13 +32,10 @@ service cloud.firestore {
         getShop(shopId).members[request.auth.uid] == 'admin';
     }
 
-    // True when the shop has exactly one member (its admin). Used to allow the
-    // irreversible "close shop / delete account" teardown of financial records.
     function isSoleAdmin(shopId) {
       return isAdmin(shopId) && getShop(shopId).members.size() == 1;
     }
 
-    // Validation functions
     function isValidString(val, minLen, maxLen) {
       return val is string && val.size() >= minLen && val.size() <= maxLen;
     }
@@ -70,19 +64,15 @@ service cloud.firestore {
                && request.resource.data.members.values().hasAny(['admin'])
                && mapValuesAreRoles(request.resource.data.members)
              ))
-          // the shop owner must always be one of the admins
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerId'])
               || request.resource.data.members[request.resource.data.ownerId] == 'admin')
         ) || (
-          // Allow users to remove themselves from the shop when deleting their account
           (request.auth.uid in resource.data.members)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt'])
           && !(request.auth.uid in request.resource.data.members)
-          // Ensure they are not the last admin removing themselves
           && (resource.data.members[request.auth.uid] != 'admin' || request.resource.data.members.values().hasAny(['admin']))
           && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.auth.uid])
         ) || (
-          // Allow a new user to join if they consumed a valid invite in a batched write
           !(request.auth.uid in resource.data.members)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'consumedInviteCode', 'updatedAt'])
           && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.auth.uid])
@@ -93,7 +83,6 @@ service cloud.firestore {
           && getAfter(/databases/$(database)/documents/invites/$(request.resource.data.consumedInviteCode)).data.shopId == shopId
         );
 
-      // Only the last remaining member (an admin) can delete a shop.
       allow delete: if resource.data.members[request.auth.uid] == 'admin'
         && resource.data.members.size() == 1;
 
@@ -111,7 +100,6 @@ service cloud.firestore {
           && request.resource.data.grandTotal is number
           && request.resource.data.paymentMethod is string
           && (
-            // SALE: total must equal subtotal minus the recorded bill discount
             (request.resource.data.get('type', 'sale') == 'sale'
               && request.resource.data.subtotal >= 0
               && request.resource.data.get('globalDiscountAmt', 0) is number
@@ -120,30 +108,41 @@ service cloud.firestore {
               && request.resource.data.grandTotal >= 0
               && request.resource.data.paymentMethod in ['cash', 'upi', 'split'])
             ||
-            // RETURN: negative entry, refunding no more than the original bill total
             (request.resource.data.get('type', 'sale') == 'return'
-              && request.resource.data.subtotal <= 0
+              && request.resource.data.subtotal < 0
               && request.resource.data.grandTotal == request.resource.data.subtotal
               && request.resource.data.paymentMethod in ['cash', 'upi']
               && request.resource.data.originalBillId is string
               && exists(/databases/$(database)/documents/shops/$(shopId)/bills/$(request.resource.data.originalBillId))
-              && -request.resource.data.grandTotal <= get(/databases/$(database)/documents/shops/$(shopId)/bills/$(request.resource.data.originalBillId)).data.grandTotal)
+              && get(/databases/$(database)/documents/shops/$(shopId)/bills/$(request.resource.data.originalBillId)).data.get('type', 'sale') == 'sale'
+              && getAfter(/databases/$(database)/documents/shops/$(shopId)/bills/$(request.resource.data.originalBillId)).data.get('returnedAmt', 0)
+                   == get(/databases/$(database)/documents/shops/$(shopId)/bills/$(request.resource.data.originalBillId)).data.get('returnedAmt', 0) - request.resource.data.grandTotal
+              && getAfter(/databases/$(database)/documents/shops/$(shopId)/bills/$(request.resource.data.originalBillId)).data.get('returnedAmt', 0)
+                   <= get(/databases/$(database)/documents/shops/$(shopId)/bills/$(request.resource.data.originalBillId)).data.grandTotal)
           );
 
-        // Void = turn a sale into a 'reversal' (the only mutation bills allow).
-        allow update: if isMember(shopId)
-          && (isAdmin(shopId) || resource.data.creatorId == request.auth.uid)
-          && request.time < resource.data.createdAt + duration.value(1, 'd')
-          && resource.data.get('type', 'sale') == 'sale'
-          && request.resource.data.type == 'reversal'
-          && request.resource.data.grandTotal == resource.data.grandTotal
-          && request.resource.data.creatorId == resource.data.creatorId
-          && request.resource.data.reversedBy == request.auth.uid
-          && request.resource.data.reversedAt == request.time
-          && request.resource.data.diff(resource.data)
-            .affectedKeys().hasOnly(['type', 'originalBillId', 'reversedAt', 'reversedBy']);
+        allow update: if isMember(shopId) && (
+          (
+            (isAdmin(shopId) || resource.data.creatorId == request.auth.uid)
+            && request.time < resource.data.createdAt + duration.value(1, 'd')
+            && resource.data.get('type', 'sale') == 'sale'
+            && resource.data.get('returnedAmt', 0) == 0
+            && request.resource.data.type == 'reversal'
+            && request.resource.data.grandTotal == resource.data.grandTotal
+            && request.resource.data.creatorId == resource.data.creatorId
+            && request.resource.data.reversedBy == request.auth.uid
+            && request.resource.data.reversedAt == request.time
+            && request.resource.data.diff(resource.data)
+              .affectedKeys().hasOnly(['type', 'originalBillId', 'reversedAt', 'reversedBy'])
+          ) || (
+            resource.data.get('type', 'sale') == 'sale'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['returnedAmt'])
+            && request.resource.data.returnedAmt is number
+            && request.resource.data.returnedAmt > resource.data.get('returnedAmt', 0)
+            && request.resource.data.returnedAmt <= resource.data.grandTotal
+          )
+        );
 
-        // Financial records are immutable, except when the sole admin closes the shop.
         allow delete: if isSoleAdmin(shopId);
       }
 
@@ -177,6 +176,8 @@ service cloud.firestore {
         allow list: if isMember(shopId) && request.query.limit <= 100;
         allow create, update: if isMember(shopId)
           && closureId.matches('^\\d{4}-\\d{2}-\\d{2}$')
+          && closureId <= bizDay(shopId, request.time)
+          && (isAdmin(shopId) || closureId >= bizDay(shopId, request.time - duration.value(1, 'd')))
           && request.resource.data.creatorId == request.auth.uid
           && request.resource.data.createdAt == request.time
           && request.resource.data.keys().hasOnly(['expectedCash', 'actualCash', 'difference', 'creatorId', 'createdAt', 'date'])
@@ -184,10 +185,9 @@ service cloud.firestore {
           && request.resource.data.actualCash is number
           && request.resource.data.difference is number
           && request.resource.data.date == closureId;
-        allow delete: if isSoleAdmin(shopId); // only when the shop itself is being closed
+        allow delete: if isSoleAdmin(shopId);
       }
 
-      // Day totals, kept in step with bills and expenses by the app (no Cloud Functions).
       match /dailyStats/{day} {
         allow get: if isMember(shopId);
         allow list: if isMember(shopId) && request.query.limit <= 100;
@@ -207,10 +207,9 @@ service cloud.firestore {
           && request.resource.data.exp is number
           && request.resource.data.expCash is number
           && request.resource.data.get('cats', {}) is map;
-        allow delete: if isSoleAdmin(shopId); // only when the shop itself is being closed
+        allow delete: if isSoleAdmin(shopId);
       }
 
-      // Stock moving to or from another shop. Append only; never counted as a sale.
       match /transfers/{transferId} {
         allow get: if isMember(shopId);
         allow list: if isMember(shopId) && request.query.limit <= 100;
@@ -225,7 +224,7 @@ service cloud.firestore {
           && (request.resource.data.get('unitPrice', null) == null || (request.resource.data.unitPrice is number && request.resource.data.unitPrice >= 0))
           && request.resource.data.creatorId == request.auth.uid
           && request.resource.data.createdAt == request.time;
-        allow delete: if isSoleAdmin(shopId); // only when the shop itself is being closed
+        allow delete: if isSoleAdmin(shopId);
       }
 
       match /catalog/{productId} {
@@ -237,8 +236,6 @@ service cloud.firestore {
           && (request.resource.data.get('stockCount', null) == null || (request.resource.data.stockCount is number && request.resource.data.stockCount >= 0))
           && isValidString(request.resource.data.get('source', ''), 0, 60)
           && (request.resource.data.get('costPrice', null) == null || (request.resource.data.costPrice is number && request.resource.data.costPrice >= 0));
-        // Any member may change stock in either direction: cashiers restock on
-        // returns/voids and the Products screen lets staff correct counts.
         allow update: if isMember(shopId)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['stockCount']) || (request.resource.data.stockCount == null || (request.resource.data.stockCount is number && request.resource.data.stockCount >= 0)))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastUsedPrice']) || (request.resource.data.lastUsedPrice is number && request.resource.data.lastUsedPrice >= 0))
@@ -250,7 +247,6 @@ service cloud.firestore {
               'source', 'costPrice', 'name', 'lastUsedPrice', 'unit', 'stockCount',
               'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency'
             ]);
-        // Products screen offers permanent delete to admins only.
         allow delete: if isAdmin(shopId);
       }
     }
@@ -264,7 +260,7 @@ service cloud.firestore {
 
     match /invites/{code} {
       allow get: if isAuthenticated();
-      allow list: if false; // Blocks brute-force enumeration of active invite codes
+      allow list: if false;
 
       allow create: if isAuthenticated()
         && isAdmin(request.resource.data.shopId)

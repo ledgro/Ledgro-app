@@ -151,7 +151,7 @@ export default function Ledger() {
 
   /** Same rule as void: within 24h, by the bill's creator or the owner. Rules enforce it again on save. */
   const canEditBill = (b) => {
-    if (!b || b.type !== 'sale' || b.isVoided) return false;
+    if (!b || b.type !== 'sale' || b.isVoided || (b.returnedAmt || 0) > 0) return false;
     const created = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
     if (!created || Date.now() - created > 24 * 60 * 60 * 1000) return false;
     return b.creatorId === user?.uid || user?.uid === shopAdminId;
@@ -289,6 +289,7 @@ export default function Ledger() {
 
       const returnDocRef = doc(collection(db, `shops/${shopId}/bills`));
       batch.set(returnDocRef, payload);
+      batch.update(doc(db, `shops/${shopId}/bills/${selectedBill.id}`), { returnedAmt: increment(returnTotal) });
 
       // Returned goods go back on the shelf (tracked items only).
       await addCatalogAdjustments(batch, returnedItemsList, { sign: 1 });
@@ -299,7 +300,7 @@ export default function Ledger() {
         id: returnDocRef.id,
         ...payload,
         createdAt: { toDate: () => new Date() },
-      }, ...prev]);
+      }, ...prev.map((b) => (b.id === selectedBill.id ? { ...b, returnedAmt: (b.returnedAmt || 0) + returnTotal } : b))]);
 
       setIsReturnDrawerOpen(false);
       setSelectedBill(null);
@@ -560,6 +561,7 @@ export default function Ledger() {
                        >
                          <ArrowLeftRight size={20} /> Return Items
                        </button>
+                       {!(selectedBill.returnedAmt > 0) && (
                        <button
                          onClick={() => { handleVoidBill(selectedBill); setSelectedBill(null); }}
                          disabled={reversingId === selectedBill.id}
@@ -567,6 +569,7 @@ export default function Ledger() {
                        >
                          <RefreshCcw size={20} /> Void Full Bill
                        </button>
+                       )}
                      </div>
                   )}
                 </div>
