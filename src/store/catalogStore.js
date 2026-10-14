@@ -64,9 +64,10 @@ export const useCatalogStore = create((set, get) => ({
 
     if (!normalizedQuery) return [];
 
+    const words = normalizedQuery.split(/\s+/);
     const matches = items.filter(item => {
       const normalizedName = String(item.name).normalize('NFC').trim().toLowerCase();
-      return normalizedName.includes(normalizedQuery);
+      return words.every((w) => normalizedName.includes(w));
     });
 
     return matches.sort((a, b) => (b.frequency || 0) - (a.frequency || 0)).slice(0, 20);

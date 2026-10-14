@@ -245,6 +245,42 @@ d('firestore.rules', () => {
     });
   });
 
+  describe('catalog variants', () => {
+    const base = { lastUsedPrice: 100000, unit: 'piece', stockCount: 3, isActive: true, frequency: 0, createdBy: MEMBER, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+    const variant = (i, extra = {}) => ({ ...base, name: `Heels shoe - ${i} / Black`, baseName: 'Heels shoe', groupId: 'g1', options: { Size: String(i), Colour: 'Black' }, ...extra });
+    const ref = (id) => doc(as(MEMBER), `shops/${SHOP}/catalog/${id}`);
+    it('member creates a variant with group and options', async () => {
+      await assertSucceeds(setDoc(ref('v1'), variant(6)));
+    });
+    it('rejects bad option maps and group ids', async () => {
+      await assertFails(setDoc(ref('v1'), variant(6, { options: 'Size 6' })));
+      await assertFails(setDoc(ref('v1'), variant(6, { options: {} })));
+      await assertFails(setDoc(ref('v1'), variant(6, { options: { a: '1', b: '2', c: '3', d: '4' } })));
+      await assertFails(setDoc(ref('v1'), variant(6, { groupId: '' })));
+      await assertFails(setDoc(ref('v1'), variant(6, { baseName: '' })));
+    });
+    it('group cannot be changed later; names and options can', async () => {
+      await assertSucceeds(setDoc(ref('v1'), variant(6)));
+      await assertFails(updateDoc(ref('v1'), { groupId: 'g2', updatedAt: serverTimestamp() }));
+      await assertSucceeds(updateDoc(ref('v1'), { baseName: 'Heels', name: 'Heels - 6 / Black', options: { Size: '6', Colour: 'Black' }, updatedAt: serverTimestamp() }));
+    });
+    it('20 variants in one batch stay within rule limits', async () => {
+      const db = as(MEMBER);
+      const b = writeBatch(db);
+      for (let i = 0; i < 20; i++) b.set(doc(db, `shops/${SHOP}/catalog/w${i}`), variant(i));
+      await assertSucceeds(b.commit());
+    });
+    it('renaming 15 siblings in one batch stays within rule limits', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        for (let i = 0; i < 15; i++) await setDoc(doc(ctx.firestore(), `shops/${SHOP}/catalog/s${i}`), variant(i));
+      });
+      const db = as(MEMBER);
+      const b = writeBatch(db);
+      for (let i = 0; i < 15; i++) b.update(doc(db, `shops/${SHOP}/catalog/s${i}`), { baseName: 'Heels', name: `Heels - ${i} / Black`, updatedBy: MEMBER, updatedAt: serverTimestamp() });
+      await assertSucceeds(b.commit());
+    });
+  });
+
   describe('transfers', () => {
     const tr = (uid, extra = {}) => ({ direction: 'in', party: 'VIBBRO', productId: 'c1', name: 'Heels shoe', qty: 3, unitPrice: 58000, creatorId: uid, createdAt: serverTimestamp(), ...extra });
     const col = `shops/${SHOP}/transfers`;
