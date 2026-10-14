@@ -224,7 +224,8 @@ d('firestore.rules', () => {
       await assertFails(deleteDoc(ref(ADMIN, 'c1')));
     });
     it('every write must stamp updatedAt with server time (delta sync depends on it)', async () => {
-      await assertFails(setDoc(ref(MEMBER, 'c1'), { ...item, updatedAt: undefined }));
+      const { updatedAt: _omit, ...noStamp } = item;
+      await assertFails(setDoc(ref(MEMBER, 'c1'), noStamp));
       await assertFails(setDoc(ref(MEMBER, 'c1'), { ...item, updatedAt: Timestamp.fromMillis(1000) }));
       await assertSucceeds(setDoc(ref(MEMBER, 'c1'), item));
       await assertFails(updateDoc(ref(MEMBER, 'c1'), { stockCount: 5 }));
