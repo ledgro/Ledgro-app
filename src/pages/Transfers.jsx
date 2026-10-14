@@ -4,6 +4,7 @@ import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, incre
 import { ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
+import { loadCatalog } from '../lib/catalogSync';
 import { useCatalogStore } from '../store/catalogStore';
 import BottomNav from '../components/BottomNav';
 import { formatCurrency, sanitizeText, cn } from '../lib/utils';
@@ -30,11 +31,11 @@ export default function Transfers() {
     if (!shopId) return;
     setLoading(true);
     try {
-      const [cat, tr] = await Promise.all([
-        getDocs(collection(db, `shops/${shopId}/catalog`)),
+      const [items, tr] = await Promise.all([
+        loadCatalog(shopId),
         getDocs(query(collection(db, `shops/${shopId}/transfers`), orderBy('createdAt', 'desc'), limit(100))),
       ]);
-      hydrateCatalog(cat.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) })));
+      hydrateCatalog(items);
       setTransfers(tr.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) })));
     } catch (err) {
       console.error(err);
@@ -105,6 +106,7 @@ export default function Transfers() {
           costPrice: unitPrice,
           createdBy: user.uid,
           createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
         });
       }
       batch.set(doc(collection(db, `shops/${shopId}/transfers`)), {

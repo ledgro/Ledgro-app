@@ -37,6 +37,27 @@ const initDB = () => {
   return dbPromise;
 };
 
+export const getAllRecords = async (storeName) => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(storeName, 'readonly').objectStore(storeName).getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const putRecords = async (storeName, records) => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    records.forEach((r) => store.put(r));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+};
+
 export const clearStore = async (storeName) => {
   const db = await initDB();
   return new Promise((resolve, reject) => {

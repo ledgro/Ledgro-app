@@ -212,20 +212,35 @@ d('firestore.rules', () => {
   });
 
   describe('catalog', () => {
-    const item = { name: 'Rice', lastUsedPrice: 5000, unit: 'kg', stockCount: null, isActive: true, frequency: 0, createdBy: MEMBER, createdAt: serverTimestamp() };
-    it('member creates, adjusts stock, cannot delete; admin deletes', async () => {
-      await assertSucceeds(setDoc(doc(as(MEMBER), `shops/${SHOP}/catalog/c1`), item));
-      await assertSucceeds(updateDoc(doc(as(MEMBER), `shops/${SHOP}/catalog/c1`), { stockCount: 10 }));
-      await assertSucceeds(updateDoc(doc(as(MEMBER), `shops/${SHOP}/catalog/c1`), { stockCount: 12 }));
-      await assertFails(updateDoc(doc(as(MEMBER), `shops/${SHOP}/catalog/c1`), { stockCount: -1 }));
-      await assertFails(deleteDoc(doc(as(MEMBER), `shops/${SHOP}/catalog/c1`)));
-      await assertSucceeds(deleteDoc(doc(as(ADMIN), `shops/${SHOP}/catalog/c1`)));
+    const item = { name: 'Rice', lastUsedPrice: 5000, unit: 'kg', stockCount: null, isActive: true, frequency: 0, createdBy: MEMBER, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+    const ref = (uid, id) => doc(as(uid), `shops/${SHOP}/catalog/${id}`);
+    const touch = (extra) => ({ ...extra, updatedAt: serverTimestamp() });
+    it('member creates and adjusts stock; nobody hard-deletes', async () => {
+      await assertSucceeds(setDoc(ref(MEMBER, 'c1'), item));
+      await assertSucceeds(updateDoc(ref(MEMBER, 'c1'), touch({ stockCount: 10 })));
+      await assertSucceeds(updateDoc(ref(MEMBER, 'c1'), touch({ stockCount: 12 })));
+      await assertFails(updateDoc(ref(MEMBER, 'c1'), touch({ stockCount: -1 })));
+      await assertFails(deleteDoc(ref(MEMBER, 'c1')));
+      await assertFails(deleteDoc(ref(ADMIN, 'c1')));
+    });
+    it('every write must stamp updatedAt with server time (delta sync depends on it)', async () => {
+      await assertFails(setDoc(ref(MEMBER, 'c1'), { ...item, updatedAt: undefined }));
+      await assertFails(setDoc(ref(MEMBER, 'c1'), { ...item, updatedAt: Timestamp.fromMillis(1000) }));
+      await assertSucceeds(setDoc(ref(MEMBER, 'c1'), item));
+      await assertFails(updateDoc(ref(MEMBER, 'c1'), { stockCount: 5 }));
+      await assertFails(updateDoc(ref(MEMBER, 'c1'), { stockCount: 5, updatedAt: Timestamp.fromMillis(1000) }));
+    });
+    it('only an admin can remove a product, by flagging it deleted', async () => {
+      await assertSucceeds(setDoc(ref(MEMBER, 'c1'), item));
+      await assertFails(updateDoc(ref(MEMBER, 'c1'), touch({ deleted: true, isActive: false })));
+      await assertFails(updateDoc(ref(ADMIN, 'c1'), touch({ deleted: false })));
+      await assertSucceeds(updateDoc(ref(ADMIN, 'c1'), touch({ deleted: true, isActive: false })));
     });
     it('source and cost price accepted with limits', async () => {
-      await assertSucceeds(setDoc(doc(as(MEMBER), `shops/${SHOP}/catalog/c2`), { ...item, source: 'VIBBRO', costPrice: 58000 }));
-      await assertSucceeds(updateDoc(doc(as(MEMBER), `shops/${SHOP}/catalog/c2`), { costPrice: null, source: '' }));
-      await assertFails(updateDoc(doc(as(MEMBER), `shops/${SHOP}/catalog/c2`), { costPrice: -5 }));
-      await assertFails(updateDoc(doc(as(MEMBER), `shops/${SHOP}/catalog/c2`), { source: 'x'.repeat(61) }));
+      await assertSucceeds(setDoc(ref(MEMBER, 'c2'), { ...item, source: 'VIBBRO', costPrice: 58000 }));
+      await assertSucceeds(updateDoc(ref(MEMBER, 'c2'), touch({ costPrice: null, source: '' })));
+      await assertFails(updateDoc(ref(MEMBER, 'c2'), touch({ costPrice: -5 })));
+      await assertFails(updateDoc(ref(MEMBER, 'c2'), touch({ source: 'x'.repeat(61) })));
     });
   });
 

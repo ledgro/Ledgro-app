@@ -260,8 +260,10 @@ service cloud.firestore {
           && request.resource.data.lastUsedPrice is number && request.resource.data.lastUsedPrice >= 0
           && (request.resource.data.get('stockCount', null) == null || (request.resource.data.stockCount is number && request.resource.data.stockCount >= 0))
           && isValidString(request.resource.data.get('source', ''), 0, 60)
-          && (request.resource.data.get('costPrice', null) == null || (request.resource.data.costPrice is number && request.resource.data.costPrice >= 0));
+          && (request.resource.data.get('costPrice', null) == null || (request.resource.data.costPrice is number && request.resource.data.costPrice >= 0))
+          && request.resource.data.updatedAt == request.time;
         allow update: if isMember(shopId)
+          && request.resource.data.updatedAt == request.time
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['stockCount']) || (request.resource.data.stockCount == null || (request.resource.data.stockCount is number && request.resource.data.stockCount >= 0)))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastUsedPrice']) || (request.resource.data.lastUsedPrice is number && request.resource.data.lastUsedPrice >= 0))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name']) || isValidString(request.resource.data.name, 1, 100))
@@ -270,10 +272,11 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly([
               'source', 'costPrice', 'name', 'lastUsedPrice', 'unit', 'stockCount',
-              'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency', 'updatedBy'
+              'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency', 'updatedBy', 'deleted'
             ])
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['updatedBy']) || request.resource.data.updatedBy == request.auth.uid);
-        allow delete: if isAdmin(shopId);
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['updatedBy']) || request.resource.data.updatedBy == request.auth.uid)
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['deleted']) || (isAdmin(shopId) && request.resource.data.deleted == true));
+        allow delete: if isSoleAdmin(shopId);
       }
     }
 
