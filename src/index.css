@@ -21,6 +21,7 @@
   --radius-xl: 0.5rem;
   --radius-2xl: 0.625rem;
   --radius-3xl: 0.875rem;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
   --font-bruno: "Bruno Ace", sans-serif;
 }
 
