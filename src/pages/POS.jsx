@@ -274,7 +274,7 @@ export default function POS() {
         if (cat.stockCount != null && delta < 0) delta = Math.max(delta, -Math.max(0, cat.stockCount)); // floor at 0
         if (cat.stockCount != null && delta !== 0) updates.stockCount = increment(delta);
         if (Object.keys(updates).length > 0) {
-          batch.update(doc(db, `shops/${shopId}/catalog`, id), updates);
+          batch.update(doc(db, `shops/${shopId}/catalog`, id), { ...updates, updatedAt: serverTimestamp() });
           localCatalogUpdates.push({
             id,
             name: cat.name,

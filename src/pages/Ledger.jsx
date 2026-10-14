@@ -145,7 +145,7 @@ export default function Ledger() {
       const data = res.value.data();
       const updates = {};
       if (typeof data.stockCount === 'number') updates.stockCount = increment(sign * qtyById.get(ids[i]));
-      if (Object.keys(updates).length) batch.update(res.value.ref, updates);
+      if (Object.keys(updates).length) batch.update(res.value.ref, { ...updates, updatedAt: serverTimestamp() });
     });
   };
 

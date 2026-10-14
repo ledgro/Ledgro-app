@@ -7,7 +7,7 @@ export const useCatalogStore = create((set, get) => ({
   // Initialize the catalog from Firestore data
   hydrateCatalog: (catalogItems) => {
     // skip items without a name, or ensure they don't throw
-    const validItems = catalogItems.filter(item => item && item.name);
+    const validItems = catalogItems.filter(item => item && item.name && !item.deleted);
     set({ items: validItems });
   },
 

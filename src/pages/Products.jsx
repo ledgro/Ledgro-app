@@ -2,7 +2,7 @@ import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
-import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Drawer } from 'vaul';
@@ -255,7 +255,7 @@ export default function Products() {
     try {
       const docRef = doc(db, `shops/${shopId}/catalog`, editingItem.id);
 
-      await deleteDoc(docRef);
+      await updateDoc(docRef, { deleted: true, isActive: false, updatedBy: user.uid, updatedAt: serverTimestamp() });
 
       removeCatalogItem(editingItem.id);
       toast.success('Product permanently deleted');
