@@ -7,6 +7,7 @@ import BottomNav from '../components/BottomNav';
 import { Trash2, UserPlus, LogOut, ArrowUpCircle } from 'lucide-react';
 import { broadcastSessionTerminated } from '../lib/sessionBroadcast';
 import { deleteShopCascade, flushPendingWrites } from '../lib/firestoreUtils';
+import { useNameOf } from '../lib/memberNames';
 
 export default function Members() {
   const { user, shopId, shopAdminId, signOut, beginVoluntaryExit } = useAuth();
@@ -15,6 +16,7 @@ export default function Members() {
   const [inviteCode, setInviteCode] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  const nameOf = useNameOf(shopId, user?.uid);
   const isCreator = user?.uid === shopAdminId;
 
   // List only. Removal / shop-deleted / owner changes are handled globally in AuthContext.
@@ -27,8 +29,7 @@ export default function Members() {
         const membersMap = data.members || {};
         const memberList = Object.keys(membersMap).map(uid => ({
           uid,
-          role: membersMap[uid] === 'admin' || uid === data.ownerId ? 'Admin' : 'Member',
-          name: uid === user.uid ? 'You' : `Member ${uid.substring(0, 4)}`
+          role: membersMap[uid] === 'admin' || uid === data.ownerId ? 'Admin' : 'Member'
         }));
         memberList.sort((a, b) => (a.uid === user.uid ? -1 : b.uid === user.uid ? 1 : 0));
         setMembers(memberList);
@@ -201,10 +202,10 @@ export default function Members() {
                 <div key={member.uid} className="flex justify-between items-center p-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">
-                      {member.name.charAt(0)}
+                      {nameOf(member.uid).charAt(0)}
                     </div>
                     <div>
-                      <p className="font-semibold text-slate-900">{member.name}</p>
+                      <p className="font-semibold text-slate-900">{nameOf(member.uid)}</p>
                       <p className="text-xs text-slate-500">{member.role}</p>
                     </div>
                   </div>

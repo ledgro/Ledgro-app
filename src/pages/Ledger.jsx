@@ -17,6 +17,7 @@ import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
 import { buildReport, rs } from '../lib/reportExport';
 import { saveFile } from '../lib/shareFile';
 import ExportMenu from '../components/ExportMenu';
+import { useNameOf } from '../lib/memberNames';
 
 const PAGE = 30;
 
@@ -35,6 +36,7 @@ const unitRefundOf = (item) => {
 
 export default function Ledger() {
   const { user, shopId, shopAdminId } = useAuth();
+  const nameOf = useNameOf(shopId, user?.uid);
   const navigate = useNavigate();
 
   const [bills, setBills] = useState([]);
@@ -522,6 +524,7 @@ export default function Ledger() {
                     </h2>
                     <p className="text-slate-500 font-medium text-sm">{selectedBill.createdAt?.toDate ? selectedBill.createdAt.toDate().toLocaleString() : 'Pending'}</p>
                     <p className="text-xs text-slate-400 font-mono mt-1">#{selectedBill.billNo || selectedBill.id.substring(0,8)}</p>
+                    <p className="text-xs text-slate-400 mt-1">By {nameOf(selectedBill.creatorId)}</p>
                   </div>
 
                   <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 divide-y divide-slate-50">

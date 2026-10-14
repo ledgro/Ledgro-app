@@ -11,10 +11,12 @@ import { formatCurrency, sanitizeText, cn } from '../lib/utils';
 import { sessionGuard } from '../lib/SessionGuard';
 import { useCatalogLoader } from '../hooks/useCatalogLoader';
 import CategoryChips from '../components/CategoryChips';
+import { useNameOf } from '../lib/memberNames';
 
 export default function Products() {
   const billCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
   const { user, shopId, shopAdminId } = useAuth();
+  const nameOf = useNameOf(shopId, user?.uid);
   const catalogItems = useCatalogStore((state) => state.items);
   const addCatalogItem = useCatalogStore((state) => state.addItem);
   const removeCatalogItem = useCatalogStore((state) => state.removeItem);
@@ -170,7 +172,7 @@ export default function Products() {
       if (editingItem && editingItem.id) {
         // Update existing (Admin stock check done in rules, but UI respects it)
         const docRef = doc(db, `shops/${shopId}/catalog`, editingItem.id);
-        const payload = { ...basePayload };
+        const payload = { ...basePayload, updatedBy: user.uid };
 
         let updatedStockForState = editingItem.stockCount;
         if (stockNum !== null) {
@@ -195,6 +197,7 @@ export default function Products() {
         addCatalogItem({
           ...editingItem,
           ...basePayload,
+          updatedBy: user.uid,
           stockCount: updatedStockForState,
           updatedAt: new Date()
         });
@@ -498,6 +501,13 @@ export default function Products() {
 
                 <hr className="border-slate-100" />
 
+                {editingItem && (editingItem.createdBy || editingItem.updatedBy) && (
+                  <p className="text-xs text-slate-400">
+                    {editingItem.createdBy ? `Added by ${nameOf(editingItem.createdBy)}` : ''}
+                    {editingItem.createdBy && editingItem.updatedBy ? ' · ' : ''}
+                    {editingItem.updatedBy ? `Edited by ${nameOf(editingItem.updatedBy)}` : ''}
+                  </p>
+                )}
                 <div className="space-y-4">
                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Status</h3>
                    <label className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer">

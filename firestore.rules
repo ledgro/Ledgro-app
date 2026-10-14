@@ -227,6 +227,31 @@ service cloud.firestore {
         allow delete: if isSoleAdmin(shopId);
       }
 
+      match /memberProfiles/{uid} {
+        allow get: if isMember(shopId);
+        allow list: if isMember(shopId) && request.query.limit <= 100;
+        allow create, update: if isMember(shopId)
+          && uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['name', 'updatedAt'])
+          && isValidString(request.resource.data.name, 1, 80)
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if uid == request.auth.uid || isSoleAdmin(shopId);
+      }
+
+      match /errorLogs/{logId} {
+        allow get: if isAdmin(shopId);
+        allow list: if isAdmin(shopId) && request.query.limit <= 100;
+        allow create: if isMember(shopId)
+          && request.resource.data.keys().hasOnly(['msg', 'stack', 'screen', 'uid', 'createdAt'])
+          && request.resource.data.keys().hasAll(['msg', 'uid', 'createdAt'])
+          && isValidString(request.resource.data.msg, 1, 300)
+          && isValidString(request.resource.data.get('stack', ''), 0, 1500)
+          && isValidString(request.resource.data.get('screen', ''), 0, 100)
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+        allow delete: if isAdmin(shopId);
+      }
+
       match /catalog/{productId} {
         allow read: if isMember(shopId);
         allow create: if isMember(shopId)
@@ -245,8 +270,9 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly([
               'source', 'costPrice', 'name', 'lastUsedPrice', 'unit', 'stockCount',
-              'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency'
-            ]);
+              'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency', 'updatedBy'
+            ])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['updatedBy']) || request.resource.data.updatedBy == request.auth.uid);
         allow delete: if isAdmin(shopId);
       }
     }

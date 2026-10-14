@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { hapticVibrate } from '../lib/utils';
 import { format } from 'date-fns';
 import { checkStorageHealth } from '../lib/storageHealth';
+import ErrorLogSection from '../components/ErrorLogSection';
 
 export default function Settings() {
   const { user, shopId, shopAdminId, shopProfile, signOut, deleteAccount } = useAuth();
@@ -368,6 +369,8 @@ export default function Settings() {
             </button>
           </div>
         </section>
+
+        {isOwner && <ErrorLogSection shopId={shopId} uid={user.uid} />}
 
         <section className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
            <div className="flex items-center gap-2 text-slate-900 font-bold mb-4">
