@@ -2,7 +2,7 @@ import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
-import { collection, addDoc, doc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Drawer } from 'vaul';
@@ -12,6 +12,8 @@ import { sessionGuard } from '../lib/SessionGuard';
 import { useCatalogLoader } from '../hooks/useCatalogLoader';
 import CategoryChips from '../components/CategoryChips';
 import { useNameOf } from '../lib/memberNames';
+import { VariantBuilder, VariantEditor } from '../components/VariantBuilder';
+import { MAX_COMBOS, buildCombos, comboKey, isVariant, variantName } from '../lib/variants';
 
 export default function Products() {
   const billCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
@@ -43,6 +45,11 @@ export default function Products() {
   const [source, setSource] = useState('');
   const [costPrice, setCostPrice] = useState('');
   const [isActive, setIsActive] = useState(true);
+  const [hasVariants, setHasVariants] = useState(false);
+  const [axes, setAxes] = useState([{ name: 'Size', values: '' }]);
+  const [comboStock, setComboStock] = useState({});
+  const [optionEdits, setOptionEdits] = useState({});
+  const [joinGroup, setJoinGroup] = useState(null);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -96,19 +103,25 @@ export default function Products() {
       .filter(item => item.name?.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [catalogItems, searchQuery]);
 
-  const openDrawer = (item = null) => {
-    setEditingItem(item);
-    if (item) {
-      setName(item.name);
-      setPrice(item.lastUsedPrice ? (item.lastUsedPrice / 100).toString() : '');
-      setUnit(item.unit || 'piece');
-      setStockCount(item.stockCount?.toString() || '');
-      setLowStockAlert(item.lowStockAlert?.toString() || '');
-      setCategory(item.category || '');
-      setDescription(item.description || '');
-      setSource(item.source || '');
-      setCostPrice(item.costPrice != null ? (item.costPrice / 100).toString() : '');
-      setIsActive(item.isActive !== false);
+  const openDrawer = (item = null, group = null) => {
+    setEditingItem(group ? null : item);
+    setHasVariants(!!group);
+    setJoinGroup(group);
+    setComboStock({});
+    setOptionEdits(item?.options ? { ...item.options } : {});
+    setAxes(group ? Object.keys(group.options).map((k) => ({ name: k, values: '' })) : [{ name: 'Size', values: '' }]);
+    const src = group ? group.from : item;
+    if (src) {
+      setName(group ? group.baseName : (src.baseName || src.name));
+      setPrice(src.lastUsedPrice ? (src.lastUsedPrice / 100).toString() : '');
+      setUnit(src.unit || 'piece');
+      setStockCount(group ? '' : (src.stockCount?.toString() || ''));
+      setLowStockAlert(src.lowStockAlert?.toString() || '');
+      setCategory(src.category || '');
+      setDescription(src.description || '');
+      setSource(src.source || '');
+      setCostPrice(src.costPrice != null ? (src.costPrice / 100).toString() : '');
+      setIsActive(src.isActive !== false);
     } else {
       setName('');
       setPrice('');
@@ -156,8 +169,20 @@ export default function Products() {
       const cleanCategory = sanitizeText(category.trim());
       const normalizedCategory = cleanCategory ? cleanCategory.charAt(0).toUpperCase() + cleanCategory.slice(1).toLowerCase() : '';
 
+      const editingVariant = !!(editingItem && isVariant(editingItem));
+      const cleanOptions = {};
+      if (editingVariant) {
+        for (const [axis, value] of Object.entries(optionEdits)) {
+          const v = sanitizeText(String(value).trim()).slice(0, 30);
+          if (!v) { toast.error(`Enter a value for ${axis}`); setSubmitting(false); return; }
+          cleanOptions[axis] = v;
+        }
+      }
+      const baseName = sanitizeText(name.trim());
+      const variantFields = editingVariant ? { name: variantName(baseName, cleanOptions), baseName, options: cleanOptions } : {};
+
       const basePayload = {
-        name: sanitizeText(name.trim()),
+        name: baseName,
         lastUsedPrice: Math.round(unitPrice * 100),
         unit: unit,
         lowStockAlert: alertNum,
@@ -167,10 +192,16 @@ export default function Products() {
         costPrice: costNum !== null ? Math.round(costNum * 100) : null,
         isActive: isActive,
         updatedAt: serverTimestamp(),
+        ...variantFields,
       };
 
       if (editingItem && editingItem.id) {
         // Update existing (Admin stock check done in rules, but UI respects it)
+        if (editingVariant && catalogItems.some((i) => i.id !== editingItem.id && i.name?.toLowerCase() === basePayload.name.toLowerCase())) {
+          toast.error('That variant already exists.');
+          setSubmitting(false);
+          return;
+        }
         const docRef = doc(db, `shops/${shopId}/catalog`, editingItem.id);
         const payload = { ...basePayload, updatedBy: user.uid };
 
@@ -201,7 +232,42 @@ export default function Products() {
           stockCount: updatedStockForState,
           updatedAt: new Date()
         });
+        if (editingVariant && baseName !== editingItem.baseName) {
+          const siblings = catalogItems.filter((i) => i.groupId === editingItem.groupId && i.id !== editingItem.id);
+          for (let i = 0; i < siblings.length; i += 15) {
+            const batch = writeBatch(db);
+            const renamed = siblings.slice(i, i + 15).map((sib) => ({ ...sib, baseName, name: variantName(baseName, sib.options) }));
+            renamed.forEach((sib) => batch.update(doc(db, `shops/${shopId}/catalog`, sib.id), { baseName, name: sib.name, updatedBy: user.uid, updatedAt: serverTimestamp() }));
+            await batch.commit();
+            renamed.forEach((sib) => addCatalogItem(sib));
+          }
+        }
         toast.success('Product updated');
+      } else if (hasVariants) {
+        const combos = buildCombos(axes);
+        if (!combos.length) { toast.error('Add an option with at least one value.'); setSubmitting(false); return; }
+        if (combos.length > MAX_COMBOS) { toast.error(`Up to ${MAX_COMBOS} variants at a time.`); setSubmitting(false); return; }
+        const taken = new Set(catalogItems.map((i) => i.name?.toLowerCase()));
+        const fresh = combos.filter((opts) => !taken.has(variantName(baseName, opts).toLowerCase()));
+        if (!fresh.length) { toast.error('Those variants already exist.'); setSubmitting(false); return; }
+        const groupId = joinGroup?.groupId || doc(collection(db, `shops/${shopId}/catalog`)).id;
+        const batch = writeBatch(db);
+        const created = [];
+        for (const opts of fresh) {
+          const raw = comboStock[comboKey(opts)];
+          const stockN = raw === undefined || raw === '' ? null : parseFloat(raw);
+          if (stockN !== null && (isNaN(stockN) || stockN < 0)) { toast.error('Enter a valid stock count'); setSubmitting(false); return; }
+          const ref = doc(collection(db, `shops/${shopId}/catalog`));
+          const payload = {
+            ...basePayload, name: variantName(baseName, opts), baseName, groupId, options: opts, stockCount: stockN,
+            createdBy: user.uid, createdAt: serverTimestamp(), frequency: 0,
+          };
+          batch.set(ref, payload);
+          created.push({ ...payload, id: ref.id, createdAt: new Date(), updatedAt: new Date() });
+        }
+        await batch.commit();
+        created.forEach((c) => addCatalogItem(c));
+        toast.success(fresh.length === 1 ? 'Variant added' : `${fresh.length} variants added`);
       } else {
         // Check for duplicates before adding
         const isDuplicate = catalogItems.some(item => item.name?.toLowerCase() === name.trim().toLowerCase());
@@ -391,6 +457,28 @@ export default function Products() {
                     />
                   </div>
 
+                  {!editingItem && !joinGroup && (
+                    <label className="flex items-center gap-3 text-sm font-semibold text-slate-700">
+                      <input type="checkbox" checked={hasVariants} onChange={(e) => setHasVariants(e.target.checked)} className="w-5 h-5 rounded border-slate-300" />
+                      This product has variants (size, colour, anything)
+                    </label>
+                  )}
+                  {hasVariants && !editingItem && (
+                    <VariantBuilder axes={axes} setAxes={setAxes} comboStock={comboStock} setComboStock={setComboStock} />
+                  )}
+                  {editingItem && isVariant(editingItem) && (
+                    <div className="space-y-2">
+                      <VariantEditor options={optionEdits} setOptions={setOptionEdits} />
+                      <button
+                        type="button"
+                        onClick={() => openDrawer(null, { groupId: editingItem.groupId, baseName: editingItem.baseName || editingItem.name, options: editingItem.options, from: editingItem })}
+                        className="text-sm font-bold text-blue-600"
+                      >
+                        Add another variant
+                      </button>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Selling Price *</label>
                     <div className="relative">
@@ -442,6 +530,7 @@ export default function Products() {
                     />
                   </div>
 
+                  {!hasVariants && (
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Stock Count</label>
                     <div className="flex gap-2">
@@ -456,6 +545,7 @@ export default function Products() {
                        </div>
                     </div>
                   </div>
+                  )}
 
 {billCount >= 5 && (
                     <div>
