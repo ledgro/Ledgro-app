@@ -13,6 +13,7 @@ import { Zap, Plus, Home, Users, Package, Trash2 } from 'lucide-react';
 import { Skeleton } from '../components/Skeleton';
 import { useBodyLock } from '../hooks/useBodyLock';
 import { hapticVibrate } from '../lib/utils';
+import { useNameOf } from '../lib/memberNames';
 
 const CATEGORIES = [
   { id: 'electricity', label: 'Electricity', icon: Zap },
@@ -23,6 +24,7 @@ const CATEGORIES = [
 
 export default function Expenses() {
   const { user, shopId, shopAdminId } = useAuth();
+  const nameOf = useNameOf(shopId, user?.uid);
   const isAdmin = user?.uid === shopAdminId;
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -224,6 +226,7 @@ export default function Expenses() {
                     <div className="flex items-center gap-2 mt-0.5">
                        <p className="text-xs font-semibold text-slate-400">{date}</p>
                        <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">{expense.paidVia || 'cash'}</span>
+                       <span className="text-xs font-semibold text-slate-400 truncate">{nameOf(expense.creatorId)}</span>
                     </div>
                   </div>
                   <div className="text-right">
@@ -283,7 +286,6 @@ export default function Expenses() {
                       value={amount}
                       onChange={(e) => setAmount(e.target.value.slice(0, 10))}
                       className="block w-full pl-8 pr-4 py-4 border-2 border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-0 text-xl font-bold"
-                      placeholder="0.00"
                     />
                   </div>
                 </div>

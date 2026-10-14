@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import { logError } from './errorLog';
 
 // looks empty or frozen. Show them on screen instead, in plain words plus the raw code.
 const recent = new Map();
@@ -23,6 +24,7 @@ function report(err) {
   const now = Date.now();
   if (recent.get(text) && now - recent.get(text) < 10000) return;
   recent.set(text, now);
+  logError(err);
   toast.error('Something failed', { description: text, duration: 9000 });
 }
 

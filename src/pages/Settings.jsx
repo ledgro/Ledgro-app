@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { hapticVibrate } from '../lib/utils';
 import { format } from 'date-fns';
 import { checkStorageHealth } from '../lib/storageHealth';
+import ErrorLogSection from '../components/ErrorLogSection';
 
 export default function Settings() {
   const { user, shopId, shopAdminId, shopProfile, signOut, deleteAccount } = useAuth();
@@ -265,7 +266,7 @@ export default function Settings() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1">Receipt Footer Tagline</label>
-              <input type="text" maxLength={100} value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="e.g. Thank you for shopping with us!" className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium" />
+              <input type="text" maxLength={100} value={tagline} onChange={(e) => setTagline(e.target.value)} className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium" />
             </div>
             <button type="submit" disabled={savingProfile} className="w-full bg-blue-50 text-blue-600 font-bold h-12 rounded-xl flex items-center justify-center gap-2 active:bg-blue-100 transition-colors">
               <Save size={18} /> {savingProfile ? 'Saving...' : 'Save Profile'}
@@ -368,6 +369,8 @@ export default function Settings() {
             </button>
           </div>
         </section>
+
+        {isOwner && <ErrorLogSection shopId={shopId} uid={user.uid} />}
 
         <section className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
            <div className="flex items-center gap-2 text-slate-900 font-bold mb-4">

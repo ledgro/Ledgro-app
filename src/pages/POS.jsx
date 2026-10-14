@@ -564,7 +564,6 @@ export default function POS() {
                         value={splitCash}
                         onChange={(e) => setSplitCash(e.target.value)}
                         className="w-full pl-7 pr-3 h-12 border border-green-200 bg-green-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 font-bold text-green-700"
-                        placeholder="0.00"
                         autoFocus
                       />
                     </div>

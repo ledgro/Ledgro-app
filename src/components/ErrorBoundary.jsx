@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { logError } from '../lib/errorLog';
 
 export class ErrorBoundary extends Component {
   constructor(props) {
@@ -12,6 +13,7 @@ export class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error('Ledgro Error Boundary:', error, info);
+    logError(error);
 
     try {
       const cartState = window.__LEDGRO_CART_STATE__;

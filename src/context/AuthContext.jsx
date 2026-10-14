@@ -8,6 +8,8 @@ import { auth, googleProvider, db } from '../firebase';
 import { deleteShopCascade, flushPendingWrites } from '../lib/firestoreUtils';
 import { setDayCutoff } from '../lib/statsMath';
 import SplashScreen from '../components/SplashScreen';
+import { syncMyProfile } from '../lib/memberNames';
+import { setLogContext } from '../lib/errorLog';
 
 const AuthContext = createContext();
 const SESSION_DURATION = 3 * 24 * 60 * 60 * 1000;
@@ -157,6 +159,7 @@ export const AuthProvider = ({ children }) => {
           setShopAdminId(data.ownerId);
           setShopName(data.name);
           setDayCutoff(data.dayCutoffMin);
+          syncMyProfile(foundShop.id, currentUser);
         } else if (fulfilled.length === results.length) {
           // every query succeeded and found nothing: genuinely no shop yet
           clearShop();
@@ -178,6 +181,10 @@ export const AuthProvider = ({ children }) => {
 
     return () => unsubscribe();
   }, [lookupNonce]);
+
+  useEffect(() => {
+    setLogContext(user?.uid && shopId && hasShop ? { shopId, uid: user.uid } : null);
+  }, [user?.uid, shopId, hasShop]);
 
   // Live shop listener: keeps owner/name/profile fresh AND logs out a user who
   // only the Members page.

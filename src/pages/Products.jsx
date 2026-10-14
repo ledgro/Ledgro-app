@@ -11,10 +11,12 @@ import { formatCurrency, sanitizeText, cn } from '../lib/utils';
 import { sessionGuard } from '../lib/SessionGuard';
 import { useCatalogLoader } from '../hooks/useCatalogLoader';
 import CategoryChips from '../components/CategoryChips';
+import { useNameOf } from '../lib/memberNames';
 
 export default function Products() {
   const billCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
   const { user, shopId, shopAdminId } = useAuth();
+  const nameOf = useNameOf(shopId, user?.uid);
   const catalogItems = useCatalogStore((state) => state.items);
   const addCatalogItem = useCatalogStore((state) => state.addItem);
   const removeCatalogItem = useCatalogStore((state) => state.removeItem);
@@ -170,7 +172,7 @@ export default function Products() {
       if (editingItem && editingItem.id) {
         // Update existing (Admin stock check done in rules, but UI respects it)
         const docRef = doc(db, `shops/${shopId}/catalog`, editingItem.id);
-        const payload = { ...basePayload };
+        const payload = { ...basePayload, updatedBy: user.uid };
 
         let updatedStockForState = editingItem.stockCount;
         if (stockNum !== null) {
@@ -195,6 +197,7 @@ export default function Products() {
         addCatalogItem({
           ...editingItem,
           ...basePayload,
+          updatedBy: user.uid,
           stockCount: updatedStockForState,
           updatedAt: new Date()
         });
@@ -384,7 +387,6 @@ export default function Products() {
                     <input
                       type="text" required value={name} onChange={(e) => setName(e.target.value)} maxLength={99}
                       className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
-                      placeholder="e.g. Aashirvaad Atta 5kg"
                       autoFocus
                     />
                   </div>
@@ -396,7 +398,6 @@ export default function Products() {
                       <input
                         type="number" inputMode="decimal" step="0.01" required value={price} onChange={(e) => setPrice(e.target.value.slice(0, 10))} maxLength={99}
                         className="w-full pl-8 pr-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold text-slate-900"
-                        placeholder="0.00"
                       />
                     </div>
                     <p className="text-[10px] font-semibold text-slate-400 mt-1">Past bills will not be affected</p>
@@ -429,7 +430,6 @@ export default function Products() {
                     <input
                       type="text" value={source} onChange={(e) => setSource(e.target.value)} maxLength={60}
                       className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
-                      placeholder="Brand or shop, e.g. VIBBRO"
                     />
                   </div>
 
@@ -465,7 +465,6 @@ export default function Products() {
                          <input
                            type="number" inputMode="decimal" step="1" value={lowStockAlert} onChange={(e) => setLowStockAlert(e.target.value.slice(0, 10))} maxLength={10}
                            className="w-16 px-2 text-center h-10 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold text-slate-900"
-                           placeholder="0"
                          />
                          <span className="text-sm text-slate-500 font-medium">items</span>
                       </div>
@@ -498,6 +497,13 @@ export default function Products() {
 
                 <hr className="border-slate-100" />
 
+                {editingItem && (editingItem.createdBy || editingItem.updatedBy) && (
+                  <p className="text-xs text-slate-400">
+                    {editingItem.createdBy ? `Added by ${nameOf(editingItem.createdBy)}` : ''}
+                    {editingItem.createdBy && editingItem.updatedBy ? ' · ' : ''}
+                    {editingItem.updatedBy ? `Edited by ${nameOf(editingItem.updatedBy)}` : ''}
+                  </p>
+                )}
                 <div className="space-y-4">
                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Status</h3>
                    <label className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer">

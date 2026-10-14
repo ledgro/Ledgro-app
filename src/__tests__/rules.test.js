@@ -337,6 +337,59 @@ d('firestore.rules', () => {
     });
   });
 
+  describe('memberProfiles', () => {
+    const path = (uid) => `shops/${SHOP}/memberProfiles/${uid}`;
+    it('member writes only own profile; everyone in the shop can read', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), path(MEMBER)), { name: 'Asha', updatedAt: serverTimestamp() }));
+      await assertFails(setDoc(doc(as(MEMBER), path(ADMIN)), { name: 'Fake', updatedAt: serverTimestamp() }));
+      await assertSucceeds(getDoc(doc(as(ADMIN), path(MEMBER))));
+      await assertFails(getDoc(doc(as(OUTSIDER), path(MEMBER))));
+    });
+    it('rejects empty, long and extra fields', async () => {
+      await assertFails(setDoc(doc(as(MEMBER), path(MEMBER)), { name: '', updatedAt: serverTimestamp() }));
+      await assertFails(setDoc(doc(as(MEMBER), path(MEMBER)), { name: 'x'.repeat(81), updatedAt: serverTimestamp() }));
+      await assertFails(setDoc(doc(as(MEMBER), path(MEMBER)), { name: 'Asha', role: 'admin', updatedAt: serverTimestamp() }));
+    });
+    it('user can delete own profile only', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), path(MEMBER)), { name: 'Asha', updatedAt: serverTimestamp() }));
+      await assertFails(deleteDoc(doc(as(ADMIN), path(MEMBER))));
+      await assertSucceeds(deleteDoc(doc(as(MEMBER), path(MEMBER))));
+    });
+  });
+
+  describe('errorLogs', () => {
+    const log = (uid, extra = {}) => ({ msg: 'boom', stack: 'at x', screen: '/pos', uid, createdAt: serverTimestamp(), ...extra });
+    const col = `shops/${SHOP}/errorLogs`;
+    it('member can create with own uid; outsider and spoofed uid cannot', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), `${col}/e1`), log(MEMBER)));
+      await assertFails(setDoc(doc(as(MEMBER), `${col}/e2`), log(ADMIN)));
+      await assertFails(setDoc(doc(as(OUTSIDER), `${col}/e3`), log(OUTSIDER)));
+    });
+    it('rejects oversized and unknown fields', async () => {
+      await assertFails(setDoc(doc(as(MEMBER), `${col}/e1`), log(MEMBER, { msg: 'x'.repeat(301) })));
+      await assertFails(setDoc(doc(as(MEMBER), `${col}/e1`), log(MEMBER, { stack: 'x'.repeat(1501) })));
+      await assertFails(setDoc(doc(as(MEMBER), `${col}/e1`), log(MEMBER, { extra: 1 })));
+    });
+    it('only the admin reads and clears; entries are never edited', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), `${col}/e1`), log(MEMBER)));
+      await assertFails(getDoc(doc(as(MEMBER), `${col}/e1`)));
+      await assertSucceeds(getDocs(query(collection(as(ADMIN), col), limit(20))));
+      await assertFails(updateDoc(doc(as(ADMIN), `${col}/e1`), { msg: 'changed' }));
+      await assertSucceeds(deleteDoc(doc(as(ADMIN), `${col}/e1`)));
+    });
+  });
+
+  describe('catalog updatedBy', () => {
+    const ref = (uid) => doc(as(uid), `shops/${SHOP}/catalog/p1`);
+    it('updatedBy must be the signed-in user', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), `shops/${SHOP}/catalog/p1`), { name: 'Rice', lastUsedPrice: 100, unit: 'kg' });
+      });
+      await assertSucceeds(updateDoc(ref(MEMBER), { name: 'Rice 2', updatedBy: MEMBER, updatedAt: serverTimestamp() }));
+      await assertFails(updateDoc(ref(MEMBER), { name: 'Rice 3', updatedBy: ADMIN, updatedAt: serverTimestamp() }));
+    });
+  });
+
   describe('invites', () => {
     it('admin creates; list is blocked', async () => {
       const exp = Timestamp.fromMillis(Date.now() + 30 * 60 * 1000);
