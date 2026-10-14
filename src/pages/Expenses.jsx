@@ -286,7 +286,6 @@ export default function Expenses() {
                       value={amount}
                       onChange={(e) => setAmount(e.target.value.slice(0, 10))}
                       className="block w-full pl-8 pr-4 py-4 border-2 border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-0 text-xl font-bold"
-                      placeholder="0.00"
                     />
                   </div>
                 </div>

@@ -127,7 +127,6 @@ export default function DiscountDrawer({ isOpen, onClose, targetItem, globalDisc
                     step="0.01"
                     aria-label={`Discount ${discountType}`}
                     className="block w-full pl-8 pr-12 h-14 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xl font-bold transition-all shadow-sm"
-                    placeholder="0.00"
                   />
                   <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
                     <span className="text-slate-500 font-bold text-lg">

@@ -169,7 +169,6 @@ const ShopSetup = () => {
                     value={shopName}
                     onChange={(e) => setShopName(e.target.value)}
                     className="appearance-none block w-full px-4 h-14 border border-slate-200 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-medium transition-all"
-                    placeholder="e.g. Kerala Supermarket"
                   />
                 </div>
               </div>

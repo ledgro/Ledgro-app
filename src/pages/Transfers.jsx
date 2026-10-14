@@ -150,14 +150,14 @@ export default function Transfers() {
 
           <label className="block">
             <span className="block text-sm font-semibold text-slate-700 mb-1">{direction === 'in' ? 'Received from' : 'Sent to'}</span>
-            <input list="transfer-parties" value={party} onChange={(e) => setParty(e.target.value)} maxLength={60} placeholder="Shop name, e.g. VIBBRO"
+            <input list="transfer-parties" value={party} onChange={(e) => setParty(e.target.value)} maxLength={60}
               className="w-full px-4 h-12 border border-slate-200 rounded-xl font-medium text-slate-900" />
             <datalist id="transfer-parties">{parties.map((p) => <option key={p} value={p} />)}</datalist>
           </label>
 
           <label className="block">
             <span className="block text-sm font-semibold text-slate-700 mb-1">Product</span>
-            <input list="transfer-products" value={productName} onChange={(e) => setProductName(e.target.value)} maxLength={100} placeholder="Heels shoe"
+            <input list="transfer-products" value={productName} onChange={(e) => setProductName(e.target.value)} maxLength={100}
               className="w-full px-4 h-12 border border-slate-200 rounded-xl font-medium text-slate-900" />
             <datalist id="transfer-products">{items.filter((i) => i.isActive !== false).map((i) => <option key={i.id} value={i.name} />)}</datalist>
             {direction === 'in' && productName.trim() && !items.some((i) => (i.name || '').trim().toLowerCase() === productName.trim().toLowerCase()) && (

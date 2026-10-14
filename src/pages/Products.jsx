@@ -387,7 +387,6 @@ export default function Products() {
                     <input
                       type="text" required value={name} onChange={(e) => setName(e.target.value)} maxLength={99}
                       className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
-                      placeholder="e.g. Aashirvaad Atta 5kg"
                       autoFocus
                     />
                   </div>
@@ -399,7 +398,6 @@ export default function Products() {
                       <input
                         type="number" inputMode="decimal" step="0.01" required value={price} onChange={(e) => setPrice(e.target.value.slice(0, 10))} maxLength={99}
                         className="w-full pl-8 pr-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold text-slate-900"
-                        placeholder="0.00"
                       />
                     </div>
                     <p className="text-[10px] font-semibold text-slate-400 mt-1">Past bills will not be affected</p>
@@ -432,7 +430,6 @@ export default function Products() {
                     <input
                       type="text" value={source} onChange={(e) => setSource(e.target.value)} maxLength={60}
                       className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
-                      placeholder="Brand or shop, e.g. VIBBRO"
                     />
                   </div>
 
@@ -468,7 +465,6 @@ export default function Products() {
                          <input
                            type="number" inputMode="decimal" step="1" value={lowStockAlert} onChange={(e) => setLowStockAlert(e.target.value.slice(0, 10))} maxLength={10}
                            className="w-16 px-2 text-center h-10 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold text-slate-900"
-                           placeholder="0"
                          />
                          <span className="text-sm text-slate-500 font-medium">items</span>
                       </div>
