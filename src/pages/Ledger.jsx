@@ -18,6 +18,9 @@ import { buildReport, rs } from '../lib/reportExport';
 import { saveFile } from '../lib/shareFile';
 import ExportMenu from '../components/ExportMenu';
 import { useNameOf } from '../lib/memberNames';
+import ExchangePicker from '../components/ExchangePicker';
+import { exchangeTotals, replacementItems, netStockDeltas, flooredStockChange } from '../lib/exchange';
+import { generateBillNumber } from '../lib/billNumber';
 
 const PAGE = 30;
 
@@ -35,7 +38,7 @@ const unitRefundOf = (item) => {
 };
 
 export default function Ledger() {
-  const { user, shopId, shopAdminId } = useAuth();
+  const { user, shopId, shopAdminId, shopName } = useAuth();
   const nameOf = useNameOf(shopId, user?.uid);
   const navigate = useNavigate();
 
@@ -60,6 +63,8 @@ export default function Ledger() {
   const [returnItems, setReturnItems] = useState({});
   const [alreadyReturned, setAlreadyReturned] = useState({});
   const [refundMethod, setRefundMethod] = useState('cash');
+  const [exchangeOn, setExchangeOn] = useState(false);
+  const [exchangeLines, setExchangeLines] = useState([]);
 
   useBodyLock(!!selectedBill || isReturnDrawerOpen);
   const { ref, inView } = useInView();
@@ -151,7 +156,7 @@ export default function Ledger() {
 
   /** Same rule as void: within 24h, by the bill's creator or the owner. Rules enforce it again on save. */
   const canEditBill = (b) => {
-    if (!b || b.type !== 'sale' || b.isVoided || (b.returnedAmt || 0) > 0) return false;
+    if (!b || b.type !== 'sale' || b.isVoided || b.exchangeOf || (b.returnedAmt || 0) > 0) return false;
     const created = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
     if (!created || Date.now() - created > 24 * 60 * 60 * 1000) return false;
     return b.creatorId === user?.uid || user?.uid === shopAdminId;
@@ -218,6 +223,8 @@ export default function Ledger() {
     if (!selectedBill) return;
     setReturnItems({});
     setAlreadyReturned({});
+    setExchangeOn(false);
+    setExchangeLines([]);
     setIsReturnDrawerOpen(true);
     try {
       const snap = await getDocs(query(
@@ -237,6 +244,22 @@ export default function Ledger() {
     } catch (err) {
       console.error('Could not load previous returns:', err);
     }
+  };
+
+  /** Exchange: one stock change per item (returned minus given), never below zero. */
+  const addExchangeStock = async (batch, returnedItems, lines) => {
+    const deltas = netStockDeltas(returnedItems, lines);
+    const ids = [...deltas.keys()];
+    const snaps = await Promise.allSettled(ids.map((id) => getDoc(doc(db, `shops/${shopId}/catalog`, id))));
+    snaps.forEach((res, i) => {
+      if (res.status !== 'fulfilled' || !res.value.exists()) return;
+      const data = res.value.data();
+      const change = flooredStockChange(data.stockCount, deltas.get(ids[i]));
+      const updates = {};
+      if (change) updates.stockCount = increment(change);
+      if (lines.some((l) => l.catalogId === ids[i])) updates.frequency = increment(1);
+      if (Object.keys(updates).length) batch.update(res.value.ref, { ...updates, updatedAt: serverTimestamp() });
+    });
   };
 
   const handleProcessReturn = async () => {
@@ -265,7 +288,16 @@ export default function Ledger() {
 
     if (returnedItemsList.length === 0 || returnTotal <= 0) return;
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
-    if (!window.confirm(`Process refund of ${formatCurrency(returnTotal)} via ${refundMethod.toUpperCase()}?`)) return;
+    const exchanging = exchangeOn && exchangeLines.length > 0;
+    let exch = null;
+    if (exchanging) {
+      if (exchangeLines.some((l) => !(Number(l.unitPrice) > 0) || !(Number(l.qty) > 0))) { toast.error('Enter a price for every replacement item.'); return; }
+      const touched = new Set([...returnedItemsList, ...exchangeLines].map((i) => i.catalogId).filter(Boolean));
+      if (touched.size > 5) { toast.error('Exchange up to 5 different items at a time.'); return; }
+      exch = exchangeTotals(returnTotal, exchangeLines);
+      const msg = exch.difference > 0 ? `Customer pays ${formatCurrency(exch.difference)}` : exch.difference < 0 ? `Refund ${formatCurrency(-exch.difference)}` : 'No money changes hands';
+      if (!window.confirm(`Exchange: returned ${formatCurrency(returnTotal)}, given ${formatCurrency(exch.newTotal)}. ${msg} (${refundMethod.toUpperCase()}). Continue?`)) return;
+    } else if (!window.confirm(`Process refund of ${formatCurrency(returnTotal)} via ${refundMethod.toUpperCase()}?`)) return;
     if (hapticOn()) hapticVibrate(20);
 
     setProcessingReturn(true);
@@ -285,18 +317,47 @@ export default function Ledger() {
         billNo: `R-${selectedBill.billNo || selectedBill.id.substring(0, 6)}`,
         clientCreatedAt: Date.now(),
         createdAt: serverTimestamp(),
+        ...(exchanging ? { exchangeOf: selectedBill.id } : {}),
       };
 
       const returnDocRef = doc(collection(db, `shops/${shopId}/bills`));
       batch.set(returnDocRef, payload);
       batch.update(doc(db, `shops/${shopId}/bills/${selectedBill.id}`), { returnedAmt: increment(returnTotal) });
 
-      // Returned goods go back on the shelf (tracked items only).
-      await addCatalogAdjustments(batch, returnedItemsList, { sign: 1 });
-      writeStats(batch, shopId, [{ key: bizDayKey(await serverNow()), delta: billDelta(payload) }]);
+      const dayKey0 = bizDayKey(await serverNow());
+      const statEntries = [{ key: dayKey0, delta: billDelta(payload) }];
+      let saleDoc = null;
+      if (exchanging) {
+        const items = replacementItems(exchangeLines);
+        const salePayload = {
+          type: 'sale',
+          exchangeOf: selectedBill.id,
+          creatorId: user.uid,
+          items,
+          subtotal: exch.newTotal,
+          globalDiscount: { type: 'flat', value: 0 },
+          globalDiscountAmt: 0,
+          grandTotal: exch.newTotal,
+          paymentMethod: refundMethod,
+          payment: { method: refundMethod, breakdown: { cash: refundMethod === 'cash' ? exch.newTotal : 0, upi: refundMethod === 'upi' ? exch.newTotal : 0 } },
+          shopName: shopName || '',
+          billNo: generateBillNumber(user.uid),
+          clientCreatedAt: new Date().toISOString(),
+          createdAt: serverTimestamp(),
+        };
+        const saleRef = doc(collection(db, `shops/${shopId}/bills`));
+        batch.set(saleRef, salePayload);
+        statEntries.push({ key: dayKey0, delta: billDelta(salePayload) });
+        saleDoc = { id: saleRef.id, ...salePayload, createdAt: { toDate: () => new Date() } };
+        await addExchangeStock(batch, returnedItemsList, exchangeLines);
+      } else {
+        // Returned goods go back on the shelf (tracked items only).
+        await addCatalogAdjustments(batch, returnedItemsList, { sign: 1 });
+      }
+      writeStats(batch, shopId, statEntries);
       await batch.commit();
 
-      setBills((prev) => [{
+      setBills((prev) => [...(saleDoc ? [saleDoc] : []), {
         id: returnDocRef.id,
         ...payload,
         createdAt: { toDate: () => new Date() },
@@ -473,7 +534,8 @@ export default function Ledger() {
                     <div className="flex items-center gap-2">
                       {bill.isVoided ? <XCircle size={16} className="text-slate-400" /> : isReturn ? <ArrowLeftRight size={16} className="text-orange-500" /> : <CheckCircle2 size={16} className="text-green-500" />}
                       <span className="text-xs font-semibold text-slate-500">{date}</span>
-                      {isReturn && <span className="bg-orange-100 text-orange-700 text-[10px] font-black uppercase px-2 py-0.5 rounded">Return</span>}
+                      {isReturn && <span className="bg-orange-100 text-orange-700 text-[10px] font-black uppercase px-2 py-0.5 rounded">{bill.exchangeOf ? 'Exchange' : 'Return'}</span>}
+                      {!isReturn && bill.exchangeOf && <span className="bg-blue-100 text-blue-700 text-[10px] font-black uppercase px-2 py-0.5 rounded">Exchange</span>}
                     </div>
                     <span className={cn("font-black text-lg", bill.isVoided ? "text-slate-500 line-through" : isReturn ? "text-red-600" : "text-slate-900")}>
                       {formatCurrency(bill.grandTotal)}
@@ -558,7 +620,7 @@ export default function Ledger() {
                        >
                          <ArrowLeftRight size={20} /> Return Items
                        </button>
-                       {!(selectedBill.returnedAmt > 0) && (
+                       {!(selectedBill.returnedAmt > 0) && !selectedBill.exchangeOf && (
                        <button
                          onClick={() => { handleVoidBill(selectedBill); setSelectedBill(null); }}
                          disabled={reversingId === selectedBill.id}
@@ -614,19 +676,47 @@ export default function Ledger() {
                    </div>
 
                    <div>
-                     <p className="text-sm font-bold text-slate-700 mb-2">Refund Method</p>
+                     <p className="text-sm font-bold text-slate-700 mb-2">{exchangeOn ? 'Payment / Refund Method' : 'Refund Method'}</p>
                      <div className="flex bg-slate-200 p-1 rounded-xl">
                        <button onClick={() => setRefundMethod('cash')} className={cn("flex-1 py-2 text-sm font-bold rounded-lg transition-colors", refundMethod==='cash' ? "bg-white shadow-sm text-slate-900" : "text-slate-500")}>Cash</button>
                        <button onClick={() => setRefundMethod('upi')} className={cn("flex-1 py-2 text-sm font-bold rounded-lg transition-colors", refundMethod==='upi' ? "bg-white shadow-sm text-slate-900" : "text-slate-500")}>UPI</button>
                      </div>
                    </div>
 
+                   <label className="flex items-center gap-3 bg-white rounded-xl border border-slate-200 px-4 h-12 font-bold text-slate-700">
+                     <input type="checkbox" checked={exchangeOn} onChange={(e) => setExchangeOn(e.target.checked)} className="w-5 h-5" />
+                     Exchange for other items
+                   </label>
+                   {exchangeOn && (
+                     <ExchangePicker
+                       lines={exchangeLines}
+                       setLines={setExchangeLines}
+                       oldUnitPrice={(() => {
+                         const first = (selectedBill.items || []).find((_, idx) => (returnItems[idx] || 0) > 0);
+                         return first ? Math.round(unitRefundOf(first)) : 0;
+                       })()}
+                     />
+                   )}
+                   {exchangeOn && exchangeLines.length > 0 && (() => {
+                     const ret = (selectedBill.items || []).reduce((sum, item, idx) => sum + Math.round(unitRefundOf(item) * Math.min(returnItems[idx] || 0, Math.max(0, (Number(item.qty) || 0) - (alreadyReturned[idx] || 0)))), 0);
+                     const { newTotal, difference } = exchangeTotals(ret, exchangeLines);
+                     return (
+                       <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-1 text-sm font-semibold">
+                         <div className="flex justify-between text-slate-500"><span>Returned</span><span>{formatCurrency(ret)}</span></div>
+                         <div className="flex justify-between text-slate-500"><span>Given</span><span>{formatCurrency(newTotal)}</span></div>
+                         <div className="flex justify-between text-base font-black text-slate-900 pt-1 border-t border-slate-100">
+                           <span>{difference >= 0 ? 'Customer pays' : 'Refund'}</span><span>{formatCurrency(Math.abs(difference))}</span>
+                         </div>
+                       </div>
+                     );
+                   })()}
+
                    <button
                      onClick={handleProcessReturn}
                      disabled={processingReturn || Object.values(returnItems).every(v => !v)}
                      className="w-full mt-4 bg-orange-600 text-white font-bold h-14 rounded-xl active:bg-orange-700 disabled:opacity-50"
                    >
-                     {processingReturn ? 'Processing…' : 'Confirm Return'}
+                     {processingReturn ? 'Processing…' : exchangeOn && exchangeLines.length > 0 ? 'Confirm Exchange' : 'Confirm Return'}
                    </button>
                  </div>
                )}

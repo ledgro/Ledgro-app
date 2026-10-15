@@ -34,5 +34,5 @@ export function netStockDeltas(returnedItems, lines) {
 
 export function flooredStockChange(stock, delta) {
   if (typeof stock !== 'number' || !delta) return 0;
-  return Math.max(delta, -Math.max(0, stock));
+  return Math.max(delta, -Math.max(0, stock)) + 0;
 }

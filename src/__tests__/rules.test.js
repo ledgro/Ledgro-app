@@ -5,7 +5,7 @@
 import { describe, it, beforeAll, afterAll, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, collection, query, limit, serverTimestamp, deleteField, Timestamp, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, collection, query, limit, serverTimestamp, deleteField, Timestamp, writeBatch, increment } from 'firebase/firestore';
 
 const HAS_EMULATOR = !!globalThis.process.env.FIRESTORE_EMULATOR_HOST;
 const d = HAS_EMULATOR ? describe : describe.skip;
@@ -147,6 +147,40 @@ d('firestore.rules', () => {
         const day = bizDate(0);
         b.set(doc(db, `shops/${SHOP}/dailyStats/${day}`), { date: day, rev: -5000, cash: -5000, upi: 0, splitCash: 0, splitUpi: 0, bills: 0, exp: 0, expCash: 0, cats: {} });
         await assertSucceeds(b.commit());
+      });
+      describe('exchange', () => {
+        const exchangeBatch = (retExtra = {}, saleExtra = {}, touched = 5) => {
+          const db = as(MEMBER);
+          const b = writeBatch(db);
+          b.set(doc(db, `shops/${SHOP}/bills/r1`), ret({ exchangeOf: 'orig', ...retExtra }));
+          b.update(doc(db, `shops/${SHOP}/bills/orig`), { returnedAmt: 5000 });
+          b.set(doc(db, `shops/${SHOP}/bills/s1`), {
+            ...sale(MEMBER, { subtotal: 6000, grandTotal: 6000 }), exchangeOf: 'orig', ...saleExtra,
+          });
+          for (let i = 0; i < touched; i++) b.update(doc(db, `shops/${SHOP}/catalog/p${i}`), { stockCount: 9, frequency: increment(1), updatedAt: serverTimestamp() });
+          const day = bizDate(0);
+          b.set(doc(db, `shops/${SHOP}/dailyStats/${day}`), { date: day, rev: 1000, cash: 1000, upi: 0, splitCash: 0, splitUpi: 0, bills: 1, exp: 0, expCash: 0, cats: {} });
+          return b.commit();
+        };
+        beforeEach(async () => {
+          await env.withSecurityRulesDisabled(async (ctx) => {
+            for (let i = 0; i < 5; i++) await setDoc(doc(ctx.firestore(), `shops/${SHOP}/catalog/p${i}`), { name: `P${i}`, stockCount: 10, unit: 'pcs', frequency: 0 });
+          });
+        });
+        it('return + new sale + 5 stock updates + stats in one batch succeeds', async () => {
+          await assertSucceeds(exchangeBatch());
+        });
+        it('exchangeOf must be a short string', async () => {
+          await assertFails(exchangeBatch({}, { exchangeOf: 5 }));
+          await assertFails(exchangeBatch({}, { exchangeOf: '' }));
+          await assertFails(exchangeBatch({}, { exchangeOf: 'x'.repeat(41) }));
+        });
+        it('an exchange sale cannot be voided', async () => {
+          await assertSucceeds(exchangeBatch());
+          await assertFails(updateDoc(doc(as(MEMBER), `shops/${SHOP}/bills/s1`), {
+            type: 'reversal', originalBillId: 's1', reversedBy: MEMBER, reversedAt: serverTimestamp(),
+          }));
+        });
       });
       it('return with disallowed keys (shopId/status) fails', async () => {
         await assertFails(returnBatch('r1', 5000, 5000, { shopId: SHOP, status: 'active' }));
