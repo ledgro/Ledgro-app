@@ -1,6 +1,9 @@
 import { forwardRef, useMemo } from 'react';
 import { formatCurrency } from '../lib/utils';
 
+// 58mm thermal paper: 384 dots across (203dpi). Rendered at this width, PDF is 58mm wide.
+export const RECEIPT_PX = 384;
+
 const Receipt = forwardRef(({ billData }, ref) => {
   const shopProfile = billData?.shopProfile || {};
 
@@ -14,7 +17,6 @@ const Receipt = forwardRef(({ billData }, ref) => {
     return new Date().toLocaleString();
   }, [createdAt, clientCreatedAt, billData]);
 
-  // 6. Fix fallback bill number stability
   const billNo = useMemo(() => {
     if (!billData) return '';
     if (billData.billNo) return billData.billNo;
@@ -32,89 +34,82 @@ const Receipt = forwardRef(({ billData }, ref) => {
   const phone = shopProfile?.phone;
   const tagline = shopProfile?.tagline || 'Thank you for your purchase!';
 
+  const mute = '#555555';
+  const row = { display: 'flex', justifyContent: 'space-between', gap: '8px' };
+
   return (
     <div
       ref={ref}
       data-theme="light"
       aria-hidden="true"
       style={{
-        width: '720px',
-        padding: '32px',
+        width: `${RECEIPT_PX}px`,
+        boxSizing: 'border-box',
+        padding: '14px 12px',
         backgroundColor: '#ffffff',
         color: '#000000',
         fontFamily: 'Inter, "Noto Sans Malayalam", sans-serif',
+        fontSize: '13px',
+        lineHeight: 1.35,
         position: 'absolute',
         left: '-9999px',
         wordBreak: 'break-word'
       }}
     >
-      <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '32px', fontWeight: 'bold', margin: '0 0 8px 0' }}>{finalShopName}</h1>
-        {address && <p style={{ margin: '0 0 4px 0', fontSize: '18px', color: '#666666' }}>{address}</p>}
-        {phone && <p style={{ margin: '0 0 12px 0', fontSize: '18px', color: '#666666' }}>Phone: {phone}</p>}
-
-        <p style={{ margin: '12px 0 0 0', fontSize: '18px', color: '#666666' }}>Receipt #{billNo}</p>
-        <p style={{ margin: '8px 0 0 0', fontSize: '16px', color: '#666666' }}>{dateStr}</p>
+      <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+        <div style={{ fontSize: '20px', fontWeight: 700, lineHeight: 1.2 }}>{finalShopName}</div>
+        {address && <div style={{ fontSize: '11px', color: mute, marginTop: '3px' }}>{address}</div>}
+        {phone && <div style={{ fontSize: '11px', color: mute }}>Ph: {phone}</div>}
+        <div style={{ fontSize: '11px', color: mute, marginTop: '6px' }}>#{billNo}</div>
+        <div style={{ fontSize: '11px', color: mute }}>{dateStr}</div>
       </div>
 
-      <div style={{ borderTop: '2px dashed #e5e5e5', borderBottom: '2px dashed #e5e5e5', padding: '16px 0', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', fontWeight: 'bold', fontSize: '18px', marginBottom: '12px' }}>
-          <span style={{ flex: 2 }}>Item</span>
-          <span style={{ flex: 1, textAlign: 'center' }}>Qty</span>
-          <span style={{ flex: 1, textAlign: 'right' }}>Total</span>
-        </div>
-
+      <div style={{ borderTop: '1px dashed #999999', borderBottom: '1px dashed #999999', padding: '8px 0', marginBottom: '8px' }}>
         {items.map((item, i) => {
           const price = item.unitPriceAtSale ?? item.unitPrice ?? 0;
-
+          const line = item.finalLineTotal ?? item.lineTotal ?? item.rawTotal;
+          const unit = item.unit && item.unit !== 'unit' ? ` ${item.unit}` : '';
           return (
-            <div key={i} style={{ display: 'flex', fontSize: '18px', marginBottom: '12px' }}>
-              <div style={{ flex: 2 }}>
-                <span style={{ display: 'block', fontWeight: '500' }}>{item.name || 'Item'}</span>
-                <span style={{ fontSize: '14px', color: '#666666' }}>@ {formatCurrency(price)}</span>
-              </div>
-              <span style={{ flex: 1, textAlign: 'center' }}>{item.qty || 1} {item.unit !== 'unit' ? item.unit : ''}</span>
-              <div style={{ flex: 1, textAlign: 'right' }}>
-                {(item.rawTotal !== item.finalLineTotal) && (
-                  <span style={{ textDecoration: 'line-through', fontSize: '14px', color: '#666666', display: 'block' }}>
-                    {formatCurrency(item.rawTotal)}
-                  </span>
-                )}
-                <span style={{ fontWeight: '600' }}>{formatCurrency(item.finalLineTotal ?? item.lineTotal ?? item.rawTotal)}</span>
+            <div key={i} style={{ marginBottom: i === items.length - 1 ? 0 : '7px' }}>
+              <div style={{ fontWeight: 600 }}>{item.name || 'Item'}</div>
+              <div style={{ ...row, fontSize: '12px', color: mute }}>
+                <span>{item.qty || 1}{unit} x {formatCurrency(price)}</span>
+                <span style={{ color: '#000000', fontWeight: 600 }}>
+                  {item.rawTotal !== item.finalLineTotal && item.rawTotal != null && (
+                    <s style={{ color: mute, fontWeight: 400, marginRight: '4px' }}>{formatCurrency(item.rawTotal)}</s>
+                  )}
+                  {formatCurrency(line)}
+                </span>
               </div>
             </div>
           );
         })}
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', marginBottom: '8px' }}>
-        <span style={{ color: '#666666' }}>Subtotal</span>
-        <span style={{ fontWeight: '500' }}>{formatCurrency(subtotal)}</span>
+      <div style={{ ...row, color: mute }}>
+        <span>Subtotal</span>
+        <span style={{ color: '#000000' }}>{formatCurrency(subtotal)}</span>
       </div>
 
       {globalDiscountAmt > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', color: '#000000', marginBottom: '8px' }}>
+        <div style={{ ...row, color: mute }}>
           <span>Discount</span>
-          <span style={{ fontWeight: '500' }}>-{formatCurrency(globalDiscountAmt)}</span>
+          <span style={{ color: '#000000' }}>-{formatCurrency(globalDiscountAmt)}</span>
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '24px', fontWeight: 'bold', marginTop: '16px', paddingTop: '16px', borderTop: '2px solid #e5e5e5' }}>
+      <div style={{ ...row, fontSize: '18px', fontWeight: 700, marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #000000' }}>
         <span>Total</span>
         <span>{formatCurrency(grandTotal)}</span>
       </div>
 
-      <div style={{ textAlign: 'center', marginTop: '40px', fontSize: '16px' }}>
-        {payment?.method === 'split' ? (
-           <p style={{ margin: '0 0 8px 0', color: '#666666' }}>
-             Paid via SPLIT (Cash: {formatCurrency(payment.breakdown?.cash)}, UPI: {formatCurrency(payment.breakdown?.upi)})
-           </p>
-        ) : (
-           <p style={{ margin: '0 0 8px 0', color: '#666666' }}>
-             Paid via {(paymentMethod || 'cash').toUpperCase()}
-           </p>
-        )}
-        <p style={{ margin: '0', fontWeight: 'bold' }}>{tagline}</p>
+      <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '11px' }}>
+        <div style={{ color: mute, marginBottom: '4px' }}>
+          {payment?.method === 'split'
+            ? `Paid: Cash ${formatCurrency(payment.breakdown?.cash)} + UPI ${formatCurrency(payment.breakdown?.upi)}`
+            : `Paid via ${(paymentMethod || 'cash').toUpperCase()}`}
+        </div>
+        <div style={{ fontWeight: 700 }}>{tagline}</div>
       </div>
     </div>
   );

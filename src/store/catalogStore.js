@@ -65,11 +65,18 @@ export const useCatalogStore = create((set, get) => ({
     if (!normalizedQuery) return [];
 
     const words = normalizedQuery.split(/\s+/);
-    const matches = items.filter(item => {
-      const normalizedName = String(item.name).normalize('NFC').trim().toLowerCase();
-      return words.every((w) => normalizedName.includes(w));
-    });
-
-    return matches.sort((a, b) => (b.frequency || 0) - (a.frequency || 0)).slice(0, 20);
+    const norm = (v) => String(v || '').normalize('NFC').trim().toLowerCase();
+    const scored = [];
+    for (const item of items) {
+      const name = norm(item.name);
+      const hay = `${name} ${norm(item.category)}`;
+      if (!words.every((w) => hay.includes(w))) continue;
+      // Rank: name starts with query > a name word starts with it > anywhere.
+      const rank = name.startsWith(normalizedQuery) ? 0
+        : words.every((w) => name.split(/[\s/-]+/).some((t) => t.startsWith(w))) ? 1 : 2;
+      scored.push({ item, rank });
+    }
+    scored.sort((a, b) => a.rank - b.rank || (b.item.frequency || 0) - (a.item.frequency || 0));
+    return scored.slice(0, 30).map((x) => x.item);
   }
 }));

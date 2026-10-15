@@ -80,7 +80,7 @@ export const canvasToBlob = (canvas, type = 'image/png') =>
 /** Wrap a canvas in a one-page PDF sized to the image (good for receipts). */
 export async function canvasToPdfBlob(canvas) {
   const { jsPDF } = await import('jspdf');
-  const wMm = 80;
+  const wMm = 58;
   const hMm = (canvas.height / canvas.width) * wMm;
   const pdf = new jsPDF({ unit: 'mm', format: [wMm, Math.max(hMm, 20)] });
   pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, wMm, hMm);
