@@ -97,7 +97,8 @@ service cloud.firestore {
         allow list: if isMember(shopId) && request.query.limit <= 100;
 
         allow create: if isMember(shopId)
-          && request.resource.data.keys().hasOnly(['creatorId', 'items', 'subtotal', 'grandTotal', 'paymentMethod', 'payment', 'shopName', 'billNo', 'clientCreatedAt', 'createdAt', 'globalDiscount', 'globalDiscountAmt', 'type', 'originalBillId', 'refundMethod'])
+          && request.resource.data.keys().hasOnly(['creatorId', 'items', 'subtotal', 'grandTotal', 'paymentMethod', 'payment', 'shopName', 'billNo', 'clientCreatedAt', 'createdAt', 'globalDiscount', 'globalDiscountAmt', 'type', 'originalBillId', 'refundMethod', 'exchangeOf'])
+          && isValidString(request.resource.data.get('exchangeOf', 'x'), 1, 40)
           && request.resource.data.creatorId == request.auth.uid
           && request.resource.data.createdAt == request.time
           && request.resource.data.items is list
@@ -133,6 +134,7 @@ service cloud.firestore {
             && request.time < resource.data.createdAt + duration.value(1, 'd')
             && resource.data.get('type', 'sale') == 'sale'
             && resource.data.get('returnedAmt', 0) == 0
+            && !('exchangeOf' in resource.data)
             && request.resource.data.type == 'reversal'
             && request.resource.data.grandTotal == resource.data.grandTotal
             && request.resource.data.creatorId == resource.data.creatorId
