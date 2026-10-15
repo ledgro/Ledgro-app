@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, X } from 'lucide-react';
+import { Minus, Plus, Search, X } from 'lucide-react';
 import { useCatalogStore } from '../store/catalogStore';
 import { useBodyLock } from '../hooks/useBodyLock';
 import { formatCurrency } from '../lib/utils';
@@ -10,7 +10,7 @@ const ALL = '__all__';
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 /** Search bar on the bill screen. Opens a full-screen sheet (also with Cmd/Ctrl+K). */
-export default function SearchSheet({ onAddItem, cartQty, itemCount }) {
+export default function SearchSheet({ onAddItem, onRemoveOne, cartQty, itemCount }) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -36,12 +36,12 @@ export default function SearchSheet({ onAddItem, cartQty, itemCount }) {
         <span className="flex-1">Search items</span>
         <kbd className="hidden rounded border border-slate-200 px-1.5 py-0.5 text-xs font-medium text-slate-400 md:inline">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
       </button>
-      {open && <Sheet onClose={() => setOpen(false)} onAddItem={onAddItem} cartQty={cartQty} itemCount={itemCount} />}
+      {open && <Sheet onClose={() => setOpen(false)} onAddItem={onAddItem} onRemoveOne={onRemoveOne} cartQty={cartQty} itemCount={itemCount} />}
     </>
   );
 }
 
-function Sheet({ onClose, onAddItem, cartQty, itemCount }) {
+function Sheet({ onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
   useBodyLock(true);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState(ALL);
@@ -78,8 +78,7 @@ function Sheet({ onClose, onAddItem, cartQty, itemCount }) {
       qty: 1,
       unit: p.unit || 'unit',
     });
-    setQuery('');
-    inputRef.current?.focus();
+    inputRef.current?.select();
   };
 
   const addCustom = (e) => {
@@ -139,23 +138,45 @@ function Sheet({ onClose, onAddItem, cartQty, itemCount }) {
         {!q && results.length > 0 && category === ALL && (
           <p className="pb-1 pt-3 text-xs font-bold uppercase tracking-wider text-slate-400">Frequent</p>
         )}
-        {results.map((p) => {
-          const out = typeof p.stockCount === 'number' && p.stockCount <= 0;
+        {q && results.length > 0 && (
+          <p className="pb-1 pt-3 text-xs text-slate-400">{results.length} found · Enter adds the first</p>
+        )}
+        {results.map((p, idx) => {
+          const stock = typeof p.stockCount === 'number' ? p.stockCount : null;
+          const out = stock !== null && stock <= 0;
+          const low = stock !== null && stock > 0 && stock <= (Number(p.lowStockAt) || 3);
           const inCart = cartQty.get(p.id) || 0;
           return (
-            <button
+            <div
               key={p.id}
-              type="button"
-              onClick={() => add(p)}
-              className="flex w-full items-center justify-between border-b border-slate-100 py-3 text-left active:bg-slate-50"
+              className={`flex items-center border-b border-slate-100 ${q && idx === 0 ? 'bg-slate-50' : ''}`}
             >
-              <span className="min-w-0 flex-1 pr-3">
-                <span className={`block truncate text-base font-semibold ${out ? 'text-slate-400' : 'text-slate-900'}`}>{p.name}</span>
-                {out && <span className="text-xs font-semibold text-red-500">Out of stock</span>}
-              </span>
-              {inCart > 0 && <span className="mr-3 rounded-full bg-slate-900 px-2 py-0.5 text-xs font-bold text-white">{inCart}</span>}
-              <span className={`shrink-0 text-base ${out ? 'text-slate-400' : 'font-semibold text-slate-900'}`}>{formatCurrency(p.lastUsedPrice)}</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => add(p)}
+                className="flex min-h-[60px] min-w-0 flex-1 items-center justify-between py-2 pl-1 text-left active:bg-slate-50"
+              >
+                <span className="min-w-0 flex-1 pr-3">
+                  <span className={`block truncate text-base font-semibold ${out ? 'text-slate-400' : 'text-slate-900'}`}>{p.name}</span>
+                  <span className="flex gap-2 text-xs">
+                    {p.category && <span className="truncate text-slate-400">{p.category}</span>}
+                    {out && <span className="font-semibold text-red-500">Out of stock</span>}
+                    {low && <span className="font-semibold text-amber-600">{stock} left</span>}
+                    {!out && !low && stock !== null && <span className="text-slate-400">{stock} in stock</span>}
+                  </span>
+                </span>
+                <span className={`shrink-0 text-base tabular-nums ${out ? 'text-slate-400' : 'font-semibold text-slate-900'}`}>{formatCurrency(p.lastUsedPrice)}</span>
+              </button>
+              {inCart > 0 ? (
+                <div className="ml-3 flex shrink-0 items-center rounded-lg border border-slate-200">
+                  <button type="button" aria-label={`Remove one ${p.name}`} onClick={() => onRemoveOne(p.id)} className="flex h-10 w-10 items-center justify-center text-slate-600 active:bg-slate-100"><Minus size={16} /></button>
+                  <span className="min-w-6 text-center text-sm font-bold tabular-nums">{inCart}</span>
+                  <button type="button" aria-label={`Add one ${p.name}`} onClick={() => add(p)} className="flex h-10 w-10 items-center justify-center text-slate-600 active:bg-slate-100"><Plus size={16} /></button>
+                </div>
+              ) : (
+                <button type="button" aria-label={`Add ${p.name}`} onClick={() => add(p)} className="ml-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white active:bg-slate-700"><Plus size={18} /></button>
+              )}
+            </div>
           );
         })}
 

@@ -15,7 +15,7 @@ import { useSpring, animated } from '@react-spring/web';
 import SearchSheet from '../components/SearchSheet';
 import CartItem from '../components/CartItem';
 import DiscountDrawer from '../components/DiscountDrawer';
-import Receipt from '../components/Receipt';
+import Receipt, { RECEIPT_PX } from '../components/Receipt';
 import { billReducer, initialBillState, calculateBillTotals } from '../reducers/billReducer';
 import BottomNav from '../components/BottomNav';
 
@@ -149,6 +149,18 @@ export default function POS() {
     if (!item.catalogId) {
       addCatalogItem({ name: item.name, lastUsedPrice: item.unitPriceAtSale, unit: item.unit || 'piece' });
     }
+  };
+
+  const handleRemoveOne = (catalogId) => {
+    const line = [...state.items].reverse().find((i) => i.catalogId === catalogId);
+    if (!line) return;
+    if (line.qty > 1) dispatch({ type: 'UPDATE_QTY', payload: { id: line.id, qty: line.qty - 1 } });
+    else dispatch({ type: 'REMOVE_ITEM', payload: { id: line.id } });
+  };
+
+  const clearBill = () => {
+    if (!window.confirm('Clear all items from this bill?')) return;
+    dispatch({ type: 'CLEAR_BILL' });
   };
 
   const openLineDiscount = (item) => {
@@ -367,8 +379,8 @@ export default function POS() {
       try {
         const { default: html2canvas } = await import('html2canvas-pro');
         const canvas = await html2canvas(receiptRef.current, {
-          scale: Math.min(window.devicePixelRatio || 2, 3),
-          useCORS: true, backgroundColor: '#ffffff', width: 720, logging: false,
+          scale: 3,
+          useCORS: true, backgroundColor: '#ffffff', width: RECEIPT_PX, logging: false,
         });
         const png = await canvasToBlob(canvas);
         const pdf = await canvasToPdfBlob(canvas);
@@ -460,8 +472,14 @@ export default function POS() {
 
   return (
     <div className="h-[100dvh] overflow-y-auto bg-white flex flex-col">
-      <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex justify-between items-center">
-        <h1 className="text-xl font-bold text-gray-900">{editBill ? 'Correct & Edit Bill' : 'New Bill'}</h1>
+      <header className="sticky top-0 z-30 border-b border-gray-100 bg-white px-4 pb-3 pt-3">
+        <div className="mb-3 flex items-center justify-between">
+          <h1 className="text-xl font-bold text-gray-900">{editBill ? 'Correct & Edit Bill' : 'New Bill'}</h1>
+          {items.length > 0 && !editBill && (
+            <button type="button" onClick={clearBill} className="rounded-lg px-2 py-1 text-sm font-semibold text-red-500 active:bg-red-50">Clear</button>
+          )}
+        </div>
+        <SearchSheet onAddItem={handleAddItem} onRemoveOne={handleRemoveOne} cartQty={cartQty} itemCount={items.length} />
       </header>
 
       {editBill && !checkoutSuccess && (
@@ -470,11 +488,7 @@ export default function POS() {
         </div>
       )}
 
-      <main className="flex-1 flex flex-col pb-40"> {/* pb-40 ensures we don't hide behind sticky footer */}
-        <div className="p-4 pb-2 sticky top-[60px] z-20 bg-white/80 backdrop-blur-md">
-          <SearchSheet onAddItem={handleAddItem} cartQty={cartQty} itemCount={items.length} />
-        </div>
-
+      <main className={`flex-1 flex flex-col ${items.length > 0 ? (paymentMethod === 'split' ? 'pb-96' : 'pb-80') : 'pb-24'}`}>
         <div className="px-4 flex-1 mt-2">
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center text-slate-400 mt-24 text-center">
