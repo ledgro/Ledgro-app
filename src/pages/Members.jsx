@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot, deleteField, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
-import { Trash2, UserPlus, LogOut, ArrowUpCircle } from 'lucide-react';
+import { Trash2, UserPlus, LogOut, ArrowUpCircle, ShieldCheck, ShieldOff } from 'lucide-react';
 import { broadcastSessionTerminated } from '../lib/sessionBroadcast';
 import { deleteShopCascade, flushPendingWrites } from '../lib/firestoreUtils';
 import { useNameOf } from '../lib/memberNames';
@@ -99,6 +99,22 @@ export default function Members() {
         console.error(_err);
         toast.error("Failed to remove member.");
       }
+    }
+  };
+
+  const handleSetRole = async (targetUid, role) => {
+    if (!isCreator || targetUid === user?.uid) return;
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
+    const msg = role === 'admin'
+      ? 'Make this member an admin? They can manage products, members and settings. You stay admin.'
+      : 'Make this admin a regular member?';
+    if (!window.confirm(msg)) return;
+    try {
+      await updateDoc(doc(db, 'shops', shopId), { [`members.${targetUid}`]: role });
+      toast.success(role === 'admin' ? 'Now an admin.' : 'Now a member.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not change role.');
     }
   };
 
@@ -212,7 +228,18 @@ export default function Members() {
                   <div className="flex gap-2">
                     {isCreator && member.uid !== user.uid && (
                       <>
-                        <button onClick={() => handleMakeAdmin(member.uid)} className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-colors" title="Make Admin">
+                        {member.role === 'Admin' ? (
+                          member.uid !== shopAdminId && (
+                            <button onClick={() => handleSetRole(member.uid, 'member')} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors" title="Make member" aria-label="Make member">
+                              <ShieldOff size={18} />
+                            </button>
+                          )
+                        ) : (
+                          <button onClick={() => handleSetRole(member.uid, 'admin')} className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors" title="Make admin" aria-label="Make admin">
+                            <ShieldCheck size={18} />
+                          </button>
+                        )}
+                        <button onClick={() => handleMakeAdmin(member.uid)} className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-colors" title="Transfer ownership" aria-label="Transfer ownership">
                           <ArrowUpCircle size={18} />
                         </button>
                         <button onClick={() => handleRemoveMember(member.uid)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors" title="Remove Member">
