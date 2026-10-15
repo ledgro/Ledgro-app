@@ -170,7 +170,7 @@ export default function PLScreen() {
   };
 
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-20">
+    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
       <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 py-3 flex justify-between items-center">
         <div className="flex items-center gap-2">
            <Link to="/dashboard" className="p-1 -ml-1 text-slate-500 hover:text-slate-900 rounded-full hover:bg-slate-100 transition-colors">

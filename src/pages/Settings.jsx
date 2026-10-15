@@ -237,7 +237,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-24">
+    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
       <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 py-4 flex items-center gap-3 shadow-subtle">
         <button onClick={() => navigate(-1)} className="p-1 -ml-1 text-slate-400 hover:text-slate-600 active:bg-slate-100 rounded-full transition-colors">
           <ChevronLeft size={24} />

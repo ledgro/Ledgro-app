@@ -25,6 +25,10 @@
   --font-bruno: "Bruno Ace", sans-serif;
 }
 
+@utility pb-nav {
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+}
+
 @utility pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
 }

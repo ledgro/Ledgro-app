@@ -364,7 +364,7 @@ export default function Products() {
   };
 
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-20">
+    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
       <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 pt-4 pb-1">
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-xl font-bold text-slate-900">Products</h1>

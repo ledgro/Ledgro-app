@@ -167,7 +167,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-24">
+    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
 
       <div className="bg-slate-100 py-1.5 px-4 flex justify-between items-center text-[11px] font-bold text-slate-500 sticky top-0 z-30">
          <div className="flex items-center gap-1.5">

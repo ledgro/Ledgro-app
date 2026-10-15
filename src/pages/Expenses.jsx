@@ -182,7 +182,7 @@ export default function Expenses() {
         </button>
       </header>
 
-      <main className="p-4 flex-1 pb-24">
+      <main className="p-4 flex-1 pb-nav">
         {loading ? (
           <div className="space-y-4">
             <Skeleton className="h-20 rounded-2xl" />

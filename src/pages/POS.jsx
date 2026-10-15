@@ -521,7 +521,7 @@ export default function POS() {
       </main>
 
       {items.length > 0 && (
-        <div className="fixed bottom-[64px] left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-30 pb-safe">
+        <div className="fixed bottom-[calc(64px+env(safe-area-inset-bottom))] left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-30">
           <div className="p-4 max-w-md mx-auto">
             <div className="flex justify-between items-center mb-3">
               <div className="text-sm text-gray-500">
