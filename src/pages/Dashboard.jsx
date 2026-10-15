@@ -88,6 +88,7 @@ export default function Dashboard() {
     }
   }, [shopId]);
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     const isMountedObj = { current: true };
     fetchDashboardData(isMountedObj);

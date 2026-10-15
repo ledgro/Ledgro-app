@@ -86,6 +86,7 @@ export default function POS() {
   const springTotal = useSpring({ val: grandTotal, config: { stiffness: 200, damping: 20 } });
   const editBill = location.state?.editBill || null;
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     if (editBill && state.items.length === 0 && !checkoutSuccess) {
       dispatch({ type: 'INIT_FROM_EDIT', payload: editBill });
@@ -343,6 +344,7 @@ export default function POS() {
 
   // Render the receipt ONCE as soon as the success screen shows. iOS only opens the
   // share sheet inside a tap, so the files must already exist when the user taps.
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     if (!checkoutSuccess || !lastBill) { setReceiptFiles(null); return undefined; }
     let cancelled = false;

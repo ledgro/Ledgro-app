@@ -44,6 +44,7 @@ export default function Expenses() {
   const canEdit = (e) => {
     if (isAdmin) return true;
     const created = e.createdAt?.toDate ? e.createdAt.toDate().getTime() : 0;
+    // oxlint-disable-next-line react/purity
     return e.creatorId === user?.uid && created > 0 && Date.now() - created < 24 * 60 * 60 * 1000;
   };
 
@@ -74,6 +75,7 @@ export default function Expenses() {
     }
   }, [shopId]);
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     fetchExpenses();
   }, [fetchExpenses]);

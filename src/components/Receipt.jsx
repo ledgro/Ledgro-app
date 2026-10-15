@@ -25,7 +25,7 @@ const Receipt = forwardRef(({ billData }, ref) => {
     crypto.getRandomValues(arr);
     const suffix = Array.from(arr, b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
     return `${new Date().toLocaleDateString('en-GB').replace(/\//g, '')}-${suffix}`;
-  }, [billData?.billNo, billData?.id, billData]);
+  }, [billData]);
 
   if (!billData) return null;
 

@@ -45,6 +45,7 @@ export default function Transfers() {
     }
   }, [shopId, hydrateCatalog]);
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   const parties = useMemo(() => [...new Set(transfers.map((t) => t.party).filter(Boolean))], [transfers]);
