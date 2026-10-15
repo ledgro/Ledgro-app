@@ -310,6 +310,14 @@ export const AuthProvider = ({ children }) => {
 
     voluntaryExitRef.current = true;
 
+    if (shopId) {
+      try {
+        await deleteDoc(doc(db, `shops/${shopId}/memberProfiles/${uid}`));
+      } catch (err) {
+        console.warn('Failed to delete member name', err);
+      }
+    }
+
     try {
       if (shopId) {
         const shopDocRef = doc(db, 'shops', shopId);
