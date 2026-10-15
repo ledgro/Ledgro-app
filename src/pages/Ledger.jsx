@@ -448,7 +448,7 @@ export default function Ledger() {
   };
 
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-20">
+    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
       <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 pt-3 pb-2 shadow-subtle flex flex-col gap-3">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold text-slate-900">Bill History</h1>

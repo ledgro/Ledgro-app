@@ -132,7 +132,7 @@ export default function Transfers() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-28">
+    <div className="min-h-[100dvh] bg-slate-50 pb-nav">
       <header className="bg-white border-b border-slate-200 px-4 py-4 sticky top-0 z-10">
         <h1 className="text-xl font-black text-slate-900">Stock transfer</h1>
         <p className="text-xs text-slate-500 mt-0.5">Stock to or from another shop. Not counted as a sale.</p>
