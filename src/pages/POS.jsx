@@ -21,7 +21,7 @@ import { billReducer, initialBillState, calculateBillTotals } from '../reducers/
 import BottomNav from '../components/BottomNav';
 
 import { useLocation, useNavigate } from 'react-router-dom';
-import { hapticVibrate, sanitizeText } from '../lib/utils';
+import { formatCurrency, hapticVibrate, sanitizeText } from '../lib/utils';
 import { shareFile, saveFile, canvasToBlob, canvasToPdfBlob } from '../lib/shareFile';
 
 const COMMIT_TIMEOUT_MS = 15000;
@@ -47,6 +47,7 @@ export default function POS() {
   const [receiptFiles, setReceiptFiles] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState(() => (localStorage.getItem('ledgro_defaultPayment') === 'upi' ? 'upi' : 'cash')); // 'cash' | 'upi' | 'split'
   const [splitCash, setSplitCash] = useState('');
+  const [isPayOpen, setIsPayOpen] = useState(false);
 
   const { items, subtotal, globalDiscountAmt, grandTotal } = useMemo(() => calculateBillTotals(state), [state]);
 
@@ -127,7 +128,8 @@ export default function POS() {
   const handleRemoveOne = (catalogId) => {
     const line = [...state.items].reverse().find((i) => i.catalogId === catalogId);
     if (!line) return;
-    if (line.qty > 1) dispatch({ type: 'UPDATE_QTY', payload: { id: line.id, qty: line.qty - 1 } });
+    const step = ['kg', 'l', 'litre', 'liter'].includes(line.unit) ? 0.5 : 1;
+    if (line.qty - step >= step) dispatch({ type: 'UPDATE_QTY', payload: { id: line.id, qty: line.qty - step } });
     else dispatch({ type: 'REMOVE_ITEM', payload: { id: line.id } });
   };
 
@@ -316,6 +318,7 @@ export default function POS() {
       setSplitCash('');
       setLastBill({ ...payload, shopProfile });
       setCheckoutSuccess(true);
+      setIsPayOpen(false);
       const bCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
       localStorage.setItem('ledgro-billCount', (bCount + 1).toString());
     } catch (err) {
@@ -522,63 +525,68 @@ export default function POS() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-3">
-              <div className="flex bg-slate-100 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setIsPayOpen(true)}
+              disabled={isCheckingOut}
+              className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-all active:scale-[0.98] shadow-sm"
+            >
+              Charge {formatCurrency(grandTotal)}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isPayOpen && (
+        <div role="dialog" aria-modal="true" aria-label="Payment" className="fixed inset-0 z-[70] flex items-end bg-black/40" onClick={() => !isCheckingOut && setIsPayOpen(false)}>
+          <div className="w-full rounded-t-[24px] bg-white p-4 pb-safe" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200" />
+            <div className="mx-auto max-w-md space-y-4">
+              <div className="text-center">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Amount to collect</p>
+                <p className="text-4xl font-black text-slate-900 tabular-nums">{formatCurrency(grandTotal)}</p>
+              </div>
+              <div className="flex bg-slate-100 p-1 rounded-xl" role="group" aria-label="Payment method">
                 {['cash', 'upi', 'split'].map((method) => (
                   <button
                     key={method}
-                    onClick={() => {
-                      setPaymentMethod(method);
-                      if (method !== 'split') setSplitCash('');
-                    }}
-                    className={`flex-1 py-2 text-sm font-bold uppercase tracking-wider rounded-lg transition-all ${
-                      paymentMethod === method ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'
-                    }`}
+                    type="button"
+                    onClick={() => { setPaymentMethod(method); if (method !== 'split') setSplitCash(''); }}
+                    className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider rounded-lg transition-all ${paymentMethod === method ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
                   >
                     {method}
                   </button>
                 ))}
               </div>
-
               {paymentMethod === 'split' && (
                 <div className="flex gap-2">
                   <div className="flex-1">
-                    <label className="block text-xs font-bold text-slate-500 mb-1">Cash Received</label>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">Cash received</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={splitCash}
-                        onChange={(e) => setSplitCash(e.target.value)}
-                        className="w-full pl-7 pr-3 h-12 border border-green-200 bg-green-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 font-bold text-green-700"
-                        autoFocus
-                      />
+                      <input type="number" inputMode="decimal" value={splitCash} onChange={(e) => setSplitCash(e.target.value)} autoFocus
+                        className="w-full pl-7 pr-3 h-12 border border-green-200 bg-green-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 font-bold text-green-700" />
                     </div>
                   </div>
                   <div className="flex-1">
-                    <label className="block text-xs font-bold text-slate-500 mb-1">UPI Remaining</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
-                      <input
-                        type="number" inputMode="decimal"
-                        disabled
-                        value={Math.max(0, (grandTotal / 100) - (parseFloat(splitCash) || 0))}
-                        className="w-full pl-7 pr-3 h-12 border border-slate-200 bg-slate-100 rounded-xl font-bold text-slate-500"
-                      />
+                    <label className="block text-xs font-bold text-slate-500 mb-1">UPI remaining</label>
+                    <div className="flex h-12 items-center rounded-xl border border-slate-200 bg-slate-100 px-3 font-bold text-slate-500">
+                      {formatCurrency(Math.max(0, grandTotal - Math.round((parseFloat(splitCash) || 0) * 100)))}
                     </div>
                   </div>
                 </div>
               )}
-
-              <button
-                type="button"
-                onClick={handleCheckout}
-                disabled={isCheckingOut || (paymentMethod === 'split' && (!splitCash || Math.round(parseFloat(splitCash) * 100) >= grandTotal))}
-                className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-all active:scale-[0.98] shadow-sm mt-1"
-              >
-                {isCheckingOut ? 'Processing...' : 'Confirm Checkout'}
-              </button>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setIsPayOpen(false)} disabled={isCheckingOut} className="h-14 flex-1 rounded-xl bg-slate-100 font-bold text-slate-600 disabled:opacity-50">Back</button>
+                <button
+                  type="button"
+                  onClick={handleCheckout}
+                  disabled={isCheckingOut || (paymentMethod === 'split' && (!splitCash || Math.round(parseFloat(splitCash) * 100) <= 0 || Math.round(parseFloat(splitCash) * 100) >= grandTotal))}
+                  className="h-14 flex-[2] rounded-xl bg-blue-600 font-bold text-white active:bg-blue-700 disabled:opacity-50"
+                >
+                  {isCheckingOut ? 'Processing...' : `Confirm ${paymentMethod.toUpperCase()}`}
+                </button>
+              </div>
             </div>
           </div>
         </div>

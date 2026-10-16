@@ -87,6 +87,27 @@ d('firestore.rules', () => {
         if (newReturnedAmt !== null) b.update(doc(db, `shops/${SHOP}/bills/orig`), { returnedAmt: newReturnedAmt });
         return b.commit();
       };
+      describe('change payment method', () => {
+        const pay = (method, cash, upi) => ({ paymentMethod: method, payment: { method, breakdown: { cash, upi } } });
+        it('creator can switch cash to upi; amounts must add up to the total', async () => {
+          await assertSucceeds(updateDoc(origRef(), pay('upi', 0, 10000)));
+          await assertFails(updateDoc(origRef(), pay('upi', 0, 9000)));
+          await assertFails(updateDoc(origRef(), pay('upi', 5000, 5000)));
+        });
+        it('split needs both parts > 0', async () => {
+          await assertSucceeds(updateDoc(origRef(), pay('split', 4000, 6000)));
+          await assertFails(updateDoc(origRef(), pay('split', 0, 10000)));
+        });
+        it('cannot change other fields with it, or after a return', async () => {
+          await assertFails(updateDoc(origRef(), { ...pay('upi', 0, 10000), grandTotal: 1 }));
+          await returnBatch('r1', 5000, 5000);
+          await assertFails(updateDoc(origRef(), pay('upi', 0, 10000)));
+        });
+        it('another member cannot change it, admin can', async () => {
+          await assertFails(updateDoc(doc(as('other'), `shops/${SHOP}/bills/orig`), pay('upi', 0, 10000)));
+          await assertSucceeds(updateDoc(doc(as(ADMIN), `shops/${SHOP}/bills/orig`), pay('upi', 0, 10000)));
+        });
+      });
       it('valid return succeeds when returnedAmt is updated in the same batch', async () => {
         await assertSucceeds(returnBatch('r1', 5000, 5000));
       });
@@ -362,6 +383,31 @@ d('firestore.rules', () => {
     it('admin cannot leave as last admin; can transfer ownership', async () => {
       await assertFails(updateDoc(doc(as(ADMIN), 'shops', SHOP), { [`members.${ADMIN}`]: deleteField() }));
       await assertSucceeds(updateDoc(doc(as(ADMIN), 'shops', SHOP), { [`members.${MEMBER}`]: 'admin', [`members.${ADMIN}`]: 'member', ownerId: MEMBER }));
+    });
+    describe('co-admin cannot touch the owner', () => {
+      const CO = 'coadmin';
+      beforeEach(async () => {
+        await env.withSecurityRulesDisabled(async (ctx) => {
+          await setDoc(doc(ctx.firestore(), 'shops', SHOP), { name: 'Test', ownerId: ADMIN, members: { [ADMIN]: 'admin', [MEMBER]: 'member', [CO]: 'admin' } });
+        });
+      });
+      it('cannot demote or remove the owner', async () => {
+        await assertFails(updateDoc(doc(as(CO), 'shops', SHOP), { [`members.${ADMIN}`]: 'member' }));
+        await assertFails(updateDoc(doc(as(CO), 'shops', SHOP), { [`members.${ADMIN}`]: deleteField() }));
+      });
+      it('cannot take ownership or add members', async () => {
+        await assertFails(updateDoc(doc(as(CO), 'shops', SHOP), { ownerId: CO }));
+        await assertFails(updateDoc(doc(as(CO), 'shops', SHOP), { members: { [ADMIN]: 'admin', [CO]: 'admin', evil: 'admin' } }));
+      });
+      it('can still edit shop profile and leave', async () => {
+        await assertSucceeds(updateDoc(doc(as(CO), 'shops', SHOP), { tagline: 'Hi' }));
+        await assertSucceeds(updateDoc(doc(as(CO), 'shops', SHOP), { [`members.${CO}`]: deleteField() }));
+      });
+      it('owner can promote, and leaving needs an ownerId handoff', async () => {
+        await assertSucceeds(updateDoc(doc(as(ADMIN), 'shops', SHOP), { [`members.${MEMBER}`]: 'admin' }));
+        await assertFails(updateDoc(doc(as(ADMIN), 'shops', SHOP), { [`members.${ADMIN}`]: deleteField() }));
+        await assertSucceeds(updateDoc(doc(as(ADMIN), 'shops', SHOP), { [`members.${ADMIN}`]: deleteField(), ownerId: CO }));
+      });
     });
     it('shop delete only when sole member', async () => {
       await assertFails(deleteDoc(doc(as(ADMIN), 'shops', SHOP)));

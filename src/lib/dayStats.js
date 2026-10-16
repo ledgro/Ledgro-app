@@ -14,8 +14,12 @@ export function writeStats(batch, shopId, entries) {
   mergeEntries(entries).forEach((d, key) => {
     const data = { date: key };
     NUM_KEYS.forEach((k) => { data[k] = increment(d[k]); });
-    data.cats = {};
-    Object.entries(d.cats).forEach(([c, v]) => { data.cats[c] = increment(v); });
+    // An empty map in a merge write would replace the day's existing category totals.
+    const catEntries = Object.entries(d.cats || {});
+    if (catEntries.length) {
+      data.cats = {};
+      catEntries.forEach(([c, v]) => { data.cats[c] = increment(v); });
+    }
     batch.set(doc(db, `shops/${shopId}/dailyStats`, key), data, { merge: true });
   });
 }

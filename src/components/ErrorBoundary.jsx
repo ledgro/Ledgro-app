@@ -24,7 +24,7 @@ export class ErrorBoundary extends Component {
           cartState, uid, shopId, savedAt: new Date().toISOString()
         }));
       }
-    } catch {}
+    } catch { /* storage unavailable */ }
 
     if (error.name === 'ChunkLoadError' || error.message.includes('dynamically imported module')) {
       const lastReload = sessionStorage.getItem('ledgro-chunk-reload');

@@ -24,12 +24,19 @@ export function setDayCutoff(min) {
   const m = Number.isInteger(min) && min >= 0 && min <= 330 ? min : DEFAULT_DAY_CUTOFF_MIN;
   cutMs = m * 60 * 1000;
 }
-/** Date whose calendar day equals the business day of `d` (default now). Use for "today" and ranges. */
-export const bizDate = (d = new Date()) => new Date(d.getTime() - cutMs);
-/** Day key (yyyy-MM-dd) of the business day an event timestamp falls in. */
-export const bizDayKey = (d = new Date()) => dayKey(bizDate(d));
-/** Real start of a business day given its calendar date: 04:30 local that day. */
-export const bizDayStart = (day) => { const x = new Date(day); x.setHours(0, 0, 0, 0); return new Date(x.getTime() + cutMs); };
+const IST_MS = 330 * 60 * 1000;
+/** Day key (yyyy-MM-dd) of the business day an event falls in. Always IST, whatever the device timezone, so it matches the rules' bizDay(). */
+export const bizDayKey = (d = new Date()) => new Date(d.getTime() + IST_MS - cutMs).toISOString().slice(0, 10);
+/** Local Date whose calendar day equals the business day of `d` (default now). Use for "today" and ranges. */
+export const bizDate = (d = new Date()) => {
+  const [y, m, day] = bizDayKey(d).split('-').map(Number);
+  return new Date(y, m - 1, day);
+};
+/** Real start of a business day given its calendar date (yyyy-MM-dd or a Date): 04:30 IST that day. */
+export const bizDayStart = (day) => {
+  const key = typeof day === 'string' ? day.slice(0, 10) : dayKey(day);
+  return new Date(new Date(`${key}T00:00:00+05:30`).getTime() + cutMs);
+};
 
 export function toDate(ts) {
   if (!ts) return new Date();
