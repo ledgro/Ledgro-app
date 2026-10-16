@@ -531,7 +531,7 @@ export default function POS() {
               disabled={isCheckingOut}
               className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-all active:scale-[0.98] shadow-sm"
             >
-              Charge {formatCurrency(grandTotal)}
+              Checkout · {formatCurrency(grandTotal)}
             </button>
           </div>
         </div>
