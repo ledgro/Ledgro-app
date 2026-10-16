@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 export default function CartItem({ item, dispatch, onOpenDiscount }) {
   const [localQty, setLocalQty] = useState(item.qty.toString());
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     setLocalQty(item.qty.toString());
   }, [item.qty]);

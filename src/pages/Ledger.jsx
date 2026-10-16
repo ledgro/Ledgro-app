@@ -121,6 +121,7 @@ export default function Ledger() {
     }
   }, [shopId, day]);
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     if (shopId) {
       lastDoc.current = null;
@@ -158,6 +159,7 @@ export default function Ledger() {
   const canEditBill = (b) => {
     if (!b || b.type !== 'sale' || b.isVoided || b.exchangeOf || (b.returnedAmt || 0) > 0) return false;
     const created = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+    // oxlint-disable-next-line react/purity
     if (!created || Date.now() - created > 24 * 60 * 60 * 1000) return false;
     return b.creatorId === user?.uid || user?.uid === shopAdminId;
   };

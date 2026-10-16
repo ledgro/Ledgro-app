@@ -5,6 +5,7 @@ export default function DiscountDrawer({ isOpen, onClose, targetItem, globalDisc
   const [discountType, setDiscountType] = useState('flat'); // 'flat' | 'percent'
   const [discountValue, setDiscountValue] = useState('');
 
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
     if (isOpen) {
       if (targetItem && targetItem.lineDiscount) {

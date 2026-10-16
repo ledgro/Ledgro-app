@@ -134,7 +134,7 @@ export function allocateDiscount(lineItems, totalDiscountPaise) {
     itemsWithDiscount[sortedIndices[i]].allocatedDiscount += 1;
   }
 
-  return itemsWithDiscount.map(({ fraction, ...item }) => item);
+  return itemsWithDiscount.map(({ fraction: _fraction, ...item }) => item);
 }
 
 export const calculateBillTotals = (state) => {
