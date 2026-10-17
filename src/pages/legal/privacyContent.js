@@ -29,7 +29,7 @@ export const privacySections = [
     title: { en: 'Who we are', ml: 'ഞങ്ങൾ ആരാണ്' },
     blocks: [
       { p: `Ledgro is a billing, ledger and expense app. Ledgro decides why and how the personal data described here is used, so it is the "data fiduciary" under the Digital Personal Data Protection Act, 2023 (DPDP Act). You are the "data principal".` },
-      { p: `Contact: support@ledgro.in` },
+      { p: `Contact: getledgro@gmail.com` },
     ],
   },
   {
@@ -149,13 +149,13 @@ export const privacySections = [
         'have a complaint heard (see Grievance below)',
         'nominate someone to exercise your rights if you die or cannot act',
       ] },
-      { p: `You can correct shop details, products and expenses in the app, export reports from Settings or Bill History, and delete your account from Settings. For anything else, write to support@ledgro.in from your Google account email so we can confirm it is you.` },
+      { p: `You can correct shop details, products and expenses in the app, export reports from Settings or Bill History, and delete your account from Settings. For anything else, write to getledgro@gmail.com from your Google account email so we can confirm it is you.` },
     ],
   },
   {
     title: { en: 'Children', ml: 'കുട്ടികൾ' },
     blocks: [
-      { p: `Ledgro is for people aged 18 or older. We do not knowingly collect data from children. If you believe a child has an account, write to support@ledgro.in and we will remove it.` },
+      { p: `Ledgro is for people aged 18 or older. We do not knowingly collect data from children. If you believe a child has an account, write to getledgro@gmail.com and we will remove it.` },
     ],
   },
   {
@@ -167,7 +167,7 @@ export const privacySections = [
   {
     title: { en: 'Grievance and contact', ml: 'പരാതി, ബന്ധപ്പെടാൻ' },
     blocks: [
-      { p: `Grievance Officer: Ledgro Support, support@ledgro.in. Include your Google account email and a clear description of the issue. We will acknowledge your complaint and reply with the outcome.` },
+      { p: `Grievance Officer: Ledgro Support, getledgro@gmail.com. Include your Google account email and a clear description of the issue. We will acknowledge your complaint and reply with the outcome.` },
       { p: `If you are not satisfied, you may complain to the Data Protection Board of India under the DPDP Act.` },
     ],
   },

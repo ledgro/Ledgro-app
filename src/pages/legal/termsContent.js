@@ -156,7 +156,7 @@ export const termsSections = [
   {
     title: { en: 'Governing law and contact', ml: 'ബാധകമായ നിയമം, ബന്ധപ്പെടാൻ' },
     blocks: [
-      { p: `These Terms are governed by the laws of India. If you have a problem, write to support@ledgro.in first and we will try to solve it. If we cannot agree, the courts of India will decide. For privacy requests and complaints, see the Grievance section of the Privacy Policy.` },
+      { p: `These Terms are governed by the laws of India. If you have a problem, write to getledgro@gmail.com first and we will try to solve it. If we cannot agree, the courts of India will decide. For privacy requests and complaints, see the Grievance section of the Privacy Policy.` },
     ],
   },
 ];

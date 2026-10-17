@@ -137,7 +137,7 @@ describe('Legal pages', () => {
     expect(text.split(/\s+/).length).toBeGreaterThan(900);
     expect(text).not.toMatch(/[—–]/);
     expect(text).not.toMatch(/\[[A-Za-z][^\]]*\]/);
-    expect(text).toContain('support@ledgro.in');
+    expect(text).toContain('getledgro@gmail.com');
     fireEvent.click(screen.getByRole('button', { name: 'ml' }));
     expect(container.textContent).toMatch(/ഇംഗ്ലീഷ്/);
   });
