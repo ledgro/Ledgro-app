@@ -93,7 +93,7 @@ function Sheet({ onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
   };
 
   const onInputKey = (e) => {
-    if (e.key === 'Enter' && results.length > 0) {
+    if (e.key === 'Enter' && !e.nativeEvent.isComposing && results.length > 0) {
       e.preventDefault();
       add(results[0]);
     }
@@ -144,7 +144,7 @@ function Sheet({ onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
         {results.map((p, idx) => {
           const stock = typeof p.stockCount === 'number' ? p.stockCount : null;
           const out = stock !== null && stock <= 0;
-          const low = stock !== null && stock > 0 && stock <= (Number(p.lowStockAt) || 3);
+          const low = stock !== null && stock > 0 && stock <= (Number(p.lowStockAlert) || 3);
           const inCart = cartQty.get(p.id) || 0;
           return (
             <div

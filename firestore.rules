@@ -65,16 +65,16 @@ service cloud.firestore {
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['phone']) || isValidString(request.resource.data.phone, 0, 30))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['address']) || isValidString(request.resource.data.address, 0, 200))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['tagline']) || isValidString(request.resource.data.tagline, 0, 100))
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['members']) || (
-               isAdmin(shopId)
-               && request.resource.data.members.values().hasAny(['admin'])
-               && mapValuesAreRoles(request.resource.data.members)
-             ))
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerId'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['members', 'ownerId'])
+              || request.auth.uid == resource.data.ownerId)
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['members'])
+              || (request.resource.data.members.values().hasAny(['admin']) && mapValuesAreRoles(request.resource.data.members)))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['members', 'ownerId'])
               || request.resource.data.members[request.resource.data.ownerId] == 'admin')
         ) || (
           (request.auth.uid in resource.data.members)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt'])
+          && request.auth.uid != resource.data.ownerId
           && !(request.auth.uid in request.resource.data.members)
           && (resource.data.members[request.auth.uid] != 'admin' || request.resource.data.members.values().hasAny(['admin']))
           && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.auth.uid])
@@ -142,6 +142,24 @@ service cloud.firestore {
             && request.resource.data.reversedAt == request.time
             && request.resource.data.diff(resource.data)
               .affectedKeys().hasOnly(['type', 'originalBillId', 'reversedAt', 'reversedBy'])
+          ) || (
+            (isAdmin(shopId) || resource.data.creatorId == request.auth.uid)
+            && request.time < resource.data.createdAt + duration.value(1, 'd')
+            && resource.data.get('type', 'sale') == 'sale'
+            && resource.data.get('returnedAmt', 0) == 0
+            && !('exchangeOf' in resource.data)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentMethod', 'payment'])
+            && request.resource.data.paymentMethod in ['cash', 'upi', 'split']
+            && request.resource.data.payment is map
+            && request.resource.data.payment.method == request.resource.data.paymentMethod
+            && request.resource.data.payment.breakdown.cash is number
+            && request.resource.data.payment.breakdown.upi is number
+            && request.resource.data.payment.breakdown.cash >= 0
+            && request.resource.data.payment.breakdown.upi >= 0
+            && request.resource.data.payment.breakdown.cash + request.resource.data.payment.breakdown.upi == resource.data.grandTotal
+            && (request.resource.data.paymentMethod != 'cash' || request.resource.data.payment.breakdown.upi == 0)
+            && (request.resource.data.paymentMethod != 'upi' || request.resource.data.payment.breakdown.cash == 0)
+            && (request.resource.data.paymentMethod != 'split' || (request.resource.data.payment.breakdown.cash > 0 && request.resource.data.payment.breakdown.upi > 0))
           ) || (
             resource.data.get('type', 'sale') == 'sale'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['returnedAmt'])

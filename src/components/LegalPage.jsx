@@ -91,7 +91,7 @@ export default function LegalPage({ title, updated, version, intro, keyPoints, s
             </div>
 
             <footer className="mt-12 pt-6 border-t border-slate-100 text-sm text-slate-500 space-y-2">
-              <p>Questions? Write to <a className="text-blue-600 underline" href="mailto:support@ledgro.in">support@ledgro.in</a>.</p>
+              <p>Questions? Write to <a className="text-blue-600 underline" href="mailto:getledgro@gmail.com">getledgro@gmail.com</a>.</p>
               <p><Link to={other.to} className="text-blue-600 underline">{other.label}</Link></p>
               <p>Last updated {updated} (version {version})</p>
             </footer>

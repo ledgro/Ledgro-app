@@ -12,13 +12,14 @@ import { formatCurrency, cn, hapticVibrate } from '../lib/utils';
 import { useBodyLock } from '../hooks/useBodyLock';
 import { fetchAllPaged } from '../lib/firestoreUtils';
 import { writeStats, voidEntries } from '../lib/dayStats';
-import { billDelta, bizDayKey, bizDayStart, bizDate, dayKey } from '../lib/statsMath';
+import { billDelta, bizDayKey, bizDayStart, bizDate, dayKey, negate, toDate } from '../lib/statsMath';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
 import { buildReport, rs } from '../lib/reportExport';
 import { saveFile } from '../lib/shareFile';
 import ExportMenu from '../components/ExportMenu';
 import { useNameOf } from '../lib/memberNames';
 import ExchangePicker from '../components/ExchangePicker';
+import PaymentEditor from '../components/PaymentEditor';
 import { exchangeTotals, replacementItems, netStockDeltas, flooredStockChange } from '../lib/exchange';
 import { generateBillNumber } from '../lib/billNumber';
 
@@ -60,6 +61,8 @@ export default function Ledger() {
   const [recentSearches, setRecentSearches] = useState(readRecentSearches);
 
   const [isReturnDrawerOpen, setIsReturnDrawerOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(false);
+  const [savingPayment, setSavingPayment] = useState(false);
   const [returnItems, setReturnItems] = useState({});
   const [alreadyReturned, setAlreadyReturned] = useState({});
   const [refundMethod, setRefundMethod] = useState('cash');
@@ -183,6 +186,38 @@ export default function Ledger() {
     };
     setSelectedBill(null);
     navigate('/pos', { state: { editBill } });
+  };
+
+  /** Fix a wrong payment method. Moves the bill's amount between cash/UPI in that day's stats, in one batch. */
+  const handleChangePayment = async (bill, method, cashPaise) => {
+    if (!shopId || !user || savingPayment) return;
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
+    const total = bill.grandTotal;
+    const payment = {
+      method,
+      breakdown: {
+        cash: method === 'cash' ? total : method === 'split' ? cashPaise : 0,
+        upi: method === 'upi' ? total : method === 'split' ? total - cashPaise : 0,
+      },
+    };
+    setSavingPayment(true);
+    try {
+      const batch = writeBatch(db);
+      batch.update(doc(db, `shops/${shopId}/bills`, bill.id), { paymentMethod: method, payment });
+      const key = bizDayKey(toDate(bill.createdAt));
+      const next = { ...bill, paymentMethod: method, payment };
+      writeStats(batch, shopId, [{ key, delta: negate(billDelta(bill)) }, { key, delta: billDelta(next) }]);
+      await batch.commit();
+      setBills((prev) => prev.map((b) => (b.id === bill.id ? next : b)));
+      setSelectedBill(next);
+      setEditingPayment(false);
+      toast.success('Payment updated.');
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.code === 'permission-denied' ? 'Cannot change: only within 24h, by the bill creator or an admin, and not after a return.' : 'Failed to update payment.');
+    } finally {
+      setSavingPayment(false);
+    }
   };
 
   const handleVoidBill = async (originalBill) => {
@@ -573,7 +608,7 @@ export default function Ledger() {
         )}
       </main>
 
-      <Drawer.Root open={!!selectedBill && !isReturnDrawerOpen} onOpenChange={(open) => !open && setSelectedBill(null)}>
+      <Drawer.Root open={!!selectedBill && !isReturnDrawerOpen} onOpenChange={(open) => { if (!open) { setSelectedBill(null); setEditingPayment(false); } }}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
           <Drawer.Content className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 h-[85vh] fixed bottom-0 left-0 right-0 z-50 focus:outline-none overflow-hidden">
@@ -605,6 +640,33 @@ export default function Ledger() {
                       </div>
                     ))}
                   </div>
+
+                  {selectedBill.type !== 'return' && selectedBill.type !== 'reversal' && !selectedBill.isVoided && (
+                    editingPayment ? (
+                      <PaymentEditor
+                        method={selectedBill.payment?.method || selectedBill.paymentMethod || 'cash'}
+                        cash={selectedBill.payment?.breakdown?.cash || 0}
+                        total={selectedBill.grandTotal}
+                        saving={savingPayment}
+                        onSave={(m, c) => handleChangePayment(selectedBill, m, c)}
+                        onCancel={() => setEditingPayment(false)}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Paid via</p>
+                          <p className="font-bold uppercase text-slate-900">
+                            {selectedBill.payment?.method === 'split'
+                              ? `Split · Cash ${formatCurrency(selectedBill.payment.breakdown?.cash)} + UPI ${formatCurrency(selectedBill.payment.breakdown?.upi)}`
+                              : (selectedBill.payment?.method || selectedBill.paymentMethod || 'cash')}
+                          </p>
+                        </div>
+                        {canEditBill(selectedBill) && (
+                          <button type="button" onClick={() => setEditingPayment(true)} className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 active:bg-slate-200">Change</button>
+                        )}
+                      </div>
+                    )
+                  )}
 
                   {!selectedBill.isVoided && selectedBill.type !== 'return' && selectedBill.type !== 'reversal' && (
                      <div className="grid grid-cols-2 gap-3">
