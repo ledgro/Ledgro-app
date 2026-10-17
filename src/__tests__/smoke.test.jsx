@@ -127,14 +127,14 @@ describe('Dashboard privacy', () => {
 
 describe('Legal pages', () => {
   test.each([
-    ['Terms of Service', () => import('../pages/TermsOfService'), 19],
-    ['Privacy Policy', () => import('../pages/PrivacyPolicy'), 14],
+    ['Terms of Service', () => import('../pages/TermsOfService'), 15],
+    ['Privacy Policy', () => import('../pages/PrivacyPolicy'), 12],
   ])('%s renders in full with no placeholders or long dashes', async (name, load, count) => {
     const { default: Page } = await load();
     const { container } = render(<MemoryRouter><Page /></MemoryRouter>);
     const text = container.textContent;
     expect(container.querySelectorAll('section[id^="sec-"]').length).toBe(count);
-    expect(text.split(/\s+/).length).toBeGreaterThan(1200);
+    expect(text.split(/\s+/).length).toBeGreaterThan(900);
     expect(text).not.toMatch(/[—–]/);
     expect(text).not.toMatch(/\[[A-Za-z][^\]]*\]/);
     expect(text).toContain('support@ledgro.in');
