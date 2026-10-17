@@ -37,6 +37,7 @@ const SignIn = () => {
   const [copied, setCopied] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [shakeKey, setShakeKey] = useState(0);
   const [lang, setLang] = useState('en');
 
   useEffect(() => {
@@ -52,6 +53,8 @@ const SignIn = () => {
   const handleSignIn = async () => {
     if (isSigningIn) return;
     if (!termsAccepted) {
+      setShakeKey((k) => k + 1);
+      if (navigator.vibrate) navigator.vibrate(30);
       setError(lang === 'en' ? 'Please accept the Terms of Service and Privacy Policy to continue.' : 'തുടരാൻ ദയവായി സേവന നിബന്ധനകളും സ്വകാര്യതാ നയവും അംഗീകരിക്കുക.'); // TODO: native speaker review
       return;
     }
@@ -182,7 +185,10 @@ const SignIn = () => {
               </div>
             </div>
 
-            <label className="flex items-start gap-3 cursor-pointer p-3 bg-slate-50 border border-slate-200 rounded-xl mb-4">
+            <label
+              key={`terms-${shakeKey}`}
+              className={`flex items-start gap-3 cursor-pointer p-3 bg-slate-50 border rounded-xl mb-4 ${shakeKey > 0 && !termsAccepted ? 'border-red-300 animate-shake' : 'border-slate-200'}`}
+            >
               <div className="pt-0.5">
                 <input
                   type="checkbox"
@@ -203,19 +209,20 @@ const SignIn = () => {
               </div>
             </label>
 
-            {/* Only true if the Firestore database is in an Indian region (asia-south1/asia-south2). Verify in the Firebase console. */}
             <p className="text-[11px] text-slate-400 font-medium text-center mb-4">
               {lang === 'en'
-                ? "We collect your basic profile to manage your shop ledger. Your data remains stored in India."
-                : "നിങ്ങളുടെ ഷോപ്പ് അക്കൗണ്ട് കൈകാര്യം ചെയ്യുന്നതിനായി നിങ്ങളുടെ അടിസ്ഥാന വിവരങ്ങൾ ഞങ്ങൾ ശേഖരിക്കുന്നു. നിങ്ങളുടെ വിവരങ്ങൾ ഇന്ത്യയിൽ സുരക്ഷിതമായി സൂക്ഷിക്കുന്നു."}
+                ? "We collect your basic Google profile to manage your shop. Your shop records are stored in India."
+                : "ഷോപ്പ് കൈകാര്യം ചെയ്യാൻ നിങ്ങളുടെ അടിസ്ഥാന ഗൂഗിൾ പ്രൊഫൈൽ ഞങ്ങൾ ശേഖരിക്കുന്നു. ഷോപ്പ് രേഖകൾ ഇന്ത്യയിൽ സൂക്ഷിക്കുന്നു."}
             </p>
 
             <button
+              key={`btn-${shakeKey}`}
               onClick={handleSignIn}
-              disabled={isSigningIn || !termsAccepted}
+              disabled={isSigningIn}
+              aria-disabled={!termsAccepted}
               className={`w-full flex items-center justify-center gap-3 h-14 px-4 border border-slate-200 rounded-xl shadow-sm text-base font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all active:scale-[0.98] ${
-                isSigningIn ? 'opacity-70 cursor-not-allowed' : 'hover:bg-slate-50'
-              }`}
+                isSigningIn ? 'opacity-70 cursor-not-allowed' : !termsAccepted ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50'
+              } ${shakeKey > 0 && !termsAccepted ? 'animate-shake' : ''}`}
             >
               {isSigningIn ? (
                 <div className="w-5 h-5 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" />

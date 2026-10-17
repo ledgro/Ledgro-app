@@ -12,14 +12,14 @@ export const privacyKeyPoints = {
     'We collect only what Ledgro needs: your Google account details, your shop details and the records you enter.',
     'We do not sell your data, show ads, or use advertising or analytics trackers.',
     'Ledgro has no place to enter your customers\' names or phone numbers.',
-    'Data is stored with Google Firebase. Only members of your shop can see its records.',
+    'Your records are stored in a database located in India, with Google Firebase. Only members of your shop can see them.',
     'You can export your records and delete your account from Settings.',
   ],
   ml: [
     'Ledgro പ്രവർത്തിക്കാൻ ആവശ്യമായ വിവരങ്ങൾ മാത്രമേ ശേഖരിക്കൂ: ഗൂഗിൾ അക്കൗണ്ട് വിവരങ്ങൾ, ഷോപ്പ് വിവരങ്ങൾ, നിങ്ങൾ രേഖപ്പെടുത്തുന്ന കണക്കുകൾ.',
     'ഞങ്ങൾ ഡാറ്റ വിൽക്കുന്നില്ല, പരസ്യങ്ങൾ കാണിക്കുന്നില്ല, പരസ്യ-അനലിറ്റിക്സ് ട്രാക്കറുകൾ ഉപയോഗിക്കുന്നില്ല.',
     'ഉപഭോക്താക്കളുടെ പേരോ ഫോൺ നമ്പറോ നൽകാനുള്ള സൗകര്യം Ledgro-യിൽ ഇല്ല.',
-    'ഡാറ്റ ഗൂഗിൾ ഫയർബേസിൽ സൂക്ഷിക്കുന്നു. ഷോപ്പിലെ അംഗങ്ങൾക്ക് മാത്രമേ രേഖകൾ കാണാൻ കഴിയൂ.',
+    'നിങ്ങളുടെ രേഖകൾ ഇന്ത്യയിലുള്ള ഡാറ്റാബേസിൽ, ഗൂഗിൾ ഫയർബേസിൽ, സൂക്ഷിക്കുന്നു. ഷോപ്പിലെ അംഗങ്ങൾക്ക് മാത്രമേ അവ കാണാൻ കഴിയൂ.',
     'സെറ്റിംഗ്സിൽ നിന്ന് രേഖകൾ എക്സ്പോർട്ട് ചെയ്യാം, അക്കൗണ്ട് ഇല്ലാതാക്കാം.',
   ],
 };
@@ -85,7 +85,7 @@ export const privacySections = [
     blocks: [
       { p: `Services we use:` },
       { ul: [
-        'Google Firebase (Authentication and Cloud Firestore) and Google Sign-In, to sign you in and store your data.',
+        'Google Firebase (Authentication and Cloud Firestore) and Google Sign-In, to sign you in and store your data. Your records are stored in a Cloud Firestore database located in India. Sign in data is handled by Firebase Authentication, which is not tied to one country.',
         'Cloudflare, which hosts and delivers the app.',
       ] },
       { p: `These providers process data under their own terms and privacy policies. We do not sell personal data or share it for advertising.` },
