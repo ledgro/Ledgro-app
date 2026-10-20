@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Minus, Plus, Search, X } from 'lucide-react';
+import { ChevronDown, Minus, Plus, Search, X } from 'lucide-react';
 import { useCatalogStore } from '../store/catalogStore';
 import { useBodyLock } from '../hooks/useBodyLock';
 import { formatCurrency } from '../lib/utils';
+import { variantLabel } from '../lib/variants';
 import CategoryChips from './CategoryChips';
 
 const ALL = '__all__';
@@ -46,6 +47,7 @@ function Sheet({ onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState(ALL);
   const [customPrice, setCustomPrice] = useState('');
+  const [toggled, setToggled] = useState(() => new Set());
   const inputRef = useRef(null);
   const items = useCatalogStore((s) => s.items);
   const search = useCatalogStore((s) => s.search);
@@ -68,6 +70,29 @@ function Sheet({ onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
     const pool = category === ALL ? active : active.filter((i) => (i.category || '').trim() === category);
     return [...pool].sort((a, b) => (b.frequency || 0) - (a.frequency || 0) || String(a.name).localeCompare(String(b.name))).slice(0, 60);
   }, [q, search, active, category]);
+
+  // One row per product: sizes/options of the same product are grouped behind buttons.
+  const rows = useMemo(() => {
+    const out = [];
+    const groups = new Map();
+    results.forEach((p) => {
+      if (!p.groupId) { out.push({ type: 'item', item: p }); return; }
+      let g = groups.get(p.groupId);
+      if (!g) {
+        g = { type: 'group', groupId: p.groupId, baseName: p.baseName || p.name, category: p.category, items: [] };
+        groups.set(p.groupId, g);
+        out.push(g);
+      }
+      g.items.push(p);
+    });
+    return out;
+  }, [results]);
+
+  const toggleGroup = (id) => setToggled((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   const add = (p) => {
     onAddItem({
@@ -93,9 +118,11 @@ function Sheet({ onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
   };
 
   const onInputKey = (e) => {
-    if (e.key === 'Enter' && !e.nativeEvent.isComposing && results.length > 0) {
+    if (e.key === 'Enter' && !e.nativeEvent.isComposing && rows.length > 0) {
       e.preventDefault();
-      add(results[0]);
+      const first = rows[0];
+      if (first.type === 'item') add(first.item);
+      else if (first.items.length === 1) add(first.items[0]);
     }
   };
 
@@ -139,9 +166,13 @@ function Sheet({ onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
           <p className="pb-1 pt-3 text-xs font-bold uppercase tracking-wider text-slate-400">Frequent</p>
         )}
         {q && results.length > 0 && (
-          <p className="pb-1 pt-3 text-xs text-slate-400">{results.length} found · Enter adds the first</p>
+          <p className="pb-1 pt-3 text-xs text-slate-400">{results.length} found</p>
         )}
-        {results.map((p, idx) => {
+        {rows.map((row, idx) => {
+          if (row.type === 'group') {
+            return <VariantGroup key={row.groupId} row={row} expanded={q ? !toggled.has(row.groupId) : toggled.has(row.groupId)} onToggle={() => toggleGroup(row.groupId)} cartQty={cartQty} onAdd={add} onRemoveOne={onRemoveOne} highlight={!!q && idx === 0} />;
+          }
+          const p = row.item;
           const stock = typeof p.stockCount === 'number' ? p.stockCount : null;
           const out = stock !== null && stock <= 0;
           const low = stock !== null && stock > 0 && stock <= (Number(p.lowStockAlert) || 3);
@@ -213,5 +244,71 @@ function Sheet({ onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
       </div>
     </div>,
     document.body
+  );
+}
+
+function VariantGroup({ row, expanded, onToggle, cartQty, onAdd, onRemoveOne, highlight }) {
+  const prices = row.items.map((i) => i.lastUsedPrice || 0);
+  const lo = Math.min(...prices);
+  const hi = Math.max(...prices);
+  const samePrice = lo === hi;
+  const inCartTotal = row.items.reduce((n, i) => n + (cartQty.get(i.id) || 0), 0);
+  return (
+    <div className={`border-b border-slate-100 ${highlight ? 'bg-slate-50' : ''}`}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className="flex min-h-[60px] w-full items-center justify-between py-2 pl-1 text-left active:bg-slate-50"
+      >
+        <span className="min-w-0 flex-1 pr-3">
+          <span className="block truncate text-base font-semibold text-slate-900">{row.baseName}</span>
+          <span className="flex gap-2 text-xs text-slate-400">
+            {row.category && <span className="truncate">{row.category}</span>}
+            <span>{row.items.length} {row.items.length === 1 ? 'option' : 'options'}</span>
+          </span>
+        </span>
+        {inCartTotal > 0 && <span className="mr-3 rounded-full bg-slate-900 px-2 py-0.5 text-xs font-bold text-white">{inCartTotal}</span>}
+        <span className="shrink-0 text-base font-semibold tabular-nums text-slate-900">{samePrice ? formatCurrency(lo) : `from ${formatCurrency(lo)}`}</span>
+        <ChevronDown size={18} className={`ml-2 shrink-0 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+      </button>
+      {expanded && (
+        <div className="grid grid-cols-3 gap-2 pb-3 pl-1">
+          {row.items.map((p) => {
+            const stock = typeof p.stockCount === 'number' ? p.stockCount : null;
+            const out = stock !== null && stock <= 0;
+            const n = cartQty.get(p.id) || 0;
+            return (
+              <div key={p.id} className="relative">
+                <button
+                  type="button"
+                  onClick={() => onAdd(p)}
+                  aria-label={`Add ${p.name}`}
+                  className={`flex h-16 w-full flex-col items-center justify-center rounded-xl border px-1 text-center active:scale-95 transition-transform ${n > 0 ? 'border-slate-900 bg-slate-900 text-white' : out ? 'border-slate-200 bg-slate-50 text-slate-400' : 'border-slate-200 bg-white text-slate-900'}`}
+                >
+                  <span className="max-w-full truncate text-base font-bold">{variantLabel(p.options) || p.name}</span>
+                  <span className={`text-[11px] ${n > 0 ? 'text-slate-300' : out ? 'text-red-500' : 'text-slate-400'}`}>
+                    {out ? 'Out' : stock !== null ? `${stock} left` : ''}{!samePrice ? `${stock !== null || out ? ' · ' : ''}${formatCurrency(p.lastUsedPrice)}` : ''}
+                  </span>
+                </button>
+                {n > 0 && (
+                  <>
+                    <span className="pointer-events-none absolute -right-1 -top-1 min-w-5 rounded-full bg-blue-600 px-1 text-center text-xs font-bold text-white">{n}</span>
+                    <button
+                      type="button"
+                      aria-label={`Remove one ${p.name}`}
+                      onClick={() => onRemoveOne(p.id)}
+                      className="absolute -left-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 shadow-sm"
+                    >
+                      <Minus size={12} />
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
