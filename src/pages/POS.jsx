@@ -23,6 +23,7 @@ import BottomNav from '../components/BottomNav';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { formatCurrency, hapticVibrate, sanitizeText } from '../lib/utils';
 import { shareFile, saveFile, canvasToBlob, canvasToPdfBlob } from '../lib/shareFile';
+import { confirm } from '../lib/confirm';
 
 const COMMIT_TIMEOUT_MS = 15000;
 const normName = (s) => String(s || '').normalize('NFC').trim().toLowerCase();
@@ -133,8 +134,8 @@ export default function POS() {
     else dispatch({ type: 'REMOVE_ITEM', payload: { id: line.id } });
   };
 
-  const clearBill = () => {
-    if (!window.confirm('Clear all items from this bill?')) return;
+  const clearBill = async () => {
+    if (!(await confirm({ title: 'Clear bill?', message: 'All items will be removed from this bill.', confirmText: 'Clear', danger: true }))) return;
     dispatch({ type: 'CLEAR_BILL' });
   };
 

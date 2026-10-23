@@ -4,6 +4,7 @@ import { Bug } from 'lucide-react';
 import { toast } from 'sonner';
 import { db } from '../firebase';
 import { useNameOf } from '../lib/memberNames';
+import { confirm } from '../lib/confirm';
 
 export default function ErrorLogSection({ shopId, uid }) {
   const [logs, setLogs] = useState(null);
@@ -24,7 +25,7 @@ export default function ErrorLogSection({ shopId, uid }) {
   };
 
   const clear = async () => {
-    if (!window.confirm('Delete these error entries?')) return;
+    if (!(await confirm({ title: 'Delete error entries?', message: 'These entries will be removed.', confirmText: 'Delete', danger: true }))) return;
     setBusy(true);
     try {
       await Promise.all(logs.map((l) => deleteDoc(doc(db, `shops/${shopId}/errorLogs/${l.id}`))));

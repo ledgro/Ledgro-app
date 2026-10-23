@@ -19,6 +19,7 @@ const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 import SplashScreen from './components/SplashScreen';
 import OfflineBanner from './components/OfflineBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import ConfirmHost from './components/ConfirmHost';
 import { useKeyboardInset } from './hooks/useKeyboardInset';
 
 const ProtectedRoute = ({ children, requireNoShop = false }) => {
@@ -129,6 +130,7 @@ export default function App() {
     <ErrorBoundary>
       <AuthProvider>
         <OfflineBanner />
+        <ConfirmHost />
         <RouterProvider router={router} />
       </AuthProvider>
     </ErrorBoundary>
