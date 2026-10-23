@@ -26,6 +26,10 @@ vi.mock('firebase/firestore', () => {
     getDocFromCache: vi.fn(async () => { throw new Error('no cache'); }), onSnapshot: vi.fn(() => () => {}),
     waitForPendingWrites: vi.fn(async () => {}), deleteField: vi.fn(() => ({ _delete: true })),
     Timestamp: { fromMillis: (n) => ({ ms: n }) },
+    runTransaction: vi.fn(async (_db, fn) => fn({
+      get: async (ref) => ({ exists: () => true, ref, data: () => ({ name: 'x', stockCount: null, frequency: 0 }) }),
+      set: (...a) => batch.set(...a), update: (...a) => batch.update(...a),
+    })),
     __batch: batch,
   };
 });

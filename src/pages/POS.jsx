@@ -7,7 +7,7 @@ import { generateBillNumber } from '../lib/billNumber';
 import { writeStats, voidEntries } from '../lib/dayStats';
 import { billDelta, bizDayKey } from '../lib/statsMath';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
-import { collection, getDoc, writeBatch, doc, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, getDoc, runTransaction, doc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Tag, Share2, PlusCircle, Download } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -226,7 +226,9 @@ export default function POS() {
         createdAt: serverTimestamp(), // critical for offline ledger ordering
       };
 
-      const batch = writeBatch(db);
+      // Writes are collected, then applied in one transaction so stock is read fresh from the server.
+      const ops = [];
+      const batch = { set: (ref, data, opt) => ops.push(['set', ref, data, opt]), update: (ref, data) => ops.push(['update', ref, data]) };
       if (!pendingBillRefRef.current) pendingBillRefRef.current = doc(collection(db, `shops/${shopId}/bills`));
       const newBillRef = pendingBillRefRef.current;
       batch.set(newBillRef, payload);
@@ -251,25 +253,11 @@ export default function POS() {
         });
       }
 
-      const localCatalogUpdates = [];
-      const touched = new Set([...soldQty.keys(), ...stockDelta.keys()]);
-      touched.forEach((id) => {
-        const cat = catalogMap.get(id);
-        if (!cat) return;
-        const updates = {};
-        if (!editBill && soldQty.has(id)) updates.frequency = increment(1);
-        let delta = stockDelta.get(id) || 0;
-        if (cat.stockCount != null && delta < 0) delta = Math.max(delta, -Math.max(0, cat.stockCount)); // floor at 0
-        if (cat.stockCount != null && delta !== 0) updates.stockCount = increment(delta);
-        if (Object.keys(updates).length > 0) {
-          batch.update(doc(db, `shops/${shopId}/catalog`, id), { ...updates, updatedAt: serverTimestamp() });
-          localCatalogUpdates.push({
-            id,
-            name: cat.name,
-            ...(updates.frequency ? { frequency: (cat.frequency || 0) + 1 } : {}),
-            ...(updates.stockCount ? { stockCount: cat.stockCount + delta } : {}),
-          });
-        }
+      // Stock and frequency are decided inside the transaction, from the server's current numbers.
+      const stockPlan = [];
+      new Set([...soldQty.keys(), ...stockDelta.keys()]).forEach((id) => {
+        if (!catalogMap.has(id)) return;
+        stockPlan.push({ id, bumpFreq: !editBill && soldQty.has(id), want: stockDelta.get(id) || 0 });
       });
 
       newCatalog.forEach((fresh) => {
@@ -288,6 +276,7 @@ export default function POS() {
 
       writeStats(batch, shopId, statEntries);
 
+      let localCatalogUpdates = [];
       // Online-only: wait for the server's verdict. A bill is NEVER shown as success unless
       // the server accepted it. The same bill id is reused on retry, so no duplicates.
       if (!navigator.onLine) throw new Error('OFFLINE');
@@ -298,7 +287,30 @@ export default function POS() {
       }
       if (!alreadySaved) {
         await Promise.race([
-          batch.commit(),
+          runTransaction(db, async (tx) => {
+            localCatalogUpdates = [];
+            const reads = await Promise.all(stockPlan.map((p) => tx.get(doc(db, `shops/${shopId}/catalog`, p.id))));
+            reads.forEach((snap, i) => {
+              if (!snap.exists()) return;
+              const { id, bumpFreq, want } = stockPlan[i];
+              const cur = snap.data();
+              const updates = {};
+              if (bumpFreq) updates.frequency = increment(1);
+              let delta = want;
+              if (cur.stockCount != null && delta < 0) delta = Math.max(delta, -Math.max(0, cur.stockCount)); // floor at 0
+              if (cur.stockCount != null && delta !== 0) updates.stockCount = increment(delta);
+              if (Object.keys(updates).length) {
+                tx.update(snap.ref, { ...updates, updatedAt: serverTimestamp() });
+                localCatalogUpdates.push({
+                  id,
+                  name: cur.name,
+                  ...(updates.frequency ? { frequency: (cur.frequency || 0) + 1 } : {}),
+                  ...(updates.stockCount ? { stockCount: cur.stockCount + delta } : {}),
+                });
+              }
+            });
+            ops.forEach(([kind, ref, data, opt]) => (kind === 'set' ? (opt ? tx.set(ref, data, opt) : tx.set(ref, data)) : tx.update(ref, data)));
+          }),
           new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), COMMIT_TIMEOUT_MS)),
         ]);
       }
