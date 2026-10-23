@@ -128,7 +128,7 @@ function Sheet({ onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
 
   // Portal to <body>: an ancestor with backdrop-filter would otherwise trap position:fixed.
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label="Add items" className="fixed inset-0 z-[60] flex flex-col bg-white">
+    <div role="dialog" aria-modal="true" aria-label="Add items" style={{ bottom: 'var(--kb, 0px)' }} className="fixed inset-0 z-[60] flex flex-col bg-white">
       <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" aria-hidden="true" />

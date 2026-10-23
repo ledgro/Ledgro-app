@@ -346,7 +346,7 @@ export default function Settings() {
             )}
             <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 h-12">
               <span className="text-sm font-bold text-slate-700">Export data</span>
-              <ExportMenu label="PDF / PNG" onPick={handleExportData} className="text-xs font-black uppercase bg-slate-900 text-white px-3 py-1.5 rounded-full active:scale-95" />
+              <ExportMenu label="Export PDF" onPick={handleExportData} className="text-xs font-black uppercase bg-slate-900 text-white px-3 py-1.5 rounded-full active:scale-95" />
             </div>
             {isOwner && (
               <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 h-12">

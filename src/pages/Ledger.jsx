@@ -1,3 +1,4 @@
+import { sheetStyle } from '../hooks/useKeyboardInset';
 import { toast } from 'sonner';
 import { useState, useEffect, useCallback, useMemo, useDeferredValue, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -447,7 +448,7 @@ export default function Ledger() {
     });
   }, [bills, deferredQuery, activeFilter, showVoided]);
 
-  // Exports the WHOLE ledger (paged) as PDF or PNG, not just what is scrolled in.
+  // Exports the WHOLE ledger (paged) as PDF, not just what is scrolled in.
   const handleExportLedger = async (format) => {
     if (!shopId) return;
     try {
@@ -489,7 +490,7 @@ export default function Ledger() {
       <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 pt-3 pb-2 shadow-subtle flex flex-col gap-3">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold text-slate-900">Bill History</h1>
-          <ExportMenu label="Export" onPick={handleExportLedger} className="text-blue-600 font-bold text-sm flex items-center gap-1 active:scale-95 disabled:opacity-50 bg-blue-50 px-3 py-1.5 rounded-full" />
+          <ExportMenu label="Export PDF" onPick={handleExportLedger} className="text-blue-600 font-bold text-sm flex items-center gap-1 active:scale-95 disabled:opacity-50 bg-blue-50 px-3 py-1.5 rounded-full" />
         </div>
 
         <div className="relative">
@@ -608,10 +609,10 @@ export default function Ledger() {
         )}
       </main>
 
-      <Drawer.Root open={!!selectedBill && !isReturnDrawerOpen} onOpenChange={(open) => { if (!open) { setSelectedBill(null); setEditingPayment(false); } }}>
+      <Drawer.Root handleOnly repositionInputs={false} open={!!selectedBill && !isReturnDrawerOpen} onOpenChange={(open) => { if (!open) { setSelectedBill(null); setEditingPayment(false); } }}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
-          <Drawer.Content className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 h-[85vh] fixed bottom-0 left-0 right-0 z-50 focus:outline-none overflow-hidden">
+          <Drawer.Content style={sheetStyle} className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 h-[85vh] fixed bottom-0 left-0 right-0 z-50 focus:outline-none overflow-hidden">
             <div className="p-4 bg-slate-50 flex-1 overflow-y-auto pb-safe">
               <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-slate-200 mb-6" />
 
@@ -702,10 +703,10 @@ export default function Ledger() {
         </Drawer.Portal>
       </Drawer.Root>
 
-      <Drawer.Root open={isReturnDrawerOpen} onOpenChange={(open) => { setIsReturnDrawerOpen(open); if(!open) setSelectedBill(null); }}>
+      <Drawer.Root handleOnly repositionInputs={false} open={isReturnDrawerOpen} onOpenChange={(open) => { setIsReturnDrawerOpen(open); if(!open) setSelectedBill(null); }}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
-          <Drawer.Content className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 h-[90vh] fixed bottom-0 left-0 right-0 z-[60] focus:outline-none overflow-hidden">
+          <Drawer.Content style={sheetStyle} className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 h-[90vh] fixed bottom-0 left-0 right-0 z-[60] focus:outline-none overflow-hidden">
              <div className="p-4 bg-slate-50 flex-1 overflow-y-auto pb-safe">
                <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-slate-200 mb-6" />
                <h2 className="text-2xl font-black text-slate-900 mb-2">Process Return</h2>

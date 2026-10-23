@@ -1,3 +1,4 @@
+import { sheetStyle } from '../hooks/useKeyboardInset';
 import { toast } from 'sonner';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -252,7 +253,7 @@ export default function Expenses() {
         )}
       </main>
 
-      <Drawer.Root open={isOpen} onOpenChange={(open) => {
+      <Drawer.Root handleOnly repositionInputs={false} open={isOpen} onOpenChange={(open) => {
          setIsOpen(open);
          if (!open) {
             setEditing(null);
@@ -263,8 +264,8 @@ export default function Expenses() {
       }}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
-          <Drawer.Content className="bg-white flex flex-col rounded-t-[10px] mt-24 h-auto fixed bottom-0 left-0 right-0 z-50 focus:outline-none">
-            <div className="p-4 bg-white rounded-t-[10px] flex-1 pb-safe">
+          <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[10px] mt-24 h-auto fixed bottom-0 left-0 right-0 z-50 focus:outline-none">
+            <div className="p-4 bg-white rounded-t-[10px] flex-1 pb-safe overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-gray-300 mb-6" />
               <div className="max-w-md mx-auto">
                 <Drawer.Title className="font-bold text-gray-900 mb-6 text-xl">
@@ -340,6 +341,13 @@ export default function Expenses() {
                     className="w-full bg-indigo-600 text-white font-bold py-4 px-4 rounded-xl flex items-center justify-center gap-2 active:bg-indigo-700 disabled:opacity-50 transition-colors"
                   >
                     {submitting ? 'Saving...' : editing ? 'Save Changes' : 'Save Expense'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { if (!submitting) setIsOpen(false); }}
+                    className="w-full bg-slate-100 text-slate-700 font-bold py-3 px-4 rounded-xl active:bg-slate-200 transition-colors"
+                  >
+                    Discard
                   </button>
                   {editing && isAdmin && (
                     <button
