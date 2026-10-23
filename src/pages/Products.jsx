@@ -52,6 +52,7 @@ export default function Products() {
   const [comboStock, setComboStock] = useState({});
   const [optionEdits, setOptionEdits] = useState({});
   const [joinGroup, setJoinGroup] = useState(null);
+  const [convert, setConvert] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -117,6 +118,7 @@ export default function Products() {
     setEditingItem(group ? null : item);
     setHasVariants(!!group);
     setJoinGroup(group);
+    setConvert(false);
     setComboStock({});
     setOptionEdits(item?.options ? { ...item.options } : {});
     setAxes(group ? Object.keys(group.options).map((k) => ({ name: k, values: '' })) : [{ name: 'Size', values: '' }]);
@@ -205,7 +207,7 @@ export default function Products() {
         ...variantFields,
       };
 
-      if (editingItem && editingItem.id) {
+      if (editingItem && editingItem.id && !convert) {
         // Update existing (Admin stock check done in rules, but UI respects it)
         if (editingVariant && catalogItems.some((i) => i.id !== editingItem.id && i.name?.toLowerCase() === basePayload.name.toLowerCase())) {
           toast.error('That variant already exists.');
@@ -277,6 +279,11 @@ export default function Products() {
         }
         await batch.commit();
         created.forEach((c) => addCatalogItem(c));
+        if (convert && editingItem?.id) {
+          // The plain product is replaced by its variants: hide it from billing and lists.
+          await updateDoc(doc(db, `shops/${shopId}/catalog`, editingItem.id), { isActive: false, updatedBy: user.uid, updatedAt: serverTimestamp() });
+          addCatalogItem({ ...editingItem, isActive: false });
+        }
         toast.success(fresh.length === 1 ? 'Variant added' : `${fresh.length} variants added`);
       } else {
         // Check for duplicates before adding
@@ -473,7 +480,15 @@ export default function Products() {
                       This product has variants (size, colour, anything)
                     </label>
                   )}
-                  {hasVariants && !editingItem && (
+                  {editingItem && !isVariant(editingItem) && !convert && (
+                    <button type="button" onClick={() => { setConvert(true); setHasVariants(true); setDirty(true); }} className="text-sm font-bold text-blue-600">
+                      Split into variants (size, colour)
+                    </button>
+                  )}
+                  {convert && (
+                    <p className="text-xs text-slate-500">Saving creates the variants below and hides this product. Set stock for each variant.</p>
+                  )}
+                  {hasVariants && (!editingItem || convert) && (
                     <VariantBuilder axes={axes} setAxes={setAxes} comboStock={comboStock} setComboStock={setComboStock} />
                   )}
                   {editingItem && isVariant(editingItem) && (
