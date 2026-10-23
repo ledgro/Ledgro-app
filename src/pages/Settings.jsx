@@ -15,6 +15,7 @@ import { hapticVibrate } from '../lib/utils';
 import { format } from 'date-fns';
 import { checkStorageHealth } from '../lib/storageHealth';
 import ErrorLogSection from '../components/ErrorLogSection';
+import { confirm } from '../lib/confirm';
 
 export default function Settings() {
   const { user, shopId, shopAdminId, shopProfile, signOut, deleteAccount } = useAuth();
@@ -68,7 +69,7 @@ export default function Settings() {
     const min = Number(e.target.value);
     if (!shopId || !Number.isInteger(min)) return;
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
-    if (!window.confirm('Change when the business day starts? Past totals keep their old days until you tap Recalculate totals.')) return;
+    if (!(await confirm({ title: 'Change day start?', message: 'Past totals keep their old days until you tap Recalculate totals.', confirmText: 'Change' }))) return;
     try {
       await updateDoc(doc(db, 'shops', shopId), { dayCutoffMin: min, updatedAt: serverTimestamp() });
       toast.success('Day start saved. Tap Recalculate totals to fix past days.');
@@ -156,7 +157,7 @@ export default function Settings() {
   const handleRecalculate = async () => {
     if (!shopId || recalculating) return;
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
-    if (!window.confirm('Recalculate daily totals from your bills and expenses of the last 90 days? This replaces the stored totals and reads every bill in that period, which can take a while on a busy shop.')) return;
+    if (!(await confirm({ title: 'Recalculate totals?', message: 'Daily totals are rebuilt from the last 90 days of bills and expenses. This replaces the stored totals and can take a while.', confirmText: 'Recalculate' }))) return;
     setRecalculating(true);
     try {
       const r = await rebuildStats(shopId, 90);
@@ -188,9 +189,7 @@ export default function Settings() {
       toast.error("Cannot delete account while offline. Please connect to the internet.");
       return;
     }
-    const confirmDelete = window.confirm(
-      "Are you absolutely sure you want to delete your account? This action is permanent and cannot be undone."
-    );
+    const confirmDelete = await confirm({ title: 'Delete account?', message: 'This is permanent and cannot be undone.', confirmText: 'Delete account', danger: true });
     if (!confirmDelete) return;
 
     setIsDeletingAccount(true);
@@ -216,7 +215,7 @@ export default function Settings() {
   };
 
   const handleClearCache = async () => {
-    if (!window.confirm('Clear app files and reload? Your data stays safe in the cloud.')) return;
+    if (!(await confirm({ title: 'Clear app files?', message: 'The app reloads. Your data stays safe in the cloud.', confirmText: 'Clear' }))) return;
     if (!(await flushPendingWrites())) {
       toast.error('Unsynced bills pending. Connect to the internet until they sync, then retry.');
       return;

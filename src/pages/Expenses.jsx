@@ -15,6 +15,7 @@ import { Skeleton } from '../components/Skeleton';
 import { useBodyLock } from '../hooks/useBodyLock';
 import { hapticVibrate } from '../lib/utils';
 import { useNameOf } from '../lib/memberNames';
+import { confirm } from '../lib/confirm';
 
 const CATEGORIES = [
   { id: 'electricity', label: 'Electricity', icon: Zap },
@@ -155,7 +156,7 @@ export default function Expenses() {
 
   const handleDeleteExpense = async (id) => {
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
-    if (!window.confirm("Are you sure you want to delete this expense?")) return;
+    if (!(await confirm({ title: 'Delete expense?', message: 'This expense will be removed.', confirmText: 'Delete', danger: true }))) return;
     const previousExpenses = [...expenses];
     setExpenses(prev => prev.filter(e => e.id !== id));
 

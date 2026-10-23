@@ -23,6 +23,7 @@ import ExchangePicker from '../components/ExchangePicker';
 import PaymentEditor from '../components/PaymentEditor';
 import { exchangeTotals, replacementItems, netStockDeltas, flooredStockChange } from '../lib/exchange';
 import { generateBillNumber } from '../lib/billNumber';
+import { confirm } from '../lib/confirm';
 
 const PAGE = 30;
 
@@ -169,9 +170,9 @@ export default function Ledger() {
   };
 
   /** Opens the bill in POS. Saving voids this bill and writes a new one (bills are never changed in place). */
-  const handleEditBill = (b) => {
+  const handleEditBill = async (b) => {
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again.'); return; }
-    if (!window.confirm('Edit this bill? Saving cancels the old bill and creates a new one with a new bill number.')) return;
+    if (!(await confirm({ title: 'Edit this bill?', message: 'Saving cancels the old bill and creates a new one with a new bill number.', confirmText: 'Edit' }))) return;
     const editBill = {
       id: b.id,
       type: b.type,
@@ -224,7 +225,7 @@ export default function Ledger() {
   const handleVoidBill = async (originalBill) => {
     if (!shopId || !user) return;
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
-    if (!window.confirm('Are you sure you want to void this bill?')) return;
+    if (!(await confirm({ title: 'Void this bill?', message: 'The bill is cancelled and its stock is returned.', confirmText: 'Void bill', danger: true }))) return;
     if (hapticOn()) hapticVibrate(20);
 
     setReversingId(originalBill.id);
@@ -334,8 +335,8 @@ export default function Ledger() {
       if (touched.size > 5) { toast.error('Exchange up to 5 different items at a time.'); return; }
       exch = exchangeTotals(returnTotal, exchangeLines);
       const msg = exch.difference > 0 ? `Customer pays ${formatCurrency(exch.difference)}` : exch.difference < 0 ? `Refund ${formatCurrency(-exch.difference)}` : 'No money changes hands';
-      if (!window.confirm(`Exchange: returned ${formatCurrency(returnTotal)}, given ${formatCurrency(exch.newTotal)}. ${msg} (${refundMethod.toUpperCase()}). Continue?`)) return;
-    } else if (!window.confirm(`Process refund of ${formatCurrency(returnTotal)} via ${refundMethod.toUpperCase()}?`)) return;
+      if (!(await confirm({ title: 'Confirm exchange', message: `Returned ${formatCurrency(returnTotal)}\nGiven ${formatCurrency(exch.newTotal)}\n${msg} (${refundMethod.toUpperCase()})`, confirmText: 'Confirm' }))) return;
+    } else if (!(await confirm({ title: 'Confirm refund', message: `Refund ${formatCurrency(returnTotal)} via ${refundMethod.toUpperCase()}.`, confirmText: 'Refund', danger: true }))) return;
     if (hapticOn()) hapticVibrate(20);
 
     setProcessingReturn(true);

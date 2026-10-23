@@ -15,6 +15,7 @@ import CategoryChips from '../components/CategoryChips';
 import { useNameOf } from '../lib/memberNames';
 import { VariantBuilder, VariantEditor } from '../components/VariantBuilder';
 import { MAX_COMBOS, buildCombos, comboKey, isVariant, variantName } from '../lib/variants';
+import { confirm } from '../lib/confirm';
 
 export default function Products() {
   const billCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
@@ -107,9 +108,9 @@ export default function Products() {
   }, [catalogItems, searchQuery]);
 
   /** Close the sheet; if anything was typed, ask before throwing it away. */
-  const requestClose = () => {
+  const requestClose = async () => {
     if (submitting) return;
-    if (dirty && !window.confirm('Discard this product? Your changes will be lost.')) return;
+    if (dirty && !(await confirm({ title: 'Discard changes?', message: 'What you entered will be lost.', confirmText: 'Discard', cancelText: 'Keep editing', danger: true }))) return;
     setIsDrawerOpen(false);
   };
 
@@ -330,9 +331,7 @@ export default function Products() {
        return;
     }
 
-    if (!window.confirm(`Are you ABSOLUTELY sure you want to permanently delete "${editingItem.name}"? This will not remove it from old bills, but it will be gone from the catalog forever.`)) {
-      return;
-    }
+    if (!(await confirm({ title: 'Delete product?', message: `"${editingItem.name}" will be removed from the catalog for good. Old bills keep it.`, confirmText: 'Delete', danger: true }))) return;
 
     setSubmitting(true);
     try {

@@ -8,6 +8,7 @@ import { Trash2, UserPlus, LogOut, ArrowUpCircle, ShieldCheck, ShieldOff } from 
 import { broadcastSessionTerminated } from '../lib/sessionBroadcast';
 import { deleteShopCascade, flushPendingWrites } from '../lib/firestoreUtils';
 import { useNameOf } from '../lib/memberNames';
+import { confirm } from '../lib/confirm';
 
 export default function Members() {
   const { user, shopId, shopAdminId, signOut, beginVoluntaryExit } = useAuth();
@@ -88,7 +89,7 @@ export default function Members() {
   const handleRemoveMember = async (targetUid) => {
     if (!isCreator || targetUid === user?.uid) return;
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
-    if (window.confirm("Are you sure you want to remove this member?")) {
+    if (await confirm({ title: 'Remove member?', message: 'They lose access to this shop.', confirmText: 'Remove', danger: true })) {
       try {
         const shopRef = doc(db, 'shops', shopId);
         await updateDoc(shopRef, {
@@ -108,7 +109,7 @@ export default function Members() {
     const msg = role === 'admin'
       ? 'Make this member an admin? They can manage products, members and settings. You stay admin.'
       : 'Make this admin a regular member?';
-    if (!window.confirm(msg)) return;
+    if (!(await confirm({ title: 'Change role?', message: msg, confirmText: 'Change' }))) return;
     try {
       await updateDoc(doc(db, 'shops', shopId), { [`members.${targetUid}`]: role });
       toast.success(role === 'admin' ? 'Now an admin.' : 'Now a member.');
@@ -121,7 +122,7 @@ export default function Members() {
   const handleMakeAdmin = async (targetUid) => {
      if (!isCreator || targetUid === user?.uid) return;
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
-     if (window.confirm("Make this member the new admin? You will become a regular member.")) {
+     if (await confirm({ title: 'Transfer admin?', message: 'This member becomes the admin. You become a regular member.', confirmText: 'Transfer', danger: true })) {
         try {
            const shopRef = doc(db, 'shops', shopId);
            await updateDoc(shopRef, {
@@ -152,7 +153,7 @@ export default function Members() {
     const msg = isCreator
       ? 'You are the only member. This permanently deletes the shop and ALL its bills. Continue?'
       : 'Are you sure you want to leave this shop?';
-    if (!window.confirm(msg)) return;
+    if (!(await confirm({ title: isCreator ? 'Delete shop?' : 'Leave shop?', message: msg, confirmText: isCreator ? 'Delete shop' : 'Leave', danger: true }))) return;
 
     // Queued offline bills would be lost once access is gone.
     if (!(await flushPendingWrites())) {
