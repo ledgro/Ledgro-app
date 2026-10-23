@@ -19,6 +19,7 @@ const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 import SplashScreen from './components/SplashScreen';
 import OfflineBanner from './components/OfflineBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { useKeyboardInset } from './hooks/useKeyboardInset';
 
 const ProtectedRoute = ({ children, requireNoShop = false }) => {
   const { user, hasShop } = useAuth();
@@ -123,6 +124,7 @@ const router = createHashRouter([
 ]);
 
 export default function App() {
+  useKeyboardInset();
   return (
     <ErrorBoundary>
       <AuthProvider>

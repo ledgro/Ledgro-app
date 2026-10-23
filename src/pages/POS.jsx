@@ -538,8 +538,8 @@ export default function POS() {
       )}
 
       {isPayOpen && (
-        <div role="dialog" aria-modal="true" aria-label="Payment" className="fixed inset-0 z-[70] flex items-end bg-black/40" onClick={() => !isCheckingOut && setIsPayOpen(false)}>
-          <div className="w-full rounded-t-[24px] bg-white p-4 pb-safe" onClick={(e) => e.stopPropagation()}>
+        <div role="dialog" aria-modal="true" aria-label="Payment" style={{ bottom: 'var(--kb, 0px)' }} className="fixed inset-0 z-[70] flex items-end bg-black/40" onClick={() => !isCheckingOut && setIsPayOpen(false)}>
+          <div className="w-full max-h-full overflow-y-auto rounded-t-[24px] bg-white p-4 pb-safe" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200" />
             <div className="mx-auto max-w-md space-y-4">
               <div className="text-center">

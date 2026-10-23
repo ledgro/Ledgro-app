@@ -1,3 +1,4 @@
+import { sheetStyle } from '../hooks/useKeyboardInset';
 import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -33,6 +34,7 @@ export default function Products() {
   const [filter, setFilter] = useState('__all__');
 
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
   const [name, setName] = useState('');
@@ -103,7 +105,15 @@ export default function Products() {
       .filter(item => item.name?.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [catalogItems, searchQuery]);
 
+  /** Close the sheet; if anything was typed, ask before throwing it away. */
+  const requestClose = () => {
+    if (submitting) return;
+    if (dirty && !window.confirm('Discard this product? Your changes will be lost.')) return;
+    setIsDrawerOpen(false);
+  };
+
   const openDrawer = (item = null, group = null) => {
+    setDirty(false);
     setEditingItem(group ? null : item);
     setHasVariants(!!group);
     setJoinGroup(group);
@@ -424,10 +434,10 @@ export default function Products() {
         )}
       </main>
 
-      <Drawer.Root open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+      <Drawer.Root handleOnly repositionInputs={false} open={isDrawerOpen} onOpenChange={(o) => (o ? setIsDrawerOpen(true) : requestClose())}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
-          <Drawer.Content className="bg-white flex flex-col rounded-t-[20px] mt-24 max-h-[85vh] fixed bottom-0 left-0 right-0 z-50 focus:outline-none overflow-hidden">
+          <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[20px] mt-24 max-h-[85vh] fixed bottom-0 left-0 right-0 z-50 focus:outline-none overflow-hidden">
             <div className="p-4 bg-white rounded-t-[20px] flex-shrink-0 border-b border-slate-100 flex items-center justify-between">
               <Drawer.Title className="font-bold text-slate-900 text-xl flex items-center gap-2">
                 {editingItem ? <Edit2 size={20} className="text-blue-600" /> : <PackagePlus size={20} className="text-blue-600" />}
@@ -435,7 +445,7 @@ export default function Products() {
               </Drawer.Title>
               <button
                 aria-label="Close"
-                onClick={() => setIsDrawerOpen(false)}
+                onClick={requestClose}
                 className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200"
               >
                 ✕
@@ -443,7 +453,7 @@ export default function Products() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 pb-[200px] relative">
-              <form id="product-form" onSubmit={handleSaveProduct} className="space-y-6">
+              <form id="product-form" onSubmit={handleSaveProduct} onChange={() => setDirty(true)} className="space-y-6">
 
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Product Info</h3>
@@ -624,10 +634,18 @@ export default function Products() {
                 </button>
               )}
               <button
+                type="button"
+                onClick={requestClose}
+                disabled={submitting}
+                className="h-14 shrink-0 rounded-xl bg-slate-100 px-5 font-bold text-slate-700 active:bg-slate-200 disabled:opacity-50"
+              >
+                Discard
+              </button>
+              <button
                 type="submit"
                 form="product-form"
                 disabled={submitting || !name.trim() || !price}
-                className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+                className="flex-1 bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
               >
                 {submitting ? 'Saving...' : (editingItem ? 'Update Product' : 'Save product')}
               </button>

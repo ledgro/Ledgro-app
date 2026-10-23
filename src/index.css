@@ -35,6 +35,7 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     --color-bg-base: #F8FAFC;
     --color-bg-surface: #FFFFFF;
     --color-text-main: #0F172A;
@@ -77,6 +78,27 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+}
+
+@layer base {
+  /* Typed text must always be dark on white, on every phone and in every theme. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    background-color: #ffffff;
+    color: #0f172a;
+    -webkit-text-fill-color: #0f172a;
+    opacity: 1;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: #94a3b8;
+    -webkit-text-fill-color: #94a3b8;
+    opacity: 1;
+  }
+  input:disabled {
+    -webkit-text-fill-color: #64748b;
   }
 }
 
