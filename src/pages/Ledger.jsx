@@ -448,7 +448,7 @@ export default function Ledger() {
     });
   }, [bills, deferredQuery, activeFilter, showVoided]);
 
-  // Exports the WHOLE ledger (paged) as PDF or PNG, not just what is scrolled in.
+  // Exports the WHOLE ledger (paged) as PDF, not just what is scrolled in.
   const handleExportLedger = async (format) => {
     if (!shopId) return;
     try {
@@ -490,7 +490,7 @@ export default function Ledger() {
       <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 pt-3 pb-2 shadow-subtle flex flex-col gap-3">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold text-slate-900">Bill History</h1>
-          <ExportMenu label="Export" onPick={handleExportLedger} className="text-blue-600 font-bold text-sm flex items-center gap-1 active:scale-95 disabled:opacity-50 bg-blue-50 px-3 py-1.5 rounded-full" />
+          <ExportMenu label="Export PDF" onPick={handleExportLedger} className="text-blue-600 font-bold text-sm flex items-center gap-1 active:scale-95 disabled:opacity-50 bg-blue-50 px-3 py-1.5 rounded-full" />
         </div>
 
         <div className="relative">

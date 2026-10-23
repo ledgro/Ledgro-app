@@ -1,4 +1,4 @@
-// Table report -> PDF or PNG. No CSV. Pure client-side, no html2canvas needed.
+// Table report -> PDF. No CSV, no PNG. Pure client-side, no html2canvas needed.
 // jsPDF's built-in fonts have no rupee glyph, so amounts are written "Rs 1,234.50".
 
 export const rs = (paise) => {
@@ -65,55 +65,4 @@ export async function buildReportPdf({ title, subtitle, columns, rows, summary =
   return pdf.output('blob');
 }
 
-export const PNG_MAX_ROWS = 250;
-
-export async function buildReportPng({ title, subtitle, columns, rows, summary = [] }) {
-  const shown = rows.slice(0, PNG_MAX_ROWS);
-  const scale = 2, width = 1100, pad = 24, rowH = 26;
-  const headH = 60 + summary.length * 20 + (subtitle ? 22 : 0);
-  const height = headH + 36 + (shown.length + (rows.length > shown.length ? 1 : 0)) * rowH + pad;
-  const canvas = document.createElement('canvas');
-  canvas.width = width * scale; canvas.height = height * scale;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(scale, scale);
-  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = '#0f172a'; ctx.font = 'bold 22px sans-serif'; ctx.textBaseline = 'top';
-  ctx.fillText(title, pad, pad);
-  let y = pad + 32;
-  ctx.fillStyle = '#64748b'; ctx.font = '13px sans-serif';
-  if (subtitle) { ctx.fillText(subtitle, pad, y); y += 22; }
-  summary.forEach((s) => { ctx.fillText(s, pad, y); y += 20; });
-  y += 8;
-
-  const totalW = columns.reduce((a, c) => a + c.w, 0);
-  const colW = columns.map((c) => ((width - 2 * pad) * c.w) / totalW);
-  const drawRow = (cells, bold) => {
-    ctx.font = `${bold ? 'bold ' : ''}13px sans-serif`;
-    ctx.fillStyle = bold ? '#0f172a' : '#334155';
-    let x = pad;
-    cells.forEach((cell, i) => {
-      const c = columns[i];
-      const txt = clip(cell, c.max || 40);
-      ctx.textAlign = c.align === 'right' ? 'right' : 'left';
-      ctx.fillText(txt, c.align === 'right' ? x + colW[i] - 6 : x + 6, y);
-      x += colW[i];
-    });
-    ctx.textAlign = 'left';
-    y += rowH;
-  };
-  drawRow(columns.map((c) => c.label), true);
-  ctx.strokeStyle = '#cbd5e1'; ctx.beginPath(); ctx.moveTo(pad, y - 6); ctx.lineTo(width - pad, y - 6); ctx.stroke();
-  shown.forEach((r, i) => {
-    if (i % 2) { ctx.fillStyle = '#f8fafc'; ctx.fillRect(pad, y - 4, width - 2 * pad, rowH); }
-    drawRow(r, false);
-  });
-  if (rows.length > shown.length) {
-    ctx.fillStyle = '#94a3b8'; ctx.font = 'italic 12px sans-serif';
-    ctx.fillText(`… ${rows.length - shown.length} more rows. Use PDF for the full list.`, pad + 6, y);
-  }
-  const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
-  canvas.width = 0; canvas.height = 0;
-  return blob;
-}
-
-export const buildReport = (format, spec) => (format === 'png' ? buildReportPng(spec) : buildReportPdf(spec));
+export const buildReport = (_format, spec) => buildReportPdf(spec);

@@ -98,7 +98,7 @@ export const termsSections = [
     blocks: [
       { p: `Everything you enter, such as bills, products, expenses and shop details, is yours. We do not claim ownership of it. You give us the right to store and process it only to run Ledgro for you.` },
       { ul: [
-        'Export: you can export bills and expenses as PDF or PNG reports.',
+        'Export: you can export bills and expenses as PDF reports.',
         'Delete: you can delete your account from Settings. If you are the only member, this also deletes the shop and all its records permanently. If the shop has other members, make another member an admin first. Your access is then removed and the shop\'s records stay with the shop.',
         'How we handle personal data is described in the Privacy Policy.',
       ] },
