@@ -1,12 +1,12 @@
 import { toast } from 'sonner';
-import { useState, useEffect, useRef, useCallback, useDeferredValue } from 'react';
+import { useState, useEffect, useCallback, useDeferredValue } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { readStatsRange } from '../lib/dayStats';
 import { dayKey, bizDate, sumStats } from '../lib/statsMath';
-import { rs } from '../lib/reportExport';
-import { shareFile, saveFile, canvasToBlob } from '../lib/shareFile';
+import { rs, buildReport } from '../lib/reportExport';
+import { saveFile } from '../lib/shareFile';
 import BottomNav from '../components/BottomNav';
-import { Share2, Download, ChevronLeft } from 'lucide-react';
+import { Download, ChevronLeft } from 'lucide-react';
 import { formatCurrency, cn, sanitizeText } from '../lib/utils';
 import { DayPicker } from 'react-day-picker';
 import { Drawer } from 'vaul';
@@ -15,10 +15,19 @@ import { Skeleton } from '../components/Skeleton';
 import { startOfDay, endOfDay, startOfWeek, startOfMonth, subMonths, format } from 'date-fns';
 import { Link } from 'react-router-dom';
 
+const Row = ({ label, value, sub, strong, tone }) => (
+  <div className={cn('flex items-baseline justify-between gap-3 py-2', strong && 'border-t border-slate-200 mt-1 pt-3')}>
+    <span className={cn('text-sm capitalize', strong ? 'font-bold text-slate-900' : 'text-slate-600')}>{label}</span>
+    <span className="text-right">
+      <span className={cn('tabular-nums', strong ? 'text-base font-black' : 'text-sm font-semibold text-slate-800', tone)}>{formatCurrency(value)}</span>
+      {sub != null && <span className="block text-[11px] text-slate-400">{sub}</span>}
+    </span>
+  </div>
+);
+
 export default function PLScreen() {
   const { shopId, shopName } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState('simple'); // 'simple' | 'detailed'
 
   const [dateRangeType, setDateRangeType] = useState('today');
   const [dateRange, setDateRange] = useState({ from: startOfDay(bizDate()), to: endOfDay(bizDate()) });
@@ -36,7 +45,6 @@ export default function PLScreen() {
   const data = useDeferredValue(rawdata);
   const compareData = useDeferredValue(compareDataRaw);
 
-  const reportRef = useRef(null);
   const [isExporting, setIsExporting] = useState(false);
 
   const fetchPLData = useCallback(async (range) => {
@@ -89,85 +97,53 @@ export default function PLScreen() {
     return () => { active = false; };
   }, [dateRangeType, dateRange, vsLastMonth, fetchPLData]);
 
-  const handleShare = async () => {
-    if (!reportRef.current) return;
+  const rangeLabel = dateRangeType === 'custom' && dateRange.from
+    ? `${format(dateRange.from, 'dd MMM yyyy')} - ${format(dateRange.to || dateRange.from, 'dd MMM yyyy')}`
+    : { today: 'Today', week: 'This week', month: 'This month' }[dateRangeType];
+
+  const sales = data.revenue.total;
+  const exp = data.expenses.total;
+  const net = data.netEarnings;
+  const margin = sales > 0 ? (net / sales) * 100 : null;
+  const pct = (v) => (sales > 0 ? `${((v / sales) * 100).toFixed(1)}%` : '-');
+  const cats = Object.entries(data.expenses.byCategory || {}).sort((x, y) => y[1] - x[1]);
+  const cash = data.revenue.cash + data.revenue.splitCash;
+  const upi = data.revenue.upi + data.revenue.splitUpi;
+
+  const handleExportPDF = async () => {
     setIsExporting(true);
     try {
-      const clone = reportRef.current.cloneNode(true);
-      clone.style.position = 'absolute';
-      clone.style.left = '-9999px';
-      clone.style.top = '0';
-      clone.style.overflow = 'visible';
-      clone.style.height = 'max-content';
-      clone.style.width = '384px';
-      clone.style.backgroundColor = '#F8FAFC';
-      clone.style.padding = '24px';
-
-      const header = document.createElement('div');
-      const h2 = document.createElement('h2');
-      h2.style.cssText = "font-size:24px; font-weight:bold; color:#0F172A; text-align:center; margin-bottom:4px;";
-      h2.textContent = `${shopName || 'Shop'} P&L`;
-      const p = document.createElement('p');
-      p.style.cssText = "font-size:14px; color:#64748B; text-align:center;";
-      p.textContent = dateRangeType === 'custom' && dateRange.from
-        ? `${format(dateRange.from, 'MMM dd, yyyy')} - ${dateRange.to ? format(dateRange.to, 'MMM dd, yyyy') : ''}`
-        : dateRangeType.toUpperCase();
-      header.appendChild(h2);
-      header.appendChild(p);
-      clone.insertBefore(header, clone.firstChild);
-
-      document.body.appendChild(clone);
-
-      const { default: html2canvas } = await import('html2canvas-pro');
-      const canvas = await html2canvas(clone, {
-        scale: window.devicePixelRatio || 2,
-        useCORS: true,
-        backgroundColor: '#F8FAFC',
-        windowWidth: 384
+      const blob = await buildReport('pdf', {
+        title: `${shopName || 'Shop'} - Profit & Loss`,
+        subtitle: rangeLabel,
+        columns: [{ label: 'Item', w: 5 }, { label: 'Amount', w: 2, align: 'right' }, { label: '% of sales', w: 1, align: 'right' }],
+        rows: [
+          ['INCOME', '', ''],
+          ['Cash sales', rs(cash), pct(cash)],
+          ['UPI sales', rs(upi), pct(upi)],
+          ['Net sales (after returns)', rs(sales), sales > 0 ? '100.0%' : '-'],
+          ['', '', ''],
+          ['EXPENSES', '', ''],
+          ...cats.map(([k, v]) => [String(k).replace(/_/g, ' '), rs(v), pct(v)]),
+          ['Total expenses', rs(exp), pct(exp)],
+          ['', '', ''],
+          ['NET PROFIT', rs(net), margin == null ? '-' : `${margin.toFixed(1)}%`],
+        ],
       });
-      document.body.removeChild(clone);
-
-      const blob = await canvasToBlob(canvas);
-      canvas.width = 0; canvas.height = 0;
-      if (!blob) return;
-      const name = `PL-Report-${Date.now()}.png`;
-      const r = await shareFile(blob, name, 'P&L Report');
-      if (r === 'unsupported') await saveFile(blob, name, 'P&L Report');
+      await saveFile(blob, `Profit-Loss-${dayKey(new Date())}.pdf`, 'Profit & Loss');
     } catch (err) {
       console.error(err);
-      toast('Failed to share.');
+      toast.error('Could not create the PDF.');
     } finally {
       setIsExporting(false);
     }
   };
 
-  const handleExportPDF = async () => {
-    try {
-      const { jsPDF } = await import('jspdf');
-      const doc = new jsPDF();
-      const dateStr = dateRangeType === 'custom' && dateRange.from
-        ? `${format(dateRange.from, 'MMM dd, yyyy')} - ${dateRange.to ? format(dateRange.to, 'MMM dd, yyyy') : ''}`
-        : dateRangeType.toUpperCase();
-      doc.setFontSize(20);
-      doc.text(`${shopName || 'Ledgro Shop'} - Profit & Loss`, 20, 20);
-      doc.setFontSize(12);
-      doc.text(`Date Range: ${dateStr}`, 20, 30);
-      let y = 50;
-      doc.setFontSize(16); doc.text('Summary', 20, y); y += 10;
-      doc.setFontSize(12);
-      doc.text(`Cash: ${rs(data.revenue.cash + data.revenue.splitCash)}   UPI: ${rs(data.revenue.upi + data.revenue.splitUpi)}`, 20, y); y += 8;
-      doc.text(`Total Revenue: ${rs(data.revenue.total)}`, 20, y); y += 8;
-      doc.text(`Total Expenses: ${rs(data.expenses.total)}`, 20, y); y += 8;
-      Object.entries(data.expenses.byCategory || {}).forEach(([k, v]) => { doc.text(`   ${k}: ${rs(v)}`, 20, y); y += 6; });
-      doc.setFontSize(14);
-      doc.setTextColor(data.netEarnings >= 0 ? 22 : 220, data.netEarnings >= 0 ? 163 : 38, data.netEarnings >= 0 ? 74 : 38);
-      doc.text(`Net Earnings: ${rs(data.netEarnings)}`, 20, y + 6);
-      await saveFile(doc.output('blob'), `PL-Report-${Date.now()}.pdf`, 'P&L Report');
-    } catch (err) {
-      console.error(err);
-      toast.error('Could not create the PDF.');
-    }
-  };
+  const delta = (cur, prev) => (vsLastMonth && prev != null ? (
+    <p className={cn('text-xs font-semibold mt-1', cur >= prev ? 'text-green-600' : 'text-red-500')}>
+      {cur >= prev ? '▲' : '▼'} {formatCurrency(Math.abs(cur - prev))} vs last month
+    </p>
+  ) : null);
 
   return (
     <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
@@ -178,18 +154,10 @@ export default function PLScreen() {
            </Link>
            <h1 className="text-xl font-bold text-slate-900">Profit & Loss Report</h1>
         </div>
-        <div className="flex gap-2">
-          <button onClick={handleShare} disabled={loading || isExporting} className="p-2 text-blue-600 bg-blue-50 rounded-full"><Share2 size={18} /></button>
-          <button onClick={handleExportPDF} disabled={loading} className="p-2 text-blue-600 bg-blue-50 rounded-full"><Download size={18} /></button>
-        </div>
+        <button onClick={handleExportPDF} disabled={loading || isExporting} className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-blue-600 bg-blue-50 rounded-full disabled:opacity-50"><Download size={16} /> PDF</button>
       </header>
 
       <div className="p-4 bg-white border-b border-slate-100 space-y-4">
-         <div className="flex bg-slate-100 p-1 rounded-xl">
-           <button onClick={() => setMode('simple')} className={cn("flex-1 py-1.5 text-sm font-bold rounded-lg transition-all", mode==='simple' ? "bg-white shadow-sm text-slate-900" : "text-slate-500")}>Simple</button>
-           <button onClick={() => setMode('detailed')} className={cn("flex-1 py-1.5 text-sm font-bold rounded-lg transition-all", mode==='detailed' ? "bg-white shadow-sm text-slate-900" : "text-slate-500")}>Detailed</button>
-         </div>
-
          <div className="flex overflow-x-auto gap-2 pb-1 no-scrollbar">
             {['today', 'week', 'month', 'custom'].map(t => (
                <button key={t} onClick={() => { setDateRangeType(t); if(t==='custom') setIsCalendarOpen(true); }}
@@ -201,62 +169,37 @@ export default function PLScreen() {
          </div>
          <label className="flex items-center gap-2 text-sm font-semibold text-slate-600 mt-2">
             <input type="checkbox" checked={vsLastMonth} onChange={(e) => setVsLastMonth(e.target.checked)} className="rounded text-blue-600 focus:ring-blue-500" />
-            Compare vs Last Month
+            Compare with last month
          </label>
       </div>
 
-      <main className="p-4" ref={reportRef}>
+      <main className="p-4 space-y-4">
         {loading ? (
-           <div className="space-y-4"><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /><Skeleton className="h-32 w-full" /></div>
-        ) : mode === 'simple' ? (
-           <div className="space-y-4">
-              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-center">
-                 <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Total Revenue</p>
-                 <p className="text-3xl font-black text-slate-900">{formatCurrency(data.revenue.total)}</p>
-                 {vsLastMonth && compareData && (
-                    <p className={cn("text-sm font-medium mt-1", data.revenue.total >= compareData.revenue.total ? "text-green-600" : "text-red-500")}>
-                      {data.revenue.total >= compareData.revenue.total ? '↑' : '↓'} {formatCurrency(Math.abs(data.revenue.total - compareData.revenue.total))} vs last month
-                    </p>
-                 )}
-              </div>
-              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-center">
-                 <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Total Expenses</p>
-                 <p className="text-3xl font-black text-slate-900">{formatCurrency(data.expenses.total)}</p>
-              </div>
-              <div className={cn("p-6 rounded-2xl border shadow-sm text-center", data.netEarnings >= 0 ? "bg-green-50 border-green-100" : "bg-red-50 border-red-100")}>
-                 <p className={cn("text-sm font-bold uppercase tracking-wider mb-2", data.netEarnings >= 0 ? "text-green-600/70" : "text-red-500/70")}>Net Earnings</p>
-                 <p className={cn("text-4xl font-black", data.netEarnings >= 0 ? "text-green-600" : "text-red-600")}>{formatCurrency(data.netEarnings)}</p>
-              </div>
-           </div>
+          <div className="space-y-4"><Skeleton className="h-24 w-full" /><Skeleton className="h-40 w-full" /><Skeleton className="h-24 w-full" /></div>
         ) : (
-           <div className="space-y-6">
-             <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                <h3 className="font-bold text-slate-900 border-b border-slate-100 pb-3 mb-3">Revenue Breakdown</h3>
-                <div className="space-y-3 text-sm font-medium">
-                   <div className="flex justify-between text-slate-600"><span>Cash Sales</span><span>{formatCurrency(data.revenue.cash)}</span></div>
-                   <div className="flex justify-between text-slate-600"><span>UPI Sales</span><span>{formatCurrency(data.revenue.upi)}</span></div>
-                   <div className="flex justify-between text-slate-600"><span>Split (Cash part)</span><span>{formatCurrency(data.revenue.splitCash)}</span></div>
-                   <div className="flex justify-between text-slate-600"><span>Split (UPI part)</span><span>{formatCurrency(data.revenue.splitUpi)}</span></div>
-                   <div className="flex justify-between font-black text-slate-900 pt-2 border-t border-slate-100 text-lg"><span>Total Revenue</span><span>{formatCurrency(data.revenue.total)}</span></div>
-                </div>
-             </div>
+          <>
+            <div className={cn('p-5 rounded-2xl border shadow-sm', net >= 0 ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100')}>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Net profit · {rangeLabel}</p>
+              <p className={cn('text-4xl font-black mt-1', net >= 0 ? 'text-green-600' : 'text-red-600')}>{formatCurrency(net)}</p>
+              <p className="text-xs text-slate-500 mt-1">{margin == null ? 'No sales in this range' : `${margin.toFixed(1)}% margin on net sales`}</p>
+              {delta(net, compareData?.netEarnings)}
+            </div>
 
-             <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                <h3 className="font-bold text-slate-900 border-b border-slate-100 pb-3 mb-3">Expenses Breakdown</h3>
-                <div className="space-y-3 text-sm font-medium">
-                   {Object.entries(data.expenses.byCategory).map(([cat, amt]) => (
-                     <div key={sanitizeText(cat)} className="flex justify-between text-slate-600"><span className="capitalize">{sanitizeText(cat)}</span><span>{formatCurrency(amt)}</span></div>
-                   ))}
-                   {Object.keys(data.expenses.byCategory).length === 0 && <div className="text-slate-400 italic">No expenses recorded</div>}
-                   <div className="flex justify-between font-black text-slate-900 pt-2 border-t border-slate-100 text-lg"><span>Total Expenses</span><span>{formatCurrency(data.expenses.total)}</span></div>
-                </div>
-             </div>
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Income</h3>
+              <Row label="Cash sales" value={cash} sub={pct(cash)} />
+              <Row label="UPI sales" value={upi} sub={pct(upi)} />
+              <Row strong label="Net sales" value={sales} sub="after returns" />
+              {delta(sales, compareData?.revenue.total)}
+            </div>
 
-             <div className={cn("p-6 rounded-2xl border shadow-sm text-center", data.netEarnings >= 0 ? "bg-green-50 border-green-100" : "bg-red-50 border-red-100")}>
-                 <p className={cn("text-sm font-bold uppercase tracking-wider mb-2", data.netEarnings >= 0 ? "text-green-600/70" : "text-red-500/70")}>Net Earnings</p>
-                 <p className={cn("text-4xl font-black", data.netEarnings >= 0 ? "text-green-600" : "text-red-600")}>{formatCurrency(data.netEarnings)}</p>
-              </div>
-           </div>
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Expenses</h3>
+              {cats.map(([cat, amt]) => <Row key={cat} label={sanitizeText(cat).replace(/_/g, ' ')} value={amt} sub={pct(amt)} />)}
+              {cats.length === 0 && <p className="text-sm text-slate-400 italic py-2">No expenses recorded</p>}
+              <Row strong label="Total expenses" value={exp} sub={pct(exp)} />
+            </div>
+          </>
         )}
       </main>
 
