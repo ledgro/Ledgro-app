@@ -1,6 +1,6 @@
 import { sheetStyle } from '../hooks/useKeyboardInset';
 import { toast } from 'sonner';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
 import { collection, addDoc, doc, updateDoc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
@@ -20,6 +20,51 @@ import ProductThumb from '../components/ProductThumb';
 import { compressImage, loadImage, saveImage, removeImage, imageKey } from '../lib/productImage';
 import { buildCatalogPdf } from '../lib/catalogPdf';
 import { saveFile } from '../lib/shareFile';
+
+const ProductRow = memo(function ProductRow({ item, onOpen }) {
+  const tracked = item.stockCount != null;
+  const out = tracked && item.stockCount <= 0;
+  const low = tracked && item.lowStockAlert != null && item.stockCount <= item.lowStockAlert;
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(item)}
+      className="flex w-full items-center justify-between border-b border-slate-100 py-3 text-left active:bg-slate-50"
+    >
+      <ProductThumb item={item} className="mr-3 h-12 w-12" />
+      <div className="min-w-0 flex-1 pr-3">
+        <h3 className="truncate text-base font-semibold text-slate-900">{item.name}</h3>
+        <p className="mt-0.5 truncate text-sm text-slate-500">
+          <span className="font-bold text-blue-600">{formatCurrency(item.lastUsedPrice)}</span>
+          {' · '}{item.unit || 'piece'}
+          {item.source ? ` · from ${item.source}` : ''}
+        </p>
+      </div>
+      {tracked && (
+        <span className={cn('shrink-0 text-sm font-bold', out ? 'text-red-600' : low ? 'text-amber-600' : 'text-green-700')}>
+          {out ? 'Out' : `${item.stockCount} ${item.unit || 'unit'}`}
+        </span>
+      )}
+    </button>
+  );
+});
+
+const ProductCard = memo(function ProductCard({ item, onOpen }) {
+  const tracked = item.stockCount != null;
+  const out = tracked && item.stockCount <= 0;
+  return (
+    <button type="button" onClick={() => onOpen(item)} className="overflow-hidden rounded-2xl border border-slate-100 bg-white text-left shadow-sm active:scale-[0.98] transition-transform">
+      <ProductThumb item={item} className="aspect-square w-full !rounded-none" />
+      <div className="p-3">
+        <h3 className="line-clamp-2 text-sm font-semibold text-slate-900">{item.name}</h3>
+        <div className="mt-1 flex items-baseline justify-between gap-2">
+          <span className="text-sm font-bold text-blue-600">{formatCurrency(item.lastUsedPrice)}</span>
+          {tracked && <span className={cn('text-xs font-bold', out ? 'text-red-600' : 'text-slate-500')}>{out ? 'Out' : item.stockCount}</span>}
+        </div>
+      </div>
+    </button>
+  );
+});
 
 export default function Products() {
   const billCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
@@ -391,52 +436,12 @@ export default function Products() {
     }
   };
 
-  const renderProductRow = (item) => {
-    const tracked = item.stockCount != null;
-    const out = tracked && item.stockCount <= 0;
-    const low = tracked && item.lowStockAlert != null && item.stockCount <= item.lowStockAlert;
-
-    return (
-      <button
-        type="button"
-        key={item.id}
-        onClick={() => openDrawer(item)}
-        className="flex w-full items-center justify-between border-b border-slate-100 py-3 text-left active:bg-slate-50"
-      >
-        <ProductThumb item={item} className="mr-3 h-12 w-12" />
-        <div className="min-w-0 flex-1 pr-3">
-          <h3 className="truncate text-base font-semibold text-slate-900">{item.name}</h3>
-          <p className="mt-0.5 truncate text-sm text-slate-500">
-            <span className="font-bold text-blue-600">{formatCurrency(item.lastUsedPrice)}</span>
-            {' · '}{item.unit || 'piece'}
-            {item.source ? ` · from ${item.source}` : ''}
-          </p>
-        </div>
-        {tracked && (
-          <span className={cn('shrink-0 text-sm font-bold', out ? 'text-red-600' : low ? 'text-amber-600' : 'text-green-700')}>
-            {out ? 'Out' : `${item.stockCount} ${item.unit || 'unit'}`}
-          </span>
-        )}
-      </button>
-    );
-  };
-
-  const renderProductCard = (item) => {
-    const tracked = item.stockCount != null;
-    const out = tracked && item.stockCount <= 0;
-    return (
-      <button type="button" key={item.id} onClick={() => openDrawer(item)} className="overflow-hidden rounded-2xl border border-slate-100 bg-white text-left shadow-sm active:scale-[0.98] transition-transform">
-        <ProductThumb item={item} className="aspect-square w-full !rounded-none" />
-        <div className="p-3">
-          <h3 className="line-clamp-2 text-sm font-semibold text-slate-900">{item.name}</h3>
-          <div className="mt-1 flex items-baseline justify-between gap-2">
-            <span className="text-sm font-bold text-blue-600">{formatCurrency(item.lastUsedPrice)}</span>
-            {tracked && <span className={cn('text-xs font-bold', out ? 'text-red-600' : 'text-slate-500')}>{out ? 'Out' : item.stockCount}</span>}
-          </div>
-        </div>
-      </button>
-    );
-  };
+  // Rows are memoised components, so typing in the form does not redraw the whole list.
+  const openRef = useRef(null);
+  useEffect(() => { openRef.current = openDrawer; });
+  const onOpen = useCallback((item) => openRef.current?.(item), []);
+  const renderProductRow = (item) => <ProductRow key={item.id} item={item} onOpen={onOpen} />;
+  const renderProductCard = (item) => <ProductCard key={item.id} item={item} onOpen={onOpen} />;
 
   const exportCatalog = async () => {
     if (!activeProducts.length || exporting) return;

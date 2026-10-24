@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { loadImage, imageKey } from '../lib/productImage';
 import { cn } from '../lib/utils';
 
 /** Catalog thumbnail. Loads lazily; shows a placeholder when there is no picture. */
-export default function ProductThumb({ item, className }) {
+function ProductThumb({ item, className }) {
   const { shopId } = useAuth();
   const key = imageKey(item);
   const want = !!item?.hasImage;
@@ -25,3 +25,5 @@ export default function ProductThumb({ item, className }) {
     </div>
   );
 }
+
+export default memo(ProductThumb);

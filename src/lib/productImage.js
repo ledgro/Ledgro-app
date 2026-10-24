@@ -12,7 +12,16 @@ export const imageKey = (item) => item?.groupId || item?.id;
 /** Resize and compress a picked file to a small JPEG data URL. */
 export async function compressImage(file) {
   if (!file || !file.type?.startsWith('image/')) throw new Error('Pick an image file.');
-  const bmp = await createImageBitmap(file);
+  // createImageBitmap is missing on older iOS; fall back to an <img> element.
+  const bmp = typeof createImageBitmap === 'function'
+    ? await createImageBitmap(file)
+    : await new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const im = new Image();
+      im.onload = () => { URL.revokeObjectURL(url); im.width = im.naturalWidth; im.height = im.naturalHeight; resolve(im); };
+      im.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read that photo.')); };
+      im.src = url;
+    });
   // Centre-crop to a square so every catalog card and PDF cell lines up.
   const side = Math.min(bmp.width, bmp.height);
   const sx = (bmp.width - side) / 2;
