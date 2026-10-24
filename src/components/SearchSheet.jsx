@@ -30,12 +30,12 @@ export default function SearchSheet({ onAddItem, onRemoveOne, cartQty, itemCount
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex h-12 w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 text-left text-slate-400 active:bg-slate-50"
+        className="flex h-12 w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 text-left text-slate-500 active:bg-slate-50"
         aria-haspopup="dialog"
       >
         <Search className="h-5 w-5" aria-hidden="true" />
         <span className="flex-1">Search items</span>
-        <kbd className="hidden rounded border border-slate-200 px-1.5 py-0.5 text-xs font-medium text-slate-400 md:inline">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
+        <kbd className="hidden rounded border border-slate-200 px-1.5 py-0.5 text-xs font-medium text-slate-500 md:inline">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
       </button>
       {open && <Sheet onClose={() => setOpen(false)} onAddItem={onAddItem} onRemoveOne={onRemoveOne} cartQty={cartQty} itemCount={itemCount} />}
     </>
@@ -131,7 +131,7 @@ function Sheet({ onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
     <div role="dialog" aria-modal="true" aria-label="Add items" style={{ bottom: 'var(--kb, 0px)' }} className="fixed inset-0 z-[60] flex flex-col bg-white">
       <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" aria-hidden="true" />
           <input
             ref={inputRef}
             type="text"
@@ -143,7 +143,7 @@ function Sheet({ onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
             className="block h-12 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-10 text-base font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900"
           />
           {query && (
-            <button type="button" aria-label="Clear" onClick={() => { setQuery(''); inputRef.current?.focus(); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400">
+            <button type="button" aria-label="Clear" onClick={() => { setQuery(''); inputRef.current?.focus(); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-500">
               <X size={16} />
             </button>
           )}
@@ -163,10 +163,10 @@ function Sheet({ onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
 
       <div className="flex-1 overflow-y-auto px-4 pb-4" role="listbox" aria-label="Items">
         {!q && results.length > 0 && category === ALL && (
-          <p className="pb-1 pt-3 text-xs font-bold uppercase tracking-wider text-slate-400">Frequent</p>
+          <p className="pb-1 pt-3 text-xs font-bold uppercase tracking-wider text-slate-500">Frequent</p>
         )}
         {q && results.length > 0 && (
-          <p className="pb-1 pt-3 text-xs text-slate-400">{results.length} found</p>
+          <p className="pb-1 pt-3 text-xs text-slate-500">{results.length} found</p>
         )}
         {rows.map((row, idx) => {
           if (row.type === 'group') {
@@ -188,15 +188,15 @@ function Sheet({ onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
                 className="flex min-h-[60px] min-w-0 flex-1 items-center justify-between py-2 pl-1 text-left active:bg-slate-50"
               >
                 <span className="min-w-0 flex-1 pr-3">
-                  <span className={`block truncate text-base font-semibold ${out ? 'text-slate-400' : 'text-slate-900'}`}>{p.name}</span>
+                  <span className={`block truncate text-base font-semibold ${out ? 'text-slate-500' : 'text-slate-900'}`}>{p.name}</span>
                   <span className="flex gap-2 text-xs">
-                    {p.category && <span className="truncate text-slate-400">{p.category}</span>}
+                    {p.category && <span className="truncate text-slate-500">{p.category}</span>}
                     {out && <span className="font-semibold text-red-500">Out of stock</span>}
                     {low && <span className="font-semibold text-amber-600">{stock} left</span>}
-                    {!out && !low && stock !== null && <span className="text-slate-400">{stock} in stock</span>}
+                    {!out && !low && stock !== null && <span className="text-slate-500">{stock} in stock</span>}
                   </span>
                 </span>
-                <span className={`shrink-0 text-base tabular-nums ${out ? 'text-slate-400' : 'font-semibold text-slate-900'}`}>{formatCurrency(p.lastUsedPrice)}</span>
+                <span className={`shrink-0 text-base tabular-nums ${out ? 'text-slate-500' : 'font-semibold text-slate-900'}`}>{formatCurrency(p.lastUsedPrice)}</span>
               </button>
               {inCart > 0 ? (
                 <div className="ml-3 flex shrink-0 items-center rounded-lg border border-slate-200">
@@ -216,7 +216,7 @@ function Sheet({ onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
             <p className="mb-3 text-sm text-slate-500">New item: <span className="font-semibold text-slate-900">{q}</span></p>
             <div className="flex gap-3">
               <div className="relative flex-1">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">₹</span>
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-500">₹</span>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -234,7 +234,7 @@ function Sheet({ onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
           </form>
         )}
 
-        {!q && results.length === 0 && <p className="pt-10 text-center text-slate-400">Type a name to add your first item.</p>}
+        {!q && results.length === 0 && <p className="pt-10 text-center text-slate-500">Type a name to add your first item.</p>}
       </div>
 
       <div className="border-t border-slate-100 p-4 pb-safe">
@@ -263,14 +263,14 @@ function VariantGroup({ row, expanded, onToggle, cartQty, onAdd, onRemoveOne, hi
       >
         <span className="min-w-0 flex-1 pr-3">
           <span className="block truncate text-base font-semibold text-slate-900">{row.baseName}</span>
-          <span className="flex gap-2 text-xs text-slate-400">
+          <span className="flex gap-2 text-xs text-slate-500">
             {row.category && <span className="truncate">{row.category}</span>}
             <span>{row.items.length} {row.items.length === 1 ? 'option' : 'options'}</span>
           </span>
         </span>
         {inCartTotal > 0 && <span className="mr-3 rounded-full bg-slate-900 px-2 py-0.5 text-xs font-bold text-white">{inCartTotal}</span>}
         <span className="shrink-0 text-base font-semibold tabular-nums text-slate-900">{samePrice ? formatCurrency(lo) : `from ${formatCurrency(lo)}`}</span>
-        <ChevronDown size={18} className={`ml-2 shrink-0 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+        <ChevronDown size={18} className={`ml-2 shrink-0 text-slate-500 transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
       </button>
       {expanded && (
         <div className="grid grid-cols-3 gap-2 pb-3 pl-1">
@@ -284,10 +284,10 @@ function VariantGroup({ row, expanded, onToggle, cartQty, onAdd, onRemoveOne, hi
                   type="button"
                   onClick={() => onAdd(p)}
                   aria-label={`Add ${p.name}`}
-                  className={`flex h-16 w-full flex-col items-center justify-center rounded-xl border px-1 text-center active:scale-95 transition-transform ${n > 0 ? 'border-slate-900 bg-slate-900 text-white' : out ? 'border-slate-200 bg-slate-50 text-slate-400' : 'border-slate-200 bg-white text-slate-900'}`}
+                  className={`flex h-16 w-full flex-col items-center justify-center rounded-xl border px-1 text-center active:scale-95 transition-transform ${n > 0 ? 'border-slate-900 bg-slate-900 text-white' : out ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-slate-200 bg-white text-slate-900'}`}
                 >
                   <span className="max-w-full truncate text-base font-bold">{variantLabel(p.options) || p.name}</span>
-                  <span className={`text-[11px] ${n > 0 ? 'text-slate-300' : out ? 'text-red-500' : 'text-slate-400'}`}>
+                  <span className={`text-xs ${n > 0 ? 'text-slate-300' : out ? 'text-red-500' : 'text-slate-500'}`}>
                     {out ? 'Out' : stock !== null ? `${stock} left` : ''}{!samePrice ? `${stock !== null || out ? ' · ' : ''}${formatCurrency(p.lastUsedPrice)}` : ''}
                   </span>
                 </button>

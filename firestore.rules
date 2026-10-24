@@ -37,7 +37,8 @@ service cloud.firestore {
     }
 
     function isValidVariantFields(d) {
-      return (!('groupId' in d) || isValidString(d.groupId, 1, 40))
+      return (!('hasImage' in d) || d.hasImage is bool)
+        && (!('groupId' in d) || isValidString(d.groupId, 1, 40))
         && (!('baseName' in d) || isValidString(d.baseName, 1, 100))
         && (!('options' in d) || (d.options is map && d.options.size() >= 1 && d.options.size() <= 3));
     }
@@ -281,7 +282,7 @@ service cloud.firestore {
       match /catalog/{productId} {
         allow read: if isMember(shopId);
         allow create: if isMember(shopId)
-          && request.resource.data.keys().hasOnly(['name', 'lastUsedPrice', 'unit', 'stockCount', 'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency', 'createdAt', 'createdBy', 'addedBy', 'source', 'costPrice', 'groupId', 'baseName', 'options'])
+          && request.resource.data.keys().hasOnly(['name', 'lastUsedPrice', 'unit', 'stockCount', 'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency', 'createdAt', 'createdBy', 'addedBy', 'source', 'costPrice', 'groupId', 'baseName', 'options', 'hasImage'])
           && isValidVariantFields(request.resource.data)
           && isValidString(request.resource.data.name, 1, 100)
           && request.resource.data.lastUsedPrice is number && request.resource.data.lastUsedPrice >= 0
@@ -299,12 +300,25 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly([
               'source', 'costPrice', 'name', 'lastUsedPrice', 'unit', 'stockCount',
-              'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency', 'updatedBy', 'deleted', 'baseName', 'options'
+              'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency', 'updatedBy', 'deleted', 'baseName', 'options', 'hasImage'
             ])
           && isValidVariantFields(request.resource.data)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['updatedBy']) || request.resource.data.updatedBy == request.auth.uid)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['deleted']) || (isAdmin(shopId) && request.resource.data.deleted == true));
         allow delete: if isSoleAdmin(shopId);
+      }
+
+      // Catalog pictures: one small JPEG thumbnail (data URL) per product. Not used on bills.
+      match /catalogImages/{imageId} {
+        allow read: if isMember(shopId);
+        allow create, update: if isMember(shopId)
+          && request.resource.data.keys().hasOnly(['data', 'updatedAt', 'updatedBy'])
+          && request.resource.data.data is string
+          && request.resource.data.data.size() <= 70000
+          && request.resource.data.data.matches('^data:image/jpeg;base64,[A-Za-z0-9+/=]+$')
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.updatedBy == request.auth.uid;
+        allow delete: if isMember(shopId);
       }
     }
 

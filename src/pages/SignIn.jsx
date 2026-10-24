@@ -209,7 +209,7 @@ const SignIn = () => {
               </div>
             </label>
 
-            <p className="text-[11px] text-slate-400 font-medium text-center mb-4">
+            <p className="text-xs text-slate-500 font-medium text-center mb-4">
               {lang === 'en'
                 ? "We collect your basic Google profile to manage your shop. Your shop records are stored in India."
                 : "ഷോപ്പ് കൈകാര്യം ചെയ്യാൻ നിങ്ങളുടെ അടിസ്ഥാന ഗൂഗിൾ പ്രൊഫൈൽ ഞങ്ങൾ ശേഖരിക്കുന്നു. ഷോപ്പ് രേഖകൾ ഇന്ത്യയിൽ സൂക്ഷിക്കുന്നു."}

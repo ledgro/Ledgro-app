@@ -42,7 +42,7 @@ export function LowStock({ shopId }) {
   return (
     <section aria-label="Low stock" className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
+        <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
           <AlertCircle size={14} className="text-red-500" aria-hidden="true" /> Low stock
         </h3>
         <Link to="/products" className="text-xs font-semibold text-blue-600">See all</Link>
@@ -81,7 +81,7 @@ export function RecentBills({ shopId, mask }) {
   return (
     <section aria-label="Recent bills" className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Recent bills</h3>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Recent bills</h3>
         <Link to="/ledger" className="flex items-center text-xs font-semibold text-blue-600">History <ChevronRight size={14} aria-hidden="true" /></Link>
       </div>
       <ul className="divide-y divide-slate-100">
@@ -91,7 +91,7 @@ export function RecentBills({ shopId, mask }) {
             <li key={b.id} className="flex items-center justify-between py-2 text-sm">
               <span className="text-slate-500">
                 {d ? d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : ''}
-                <span className="ml-2 text-xs uppercase text-slate-400">{b.paymentMethod || ''}</span>
+                <span className="ml-2 text-xs uppercase text-slate-500">{b.paymentMethod || ''}</span>
               </span>
               <span className={`font-bold ${b.type === 'return' ? 'text-red-600' : 'text-slate-900'}`}>{mask(formatCurrency(b.grandTotal))}</span>
             </li>
