@@ -1,27 +1,28 @@
 import { rs } from './reportExport';
+import { colourOf, sizeLabelOf } from './variants';
 
-/** One entry per product: sizes/variants of the same product are folded into a single card. */
+/** One entry per product and colour: sizes of the same shoe are folded into a single card. */
 export function groupCatalog(items) {
   const map = new Map();
   items.forEach((it) => {
-    const key = it.groupId || it.id;
+    const key = it.groupId ? `${it.groupId}~${colourOf(it)}` : it.id;
     if (!map.has(key)) map.set(key, []);
     map.get(key).push(it);
   });
   return [...map.values()].map((list) => {
     const first = list[0];
+    const colour = first.groupId ? colourOf(first) : '';
     const prices = list.map((i) => Number(i.lastUsedPrice) || 0);
     const tracked = list.filter((i) => i.stockCount != null);
+    const base = first.groupId ? (first.baseName || first.name) : first.name;
     return {
-      name: first.groupId ? (first.baseName || first.name) : first.name,
+      name: colour ? `${base} - ${colour}` : base,
       category: (first.category || '').trim(),
       img: list.find((i) => i.hasImage) || null,
       min: Math.min(...prices),
       max: Math.max(...prices),
       unit: first.unit,
-      variants: first.groupId
-        ? list.map((i) => ({ label: Object.values(i.options || {}).join(' / ') || i.name, out: i.stockCount != null && i.stockCount <= 0 }))
-        : [],
+      variants: first.groupId ? list.map((i) => ({ label: sizeLabelOf(i), out: i.stockCount != null && i.stockCount <= 0 })) : [],
       stock: tracked.length ? tracked.reduce((a, i) => a + Math.max(0, i.stockCount), 0) : null,
     };
   }).sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
@@ -50,7 +51,7 @@ export async function buildCatalogPdf({ shopName, items, getImage, subtitle = ''
     pdf.setTextColor(255); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(15);
     pdf.text(shopName || 'Product Catalog', M, 11);
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9);
-    pdf.text(`Product Catalog · ${today}${subtitle ? ` · ${subtitle}` : ''} · ${products.length} products`, M, 17);
+    pdf.text(`Product Catalog · ${today}${subtitle ? ` · ${subtitle}` : ''} · ${products.length} items`, M, 17);
     pdf.setTextColor(0);
     return 28;
   };

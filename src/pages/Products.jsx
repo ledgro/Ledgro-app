@@ -14,10 +14,11 @@ import { useCatalogLoader } from '../hooks/useCatalogLoader';
 import CategoryChips from '../components/CategoryChips';
 import { useNameOf } from '../lib/memberNames';
 import { VariantBuilder, VariantEditor } from '../components/VariantBuilder';
-import { MAX_COMBOS, buildCombos, comboKey, isVariant, variantName } from '../lib/variants';
+import { MAX_COMBOS, buildCombos, comboKey, isVariant, variantName, colourOf, groupProducts } from '../lib/variants';
+import ProductGroupCard from '../components/ProductGroupCard';
 import { confirm } from '../lib/confirm';
 import ProductThumb from '../components/ProductThumb';
-import { compressImage, loadImage, saveImage, removeImage, imageKey } from '../lib/productImage';
+import { compressImage, loadItemImage, saveImage, removeImage, imageKey } from '../lib/productImage';
 import { buildCatalogPdf } from '../lib/catalogPdf';
 import { saveFile } from '../lib/shareFile';
 
@@ -206,7 +207,7 @@ export default function Products() {
       setIsActive(true);
     }
     const pic = group ? group.from : item;
-    if (pic?.hasImage) loadImage(shopId, imageKey(pic)).then((d) => setPhoto((cur) => cur ?? d));
+    if (pic?.hasImage) loadItemImage(shopId, pic).then((d) => setPhoto((cur) => cur ?? d));
     setIsDrawerOpen(true);
   };
 
@@ -255,11 +256,13 @@ export default function Products() {
       const variantFields = editingVariant ? { name: variantName(baseName, cleanOptions), baseName, options: cleanOptions } : {};
 
       const hasImageNext = photoDirty ? !!photo : !!(editingItem ? editingItem.hasImage : joinGroup?.from?.hasImage);
-      const persistPhoto = async (key) => {
+      const persistPhoto = async (keys) => {
         if (!photoDirty) return;
         try {
-          if (photo) await saveImage(shopId, key, photo, user.uid);
-          else await removeImage(shopId, key);
+          for (const key of [...new Set([].concat(keys))]) {
+            if (photo) await saveImage(shopId, key, photo, user.uid);
+            else await removeImage(shopId, key);
+          }
         } catch (err) {
           console.error(err);
           toast.error(`Saved, but the picture failed (${err?.code || err?.message || 'unknown'}). Try again.`);
@@ -320,7 +323,7 @@ export default function Products() {
         });
         await persistPhoto(imageKey(editingItem));
         if (editingVariant && photoDirty) {
-          const sibs = catalogItems.filter((i) => i.groupId === editingItem.groupId && i.id !== editingItem.id);
+          const sibs = catalogItems.filter((i) => i.groupId === editingItem.groupId && i.id !== editingItem.id && colourOf(i) === colourOf(editingItem));
           for (let i = 0; i < sibs.length; i += 15) {
             const batch = writeBatch(db);
             const part = sibs.slice(i, i + 15);
@@ -364,7 +367,7 @@ export default function Products() {
         }
         await batch.commit();
         created.forEach((c) => addCatalogItem(c));
-        await persistPhoto(groupId);
+        await persistPhoto(created.map((c) => imageKey(c)));
         if (convert && editingItem?.id) {
           // The plain product is replaced by its variants: hide it from billing and lists.
           await updateDoc(doc(db, `shops/${shopId}/catalog`, editingItem.id), { isActive: false, updatedBy: user.uid, updatedAt: serverTimestamp() });
@@ -441,6 +444,10 @@ export default function Products() {
   useEffect(() => { openRef.current = openDrawer; });
   const onOpen = useCallback((item) => openRef.current?.(item), []);
   const renderProductRow = (item) => <ProductRow key={item.id} item={item} onOpen={onOpen} />;
+  const entries = useMemo(() => groupProducts(activeProducts), [activeProducts]);
+  const renderEntry = (e) => (e.type === 'group'
+    ? <ProductGroupCard key={e.key} entry={e} onOpen={onOpen} />
+    : renderProductRow(e.item));
   const renderProductCard = (item) => <ProductCard key={item.id} item={item} onOpen={onOpen} />;
 
   const exportCatalog = async () => {
@@ -458,7 +465,7 @@ export default function Products() {
       const blob = await buildCatalogPdf({
         shopName,
         items: list,
-        getImage: (it) => loadImage(shopId, imageKey(it)),
+        getImage: (it) => loadItemImage(shopId, it),
         subtitle: filter === '__all__' ? '' : label,
       });
       await saveFile(blob, `Product-Catalog-${new Date().toISOString().slice(0, 10)}.pdf`, 'Product Catalog');
@@ -513,8 +520,8 @@ export default function Products() {
           </div>
         ) : (
           view === 'grid'
-            ? <div className="grid grid-cols-2 gap-3">{activeProducts.map(renderProductCard)}</div>
-            : <div>{activeProducts.map(renderProductRow)}</div>
+            ? <div className="grid grid-cols-2 gap-4">{entries.map((e) => (e.type === 'group' ? <div key={e.key} className="col-span-2">{renderEntry(e)}</div> : renderProductCard(e.item)))}</div>
+            : <div>{entries.map(renderEntry)}</div>
         )}
 
         {inactiveProducts.length > 0 && (
