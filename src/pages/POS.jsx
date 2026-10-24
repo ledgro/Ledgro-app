@@ -48,6 +48,7 @@ export default function POS() {
   const [receiptFiles, setReceiptFiles] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState(() => (localStorage.getItem('ledgro_defaultPayment') === 'upi' ? 'upi' : 'cash')); // 'cash' | 'upi' | 'split'
   const [splitCash, setSplitCash] = useState('');
+  const [tendered, setTendered] = useState(''); // cash handed over, for the change line only. Never saved.
   const [isPayOpen, setIsPayOpen] = useState(false);
 
   const { items, subtotal, globalDiscountAmt, grandTotal } = useMemo(() => calculateBillTotals(state), [state]);
@@ -329,7 +330,8 @@ export default function POS() {
 
       dispatch({ type: 'CLEAR_BILL' });
       setSplitCash('');
-      setLastBill({ ...payload, shopProfile });
+      setTendered('');
+      setLastBill({ ...payload, shopProfile, tendered: paymentMethod === 'cash' && tendered !== '' ? Math.round((parseFloat(tendered) || 0) * 100) : null });
       setCheckoutSuccess(true);
       setIsPayOpen(false);
       const bCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
@@ -481,7 +483,7 @@ export default function POS() {
       <main className={`flex-1 flex flex-col ${items.length > 0 ? (paymentMethod === 'split' ? 'pb-96' : 'pb-80') : 'pb-24'}`}>
         <div className="px-4 flex-1 mt-2">
           {items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center text-slate-400 mt-24 text-center">
+            <div className="flex flex-col items-center justify-center text-slate-500 mt-24 text-center">
               <p className="font-medium">No items yet</p>
               <p className="text-sm mt-1">Tap search to add items</p>
             </div>
@@ -556,7 +558,7 @@ export default function POS() {
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200" />
             <div className="mx-auto max-w-md space-y-4">
               <div className="text-center">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Amount to collect</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Amount to collect</p>
                 <p className="text-4xl font-black text-slate-900 tabular-nums">{formatCurrency(grandTotal)}</p>
               </div>
               <div className="flex bg-slate-100 p-1 rounded-xl" role="group" aria-label="Payment method">
@@ -564,19 +566,42 @@ export default function POS() {
                   <button
                     key={method}
                     type="button"
-                    onClick={() => { setPaymentMethod(method); if (method !== 'split') setSplitCash(''); }}
+                    onClick={() => { setPaymentMethod(method); setTendered(''); if (method !== 'split') setSplitCash(''); }}
                     className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider rounded-lg transition-all ${paymentMethod === method ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
                   >
                     {method}
                   </button>
                 ))}
               </div>
+              {paymentMethod === 'cash' && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-500">Cash received (optional)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₹</span>
+                    <input type="number" inputMode="decimal" value={tendered} onChange={(e) => setTendered(e.target.value.slice(0, 9))}
+                      className="w-full pl-7 pr-3 h-12 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-900" />
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                    {[...new Set([grandTotal, ...[100, 200, 500, 2000].map((n) => n * 100).filter((n) => n >= grandTotal)])].slice(0, 4).map((p) => (
+                      <button key={p} type="button" onClick={() => setTendered(String(p / 100))} className="shrink-0 rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 active:scale-95 transition-transform">
+                        {p === grandTotal ? 'Exact' : `₹${p / 100}`}
+                      </button>
+                    ))}
+                  </div>
+                  {tendered !== '' && (() => {
+                    const change = Math.round((parseFloat(tendered) || 0) * 100) - grandTotal;
+                    return change >= 0
+                      ? <p className="rounded-xl bg-green-50 px-4 py-3 text-center text-lg font-black text-green-700 tabular-nums">Give back {formatCurrency(change)}</p>
+                      : <p className="rounded-xl bg-red-50 px-4 py-3 text-center text-sm font-bold text-red-600 tabular-nums">Short by {formatCurrency(-change)}</p>;
+                  })()}
+                </div>
+              )}
               {paymentMethod === 'split' && (
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <label className="block text-xs font-bold text-slate-500 mb-1">Cash received</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₹</span>
                       <input type="number" inputMode="decimal" value={splitCash} onChange={(e) => setSplitCash(e.target.value)} autoFocus
                         className="w-full pl-7 pr-3 h-12 border border-green-200 bg-green-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 font-bold text-green-700" />
                     </div>

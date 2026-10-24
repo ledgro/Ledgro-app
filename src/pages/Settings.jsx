@@ -238,7 +238,7 @@ export default function Settings() {
   return (
     <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
       <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 py-4 flex items-center gap-3 shadow-subtle">
-        <button onClick={() => navigate(-1)} className="p-1 -ml-1 text-slate-400 hover:text-slate-600 active:bg-slate-100 rounded-full transition-colors">
+        <button onClick={() => navigate(-1)} className="p-1 -ml-1 text-slate-500 hover:text-slate-600 active:bg-slate-100 rounded-full transition-colors">
           <ChevronLeft size={24} />
         </button>
         <h1 className="text-xl font-bold text-slate-900">Settings</h1>
@@ -329,7 +329,7 @@ export default function Settings() {
                   <div className="text-right flex flex-col items-end">
     <span className="text-xs text-slate-500">{storageHealth.usageMB} MB / {storageHealth.quotaMB} MB</span>
     {storageHealth.persisted !== undefined && (
-      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mt-1 ${storageHealth.persisted ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+      <span className={`text-xs font-bold px-1.5 py-0.5 rounded mt-1 ${storageHealth.persisted ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
         {storageHealth.persisted ? 'Storage Persisted (Safe)' : 'Temporary Storage (Risk)'}
       </span>
     )}
@@ -400,7 +400,7 @@ export default function Settings() {
            </div>
         </section>
 
-        <div className="text-center text-xs text-slate-400 font-medium py-4">
+        <div className="text-center text-xs text-slate-500 font-medium py-4">
           Ledgro PWA Version 1.0.0
         </div>
       </main>

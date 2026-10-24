@@ -55,7 +55,7 @@ export default function ErrorLogSection({ shopId, uid }) {
           {logs.map((l) => (
             <div key={l.id} className="text-xs border-b border-slate-100 pb-2">
               <p className="font-semibold text-slate-800 break-words">{l.msg}</p>
-              <p className="text-slate-400 mt-0.5">
+              <p className="text-slate-500 mt-0.5">
                 {l.screen} · {nameOf(l.uid)} · {l.createdAt?.toDate ? l.createdAt.toDate().toLocaleString() : ''}
               </p>
             </div>

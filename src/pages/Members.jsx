@@ -210,7 +210,7 @@ export default function Members() {
         )}
 
         <div>
-          <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 px-1">Active Members</h2>
+          <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 px-1">Active Members</h2>
           {loading ? (
             <div className="flex justify-center py-8"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /></div>
           ) : (

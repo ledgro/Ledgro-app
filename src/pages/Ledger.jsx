@@ -495,7 +495,7 @@ export default function Ledger() {
         </div>
 
         <div className="relative">
-           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
            <input
              type="text"
              value={searchQuery}
@@ -539,14 +539,14 @@ export default function Ledger() {
              <input type="checkbox" checked={showVoided} onChange={e => setShowVoided(e.target.checked)} className="rounded text-blue-600 focus:ring-blue-500" />
              Show voided & edited bills
           </label>
-          <span className="text-[10px] text-slate-400">Filters apply to loaded bills only</span>
+          <span className="text-xs text-slate-500">Filters apply to loaded bills only</span>
         </div>
       </header>
 
       <main className="flex-1 p-4">
         {!searchQuery && recentSearches.length > 0 && (
            <div className="mb-4 flex flex-wrap gap-2">
-             <span className="text-xs font-bold text-slate-400 uppercase w-full">Recent Searches</span>
+             <span className="text-xs font-bold text-slate-500 uppercase w-full">Recent Searches</span>
              {recentSearches.map(s => (
                <button key={s} onClick={() => setSearchQuery(s)} className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-semibold rounded-full active:bg-slate-300">
                  {s}
@@ -571,10 +571,10 @@ export default function Ledger() {
                 >
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-2">
-                      {bill.isVoided ? <XCircle size={16} className="text-slate-400" /> : isReturn ? <ArrowLeftRight size={16} className="text-orange-500" /> : <CheckCircle2 size={16} className="text-green-500" />}
+                      {bill.isVoided ? <XCircle size={16} className="text-slate-500" /> : isReturn ? <ArrowLeftRight size={16} className="text-orange-500" /> : <CheckCircle2 size={16} className="text-green-500" />}
                       <span className="text-xs font-semibold text-slate-500">{date}</span>
-                      {isReturn && <span className="bg-orange-100 text-orange-700 text-[10px] font-black uppercase px-2 py-0.5 rounded">{bill.exchangeOf ? 'Exchange' : 'Return'}</span>}
-                      {!isReturn && bill.exchangeOf && <span className="bg-blue-100 text-blue-700 text-[10px] font-black uppercase px-2 py-0.5 rounded">Exchange</span>}
+                      {isReturn && <span className="bg-orange-100 text-orange-700 text-xs font-black uppercase px-2 py-0.5 rounded">{bill.exchangeOf ? 'Exchange' : 'Return'}</span>}
+                      {!isReturn && bill.exchangeOf && <span className="bg-blue-100 text-blue-700 text-xs font-black uppercase px-2 py-0.5 rounded">Exchange</span>}
                     </div>
                     <span className={cn("font-black text-lg", bill.isVoided ? "text-slate-500 line-through" : isReturn ? "text-red-600" : "text-slate-900")}>
                       {formatCurrency(bill.grandTotal)}
@@ -584,10 +584,10 @@ export default function Ledger() {
                   <div className="flex justify-between items-end mt-3">
                     <div className="text-sm font-medium text-slate-500 flex items-center gap-2">
                       <span>{bill.items?.length || 0} {(bill.items?.length || 0) === 1 ? 'item' : 'items'}</span>
-                      {bill.billNo && (<><span>•</span><span className="text-xs text-slate-400 font-mono">#{bill.billNo}</span></>)}
+                      {bill.billNo && (<><span>•</span><span className="text-xs text-slate-500 font-mono">#{bill.billNo}</span></>)}
                       <span>•</span>
                       {bill.payment?.method === 'split' ? (
-                        <div className="flex items-center text-[10px] font-bold bg-slate-100 rounded overflow-hidden">
+                        <div className="flex items-center text-xs font-bold bg-slate-100 rounded overflow-hidden">
                           <span className="px-1.5 py-0.5 bg-green-100 text-green-700">₹{(bill.payment.breakdown.cash / 100).toFixed(0)} C</span>
                           <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700">₹{(bill.payment.breakdown.upi / 100).toFixed(0)} U</span>
                         </div>
@@ -595,7 +595,7 @@ export default function Ledger() {
                         <span className="uppercase text-xs font-bold bg-slate-100 px-2 py-0.5 rounded">{bill.refundMethod || bill.paymentMethod || bill.payment?.method}</span>
                       )}
                     </div>
-                    {bill.isVoided && <span className="text-[10px] font-bold bg-slate-200 text-slate-600 px-2 py-0.5 rounded uppercase tracking-wider">Voided</span>}
+                    {bill.isVoided && <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-0.5 rounded uppercase tracking-wider">Voided</span>}
                   </div>
                 </button>
               );
@@ -604,7 +604,7 @@ export default function Ledger() {
         )}
 
         {hasMore && bills.length > 0 && (
-           <div ref={ref} className="py-8 text-center text-slate-400 font-semibold text-sm">
+           <div ref={ref} className="py-8 text-center text-slate-500 font-semibold text-sm">
              {loading ? 'Loading more...' : 'Scroll for more'}
            </div>
         )}
@@ -624,17 +624,17 @@ export default function Ledger() {
                       {formatCurrency(selectedBill.grandTotal)}
                     </h2>
                     <p className="text-slate-500 font-medium text-sm">{selectedBill.createdAt?.toDate ? selectedBill.createdAt.toDate().toLocaleString() : 'Pending'}</p>
-                    <p className="text-xs text-slate-400 font-mono mt-1">#{selectedBill.billNo || selectedBill.id.substring(0,8)}</p>
-                    <p className="text-xs text-slate-400 mt-1">By {nameOf(selectedBill.creatorId)}</p>
+                    <p className="text-xs text-slate-500 font-mono mt-1">#{selectedBill.billNo || selectedBill.id.substring(0,8)}</p>
+                    <p className="text-xs text-slate-500 mt-1">By {nameOf(selectedBill.creatorId)}</p>
                   </div>
 
                   <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 divide-y divide-slate-50">
-                    <h3 className="font-bold text-slate-400 uppercase tracking-wider text-xs mb-3 pb-2">Itemized List</h3>
+                    <h3 className="font-bold text-slate-500 uppercase tracking-wider text-xs mb-3 pb-2">Itemized List</h3>
                     {selectedBill.items?.map((item, idx) => (
                       <div key={idx} className="py-2.5 flex justify-between items-start">
                         <div>
                           <p className="font-semibold text-slate-900">{item.name}</p>
-                          <p className="text-xs font-medium text-slate-400">{item.qty} x {formatCurrency(item.unitPriceAtSale || item.unitPrice)}</p>
+                          <p className="text-xs font-medium text-slate-500">{item.qty} x {formatCurrency(item.unitPriceAtSale || item.unitPrice)}</p>
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-slate-900">{formatCurrency(item.finalLineTotal ?? item.lineTotal)}</p>
@@ -656,7 +656,7 @@ export default function Ledger() {
                     ) : (
                       <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
                         <div>
-                          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Paid via</p>
+                          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Paid via</p>
                           <p className="font-bold uppercase text-slate-900">
                             {selectedBill.payment?.method === 'split'
                               ? `Split · Cash ${formatCurrency(selectedBill.payment.breakdown?.cash)} + UPI ${formatCurrency(selectedBill.payment.breakdown?.upi)}`

@@ -32,7 +32,7 @@ export function VariantBuilder({ axes, setAxes, comboStock, setComboStock }) {
           Add option
         </button>
       )}
-      <p className="text-xs text-slate-400">Name on the left (Size, Colour, anything). Values on the right, separated by commas.</p>
+      <p className="text-xs text-slate-500">Name on the left (Size, Colour, anything). Values on the right, separated by commas.</p>
       {tooMany && <p className="text-sm font-semibold text-red-600">{combos.length} combinations. Up to {MAX_COMBOS} at a time.</p>}
       {combos.length > 0 && !tooMany && (
         <div className="space-y-2">

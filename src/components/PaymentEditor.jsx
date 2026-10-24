@@ -15,7 +15,7 @@ export default function PaymentEditor({ method, cash, total, saving, onSave, onC
 
   return (
     <div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Paid via</p>
+      <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Paid via</p>
       <div className="flex rounded-xl bg-slate-100 p-1" role="group" aria-label="Payment method">
         {METHODS.map((m) => (
           <button key={m} type="button" onClick={() => setPick(m)}

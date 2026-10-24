@@ -10,7 +10,7 @@ function Block({ b }) {
   if (b.h) return <h3 className="text-base font-bold text-slate-900 mt-6 mb-1">{b.h}</h3>;
   if (b.ul) {
     return (
-      <ul className="list-disc pl-6 space-y-2 my-3 text-[15px] leading-7 text-slate-700 marker:text-slate-400">
+      <ul className="list-disc pl-6 space-y-2 my-3 text-[15px] leading-7 text-slate-700 marker:text-slate-500">
         {b.ul.map((item, i) => <li key={i}>{item}</li>)}
       </ul>
     );

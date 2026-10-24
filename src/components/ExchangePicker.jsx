@@ -38,7 +38,7 @@ export default function ExchangePicker({ lines, setLines, oldUnitPrice }) {
         <div key={l.catalogId} className="bg-white rounded-xl border border-slate-200 p-3 space-y-2">
           <div className="flex items-start justify-between gap-2">
             <p className="font-bold text-slate-900">{l.name}</p>
-            <button type="button" onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))} aria-label={`Remove ${l.name}`} className="text-slate-400 p-1"><X size={18} /></button>
+            <button type="button" onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))} aria-label={`Remove ${l.name}`} className="text-slate-500 p-1"><X size={18} /></button>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -47,7 +47,7 @@ export default function ExchangePicker({ lines, setLines, oldUnitPrice }) {
               <button type="button" onClick={() => patch(i, { qty: l.qty + 1 })} className="w-8 h-8 rounded-full bg-slate-100 font-black">+</button>
             </div>
             <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₹</span>
               <input
                 type="number" inputMode="decimal" step="0.01" min="0"
                 value={l.unitPrice === '' ? '' : l.unitPrice / 100}

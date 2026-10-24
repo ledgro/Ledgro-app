@@ -189,7 +189,7 @@ export default function Transfers() {
 
         {summary.length > 0 && (
           <section aria-label="By shop">
-            <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">By shop (latest 100)</h2>
+            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">By shop (latest 100)</h2>
             <div className="space-y-2">
               {summary.map(([name, s]) => (
                 <div key={name} className="bg-white border border-slate-200 rounded-xl p-3">
@@ -203,7 +203,7 @@ export default function Transfers() {
         )}
 
         <section aria-label="History">
-          <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">History</h2>
+          <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">History</h2>
           {loading ? (
             <p className="text-sm text-slate-500">Loading...</p>
           ) : transfers.length === 0 ? (

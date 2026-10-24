@@ -37,12 +37,12 @@ export default function BottomNav() {
         aria-current={active ? 'page' : undefined}
         className={cn(
           "flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors",
-          active ? "text-blue-600" : "text-slate-400"
+          active ? "text-blue-600" : "text-slate-500"
         )}
       >
-        <div className={cn("flex items-center gap-1.5 transition-all flex-col", active ? "text-blue-600" : "text-slate-400")}>
+        <div className={cn("flex items-center gap-1.5 transition-all flex-col", active ? "text-blue-600" : "text-slate-500")}>
           <Icon size={active ? 22 : 24} strokeWidth={active ? 2.5 : 2} aria-hidden="true" />
-          <span className="text-[10px] font-bold tracking-wide">{label}</span>
+          <span className="text-xs font-bold tracking-wide">{label}</span>
         </div>
       </Link>
     );
@@ -71,7 +71,7 @@ export default function BottomNav() {
               <div className="flex items-center justify-center w-16 h-16 rounded-full bg-blue-600 text-white shadow-[0_8px_16px_rgba(37,99,235,0.4)] border-[6px] border-slate-50 dark:border-slate-900">
                 <Plus size={32} strokeWidth={3} aria-hidden="true" />
               </div>
-              <span className={cn("text-[10px] font-bold tracking-wide mt-1", location.pathname === '/pos' ? "text-blue-600" : "text-slate-500")}>Sell</span>
+              <span className={cn("text-xs font-bold tracking-wide mt-1", location.pathname === '/pos' ? "text-blue-600" : "text-slate-500")}>Sell</span>
             </Link>
           </div>
 
@@ -86,12 +86,12 @@ export default function BottomNav() {
               aria-expanded={isMoreOpen}
               className={cn(
                 "flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors",
-                isMoreActive ? "text-blue-600" : "text-slate-400"
+                isMoreActive ? "text-blue-600" : "text-slate-500"
               )}
             >
               <div className="flex items-center gap-1.5 transition-all flex-col">
                 <Menu size={isMoreActive ? 22 : 24} strokeWidth={isMoreActive ? 2.5 : 2} aria-hidden="true" />
-                <span className="text-[10px] font-bold tracking-wide">More</span>
+                <span className="text-xs font-bold tracking-wide">More</span>
               </div>
             </button>
           </div>
