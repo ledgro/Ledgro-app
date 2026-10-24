@@ -13,14 +13,16 @@ export const imageKey = (item) => item?.groupId || item?.id;
 export async function compressImage(file) {
   if (!file || !file.type?.startsWith('image/')) throw new Error('Pick an image file.');
   const bmp = await createImageBitmap(file);
-  const scale = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
-  const w = Math.max(1, Math.round(bmp.width * scale));
-  const h = Math.max(1, Math.round(bmp.height * scale));
+  // Centre-crop to a square so every catalog card and PDF cell lines up.
+  const side = Math.min(bmp.width, bmp.height);
+  const sx = (bmp.width - side) / 2;
+  const sy = (bmp.height - side) / 2;
+  const size = Math.min(MAX_SIDE, side);
   const canvas = document.createElement('canvas');
-  canvas.width = w; canvas.height = h;
+  canvas.width = size; canvas.height = size;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
-  ctx.drawImage(bmp, 0, 0, w, h);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, size, size);
+  ctx.drawImage(bmp, sx, sy, side, side, 0, 0, size, size);
   bmp.close?.();
   let q = 0.72;
   let out = canvas.toDataURL('image/jpeg', q);

@@ -562,23 +562,31 @@ export default function Products() {
 
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Photo (catalog only, not shown on bills)</label>
-                    <div className="flex items-center gap-3">
-                      <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100 flex items-center justify-center">
-                        {photo ? <img src={photo} alt="" className="h-full w-full object-cover" /> : <Camera size={24} className="text-slate-400" />}
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <label className="cursor-pointer rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 active:scale-95 transition-transform">
-                          {photo ? 'Change photo' : 'Add photo'}
-                          <input type="file" accept="image/*" className="sr-only" onChange={async (e) => {
-                            const f = e.target.files?.[0];
-                            e.target.value = '';
-                            if (!f) return;
-                            try { setPhoto(await compressImage(f)); setPhotoDirty(true); setDirty(true); } catch (err) { toast.error(err.message || 'Could not use that photo.'); }
-                          }} />
-                        </label>
-                        {photo && <button type="button" onClick={() => { setPhoto(null); setPhotoDirty(true); setDirty(true); }} className="text-left text-sm font-bold text-red-600">Remove photo</button>}
-                      </div>
-                    </div>
+                    {(() => {
+                      const pick = async (e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = '';
+                        if (!f) return;
+                        try { setPhoto(await compressImage(f)); setPhotoDirty(true); setDirty(true); } catch (err) { toast.error(err.message || 'Could not use that photo.'); }
+                      };
+                      const btn = 'flex-1 cursor-pointer rounded-xl bg-slate-100 px-3 py-3 text-center text-sm font-bold text-slate-700 active:scale-95 transition-transform';
+                      return (
+                        <div className="flex items-center gap-3">
+                          <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-slate-100 flex items-center justify-center">
+                            {photo ? <img src={photo} alt="" className="h-full w-full object-cover" /> : <Camera size={28} className="text-slate-400" />}
+                          </div>
+                          <div className="flex min-w-0 flex-1 flex-col gap-2">
+                            <div className="flex gap-2">
+                              <label className={btn}>Take photo<input type="file" accept="image/*" capture="environment" className="sr-only" onChange={pick} /></label>
+                              <label className={btn}>{photo ? 'Replace' : 'Gallery'}<input type="file" accept="image/*" className="sr-only" onChange={pick} /></label>
+                            </div>
+                            {photo
+                              ? <button type="button" onClick={() => { setPhoto(null); setPhotoDirty(true); setDirty(true); }} className="text-left text-sm font-bold text-red-600">Remove photo</button>
+                              : <p className="text-xs text-slate-500">Cropped to a square and shrunk automatically.</p>}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {!editingItem && !joinGroup && (
