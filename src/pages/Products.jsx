@@ -14,7 +14,7 @@ import { useCatalogLoader } from '../hooks/useCatalogLoader';
 import CategoryChips from '../components/CategoryChips';
 import { useNameOf } from '../lib/memberNames';
 import { VariantBuilder, VariantEditor } from '../components/VariantBuilder';
-import { MAX_COMBOS, buildCombos, comboKey, isVariant, variantName } from '../lib/variants';
+import { MAX_COMBOS, buildCombos, comboKey, isVariant, variantName, colourKey, groupProducts, findGroupByName } from '../lib/variants';
 import { confirm } from '../lib/confirm';
 
 export default function Products() {
@@ -49,7 +49,7 @@ export default function Products() {
   const [costPrice, setCostPrice] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [hasVariants, setHasVariants] = useState(false);
-  const [axes, setAxes] = useState([{ name: 'Size', values: '' }]);
+  const [axes, setAxes] = useState([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
   const [comboStock, setComboStock] = useState({});
   const [optionEdits, setOptionEdits] = useState({});
   const [joinGroup, setJoinGroup] = useState(null);
@@ -122,7 +122,7 @@ export default function Products() {
     setConvert(false);
     setComboStock({});
     setOptionEdits(item?.options ? { ...item.options } : {});
-    setAxes(group ? Object.keys(group.options).map((k) => ({ name: k, values: '' })) : [{ name: 'Size', values: '' }]);
+    setAxes(group ? Object.keys(group.options).map((k) => ({ name: k, values: '' })) : [{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
     const src = group ? group.from : item;
     if (src) {
       setName(group ? group.baseName : (src.baseName || src.name));
@@ -263,7 +263,9 @@ export default function Products() {
         const taken = new Set(catalogItems.map((i) => i.name?.toLowerCase()));
         const fresh = combos.filter((opts) => !taken.has(variantName(baseName, opts).toLowerCase()));
         if (!fresh.length) { toast.error('Those variants already exist.'); setSubmitting(false); return; }
-        const groupId = joinGroup?.groupId || doc(collection(db, `shops/${shopId}/catalog`)).id;
+        // Same product name (any capitalisation) joins the existing product instead of making a second card.
+        const existing = joinGroup?.groupId || editingItem?.groupId ? null : findGroupByName(catalogItems, baseName);
+        const groupId = joinGroup?.groupId || existing?.groupId || doc(collection(db, `shops/${shopId}/catalog`)).id;
         const batch = writeBatch(db);
         const created = [];
         for (const opts of fresh) {
@@ -285,7 +287,7 @@ export default function Products() {
           await updateDoc(doc(db, `shops/${shopId}/catalog`, editingItem.id), { isActive: false, updatedBy: user.uid, updatedAt: serverTimestamp() });
           addCatalogItem({ ...editingItem, isActive: false });
         }
-        toast.success(fresh.length === 1 ? 'Variant added' : `${fresh.length} variants added`);
+        toast.success(existing ? `Added to ${existing.baseName}` : fresh.length === 1 ? 'Variant added' : `${fresh.length} variants added`);
       } else {
         // Check for duplicates before adding
         const isDuplicate = catalogItems.some(item => item.name?.toLowerCase() === name.trim().toLowerCase());
