@@ -1,13 +1,26 @@
 import { doc, getDoc, getDocFromCache, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
+import { colourOf } from './variants';
 
 // Catalog pictures: small JPEG thumbnails stored as a data URL in shops/{id}/catalogImages/{key}.
-// key = groupId for variants (one picture per product), the catalog id otherwise.
+// key = groupId~colour for variants with a colour option (one picture per colour),
+// groupId for other variants, the catalog id otherwise. Older pictures saved under groupId still show.
 // Never used on bills or receipts.
 export const MAX_IMAGE_CHARS = 70000;
 const MAX_SIDE = 400;
 
-export const imageKey = (item) => item?.groupId || item?.id;
+const slug = (v) => String(v).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20);
+export const imageKey = (item) => {
+  if (!item?.groupId) return item?.id;
+  const c = colourOf(item);
+  return c ? `${item.groupId}~${slug(c) || 'x'}` : item.groupId;
+};
+/** Picture of an item: its own colour first, then the product-wide one saved earlier. */
+export async function loadItemImage(shopId, item) {
+  const own = await loadImage(shopId, imageKey(item));
+  if (own || !item?.groupId) return own;
+  return loadImage(shopId, item.groupId);
+}
 
 /** Resize and compress a picked file to a small JPEG data URL. */
 export async function compressImage(file) {

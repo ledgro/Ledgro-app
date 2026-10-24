@@ -17,3 +17,12 @@ describe('groupCatalog', () => {
     expect(out.find((p) => p.name === 'Socks').stock).toBe(4);
   });
 });
+
+describe('groupCatalog by colour', () => {
+  it('makes one card per colour with its sizes', () => {
+    const v = (id, c, s, stock) => ({ id, groupId: 'g', baseName: 'Hells', name: 'x', options: { Size: s, Colour: c }, lastUsedPrice: 38000, stockCount: stock });
+    const out = groupCatalog([v('1', 'Black', '37', 10), v('2', 'Black', '38', 0), v('3', 'Brown', '37', 4)]);
+    expect(out.map((p) => p.name)).toEqual(['Hells - Black', 'Hells - Brown']);
+    expect(out[0].variants).toEqual([{ label: '37', out: false }, { label: '38', out: true }]);
+  });
+});
