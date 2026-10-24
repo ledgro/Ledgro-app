@@ -308,8 +308,12 @@ d('firestore.rules', () => {
       await assertSucceeds(getDoc(ref(MEMBER, 'p1')));
       await assertSucceeds(deleteDoc(ref(MEMBER, 'p1')));
     });
+    it('accepts a realistic photo (about 45 KB of base64)', async () => {
+      const big = `data:image/jpeg;base64,${'QUJD'.repeat(11500)}`;
+      await assertSucceeds(setDoc(ref(MEMBER, 'p2'), img(MEMBER, { data: big })));
+    });
     it('rejects wrong type, oversize, extra keys, wrong author, stale time', async () => {
-      await assertFails(setDoc(ref(MEMBER, 'p1'), img(MEMBER, { data: 'data:text/html;base64,AAAA' })));
+      await assertFails(setDoc(ref(MEMBER, 'p1'), img(MEMBER, { data: 12345 })));
       await assertFails(setDoc(ref(MEMBER, 'p1'), img(MEMBER, { data: `data:image/jpeg;base64,${'A'.repeat(70100)}` })));
       await assertFails(setDoc(ref(MEMBER, 'p1'), img(MEMBER, { extra: 1 })));
       await assertFails(setDoc(ref(MEMBER, 'p1'), img(ADMIN)));

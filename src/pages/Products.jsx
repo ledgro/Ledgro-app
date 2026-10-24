@@ -217,7 +217,7 @@ export default function Products() {
           else await removeImage(shopId, key);
         } catch (err) {
           console.error(err);
-          toast.error('Saved, but the picture could not be saved. Try adding it again.');
+          toast.error(`Saved, but the picture failed (${err?.code || err?.message || 'unknown'}). Try again.`);
         }
       };
 
