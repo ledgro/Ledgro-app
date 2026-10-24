@@ -44,7 +44,8 @@ export function loadImage(shopId, key) {
       try {
         let snap;
         try { snap = await getDocFromCache(ref(shopId, key)); } catch { snap = await getDoc(ref(shopId, key)); }
-        return snap.exists() ? snap.data().data || null : null;
+        const d = snap.exists() ? snap.data().data : null;
+        return typeof d === 'string' && d.startsWith('data:image/jpeg;base64,') ? d : null;
       } catch { cache.delete(k); return null; }
     })();
     cache.set(k, p);
