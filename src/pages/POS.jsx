@@ -331,7 +331,7 @@ export default function POS() {
       dispatch({ type: 'CLEAR_BILL' });
       setSplitCash('');
       setTendered('');
-      setLastBill({ ...payload, shopProfile });
+      setLastBill({ ...payload, shopProfile, tendered: paymentMethod === 'cash' && tendered !== '' ? Math.round((parseFloat(tendered) || 0) * 100) : null });
       setCheckoutSuccess(true);
       setIsPayOpen(false);
       const bCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');

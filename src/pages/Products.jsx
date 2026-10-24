@@ -440,12 +440,19 @@ export default function Products() {
 
   const exportCatalog = async () => {
     if (!activeProducts.length || exporting) return;
+    const hasOut = activeProducts.some((i) => i.stockCount != null && i.stockCount <= 0);
+    let list = activeProducts;
+    if (hasOut) {
+      const withOut = await confirm({ title: 'Include out-of-stock items?', message: 'The catalog follows your current search and filter.', confirmText: 'Include all', cancelText: 'In stock only' });
+      if (!withOut) list = activeProducts.filter((i) => i.stockCount == null || i.stockCount > 0);
+      if (!list.length) { toast.error('Nothing in stock to export.'); return; }
+    }
     setExporting(true);
     try {
       const label = filterOptions.find((o) => o.value === filter)?.label;
       const blob = await buildCatalogPdf({
         shopName,
-        items: activeProducts,
+        items: list,
         getImage: (it) => loadImage(shopId, imageKey(it)),
         subtitle: filter === '__all__' ? '' : label,
       });
