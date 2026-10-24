@@ -300,6 +300,34 @@ d('firestore.rules', () => {
     });
   });
 
+  describe('catalog pictures', () => {
+    const img = (uid, extra = {}) => ({ data: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==', updatedAt: serverTimestamp(), updatedBy: uid, ...extra });
+    const ref = (uid, id) => doc(as(uid), `shops/${SHOP}/catalogImages/${id}`);
+    it('member saves, reads and removes a picture', async () => {
+      await assertSucceeds(setDoc(ref(MEMBER, 'p1'), img(MEMBER)));
+      await assertSucceeds(getDoc(ref(MEMBER, 'p1')));
+      await assertSucceeds(deleteDoc(ref(MEMBER, 'p1')));
+    });
+    it('rejects wrong type, oversize, extra keys, wrong author, stale time', async () => {
+      await assertFails(setDoc(ref(MEMBER, 'p1'), img(MEMBER, { data: 'data:text/html;base64,AAAA' })));
+      await assertFails(setDoc(ref(MEMBER, 'p1'), img(MEMBER, { data: `data:image/jpeg;base64,${'A'.repeat(70100)}` })));
+      await assertFails(setDoc(ref(MEMBER, 'p1'), img(MEMBER, { extra: 1 })));
+      await assertFails(setDoc(ref(MEMBER, 'p1'), img(ADMIN)));
+      await assertFails(setDoc(ref(MEMBER, 'p1'), img(MEMBER, { updatedAt: Timestamp.fromMillis(1000) })));
+    });
+    it('outsiders cannot read or write', async () => {
+      await assertFails(setDoc(ref('strangerUid', 'p1'), img('strangerUid')));
+      await assertFails(getDoc(ref('strangerUid', 'p1')));
+    });
+    it('hasImage must be a boolean on catalog docs', async () => {
+      const c = (uid, id) => doc(as(uid), `shops/${SHOP}/catalog/${id}`);
+      const item = { name: 'Rice', lastUsedPrice: 5000, unit: 'kg', stockCount: null, isActive: true, frequency: 0, createdBy: MEMBER, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+      await assertSucceeds(setDoc(c(MEMBER, 'c1'), { ...item, hasImage: true }));
+      await assertFails(setDoc(c(MEMBER, 'c2'), { ...item, hasImage: 'yes' }));
+      await assertSucceeds(updateDoc(c(MEMBER, 'c1'), { hasImage: false, updatedAt: serverTimestamp() }));
+    });
+  });
+
   describe('catalog variants', () => {
     const base = { lastUsedPrice: 100000, unit: 'piece', stockCount: 3, isActive: true, frequency: 0, createdBy: MEMBER, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
     const variant = (i, extra = {}) => ({ ...base, name: `Heels shoe - ${i} / Black`, baseName: 'Heels shoe', groupId: 'g1', options: { Size: String(i), Colour: 'Black' }, ...extra });

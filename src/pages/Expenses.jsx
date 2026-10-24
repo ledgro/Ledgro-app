@@ -228,9 +228,9 @@ export default function Expenses() {
                   <div className="flex-1 min-w-0">
                     <h3 className="font-bold text-slate-900 truncate pr-2">{expense.description || cat?.label || 'Other'}</h3>
                     <div className="flex items-center gap-2 mt-0.5">
-                       <p className="text-xs font-semibold text-slate-400">{date}</p>
-                       <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">{expense.paidVia || 'cash'}</span>
-                       <span className="text-xs font-semibold text-slate-400 truncate">{nameOf(expense.creatorId)}</span>
+                       <p className="text-xs font-semibold text-slate-500">{date}</p>
+                       <span className="text-xs font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">{expense.paidVia || 'cash'}</span>
+                       <span className="text-xs font-semibold text-slate-500 truncate">{nameOf(expense.creatorId)}</span>
                     </div>
                   </div>
                   <div className="text-right">

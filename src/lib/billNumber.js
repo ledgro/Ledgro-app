@@ -1,5 +1,7 @@
 // Short bill number: DDMM-TT-NN, e.g. 1510-K7-07.
 // TT = random 2-char tag per device, NN = that device's count for the day, so two phones never clash.
+let memTag = null;
+let memSeq = 0;
 function getDeviceTag() {
   try {
     let tag = localStorage.getItem('ledgro_device_tag');
@@ -9,7 +11,9 @@ function getDeviceTag() {
     }
     return tag;
   } catch {
-    return 'ZZ';
+    // Storage blocked: keep a random tag for this session so two phones still differ.
+    if (!memTag) memTag = Array.from(crypto.getRandomValues(new Uint8Array(2)), (b) => (b % 36).toString(36)).join('').toUpperCase();
+    return memTag;
   }
 }
 
@@ -22,6 +26,6 @@ export function generateBillNumber() {
   try {
     current = parseInt(localStorage.getItem(dateKey) || '0', 10) + 1;
     localStorage.setItem(dateKey, String(current));
-  } catch { /* private mode: falls back to 1 */ }
+  } catch { current = ++memSeq; }
   return `${dd}${mm}-${getDeviceTag()}-${String(current).padStart(2, '0')}`;
 }

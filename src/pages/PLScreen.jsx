@@ -20,7 +20,7 @@ const Row = ({ label, value, sub, strong, tone }) => (
     <span className={cn('text-sm capitalize', strong ? 'font-bold text-slate-900' : 'text-slate-600')}>{label}</span>
     <span className="text-right">
       <span className={cn('tabular-nums', strong ? 'text-base font-black' : 'text-sm font-semibold text-slate-800', tone)}>{formatCurrency(value)}</span>
-      {sub != null && <span className="block text-[11px] text-slate-400">{sub}</span>}
+      {sub != null && <span className="block text-xs text-slate-500">{sub}</span>}
     </span>
   </div>
 );
@@ -186,7 +186,7 @@ export default function PLScreen() {
             </div>
 
             <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Income</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Income</h3>
               <Row label="Cash sales" value={cash} sub={pct(cash)} />
               <Row label="UPI sales" value={upi} sub={pct(upi)} />
               <Row strong label="Net sales" value={sales} sub="after returns" />
@@ -194,9 +194,9 @@ export default function PLScreen() {
             </div>
 
             <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Expenses</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Expenses</h3>
               {cats.map(([cat, amt]) => <Row key={cat} label={sanitizeText(cat).replace(/_/g, ' ')} value={amt} sub={pct(amt)} />)}
-              {cats.length === 0 && <p className="text-sm text-slate-400 italic py-2">No expenses recorded</p>}
+              {cats.length === 0 && <p className="text-sm text-slate-500 italic py-2">No expenses recorded</p>}
               <Row strong label="Total expenses" value={exp} sub={pct(exp)} />
             </div>
           </>

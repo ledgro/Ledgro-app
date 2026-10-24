@@ -84,7 +84,7 @@ export default function CartItem({ item, dispatch, onOpenDiscount }) {
 
         <div className="text-right">
           {hasDiscount && (
-            <span className="text-xs text-slate-400 line-through block mb-1">
+            <span className="text-xs text-slate-500 line-through block mb-1">
               {formatCurrency(item.rawTotal)}
             </span>
           )}

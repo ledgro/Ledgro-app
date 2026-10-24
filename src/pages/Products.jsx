@@ -7,7 +7,7 @@ import { collection, addDoc, doc, updateDoc, writeBatch, serverTimestamp, increm
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Drawer } from 'vaul';
-import { PackagePlus, Search, Plus, Archive, ChevronDown, ChevronUp, Edit2, Trash2 } from 'lucide-react';
+import { PackagePlus, Search, Plus, Archive, ChevronDown, ChevronUp, Edit2, Trash2, Camera, FileDown, LayoutGrid, List } from 'lucide-react';
 import { formatCurrency, sanitizeText, cn } from '../lib/utils';
 import { sessionGuard } from '../lib/SessionGuard';
 import { useCatalogLoader } from '../hooks/useCatalogLoader';
@@ -16,10 +16,14 @@ import { useNameOf } from '../lib/memberNames';
 import { VariantBuilder, VariantEditor } from '../components/VariantBuilder';
 import { MAX_COMBOS, buildCombos, comboKey, isVariant, variantName } from '../lib/variants';
 import { confirm } from '../lib/confirm';
+import ProductThumb from '../components/ProductThumb';
+import { compressImage, loadImage, saveImage, removeImage, imageKey } from '../lib/productImage';
+import { buildCatalogPdf } from '../lib/catalogPdf';
+import { saveFile } from '../lib/shareFile';
 
 export default function Products() {
   const billCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
-  const { user, shopId, shopAdminId } = useAuth();
+  const { user, shopId, shopAdminId, shopName } = useAuth();
   const nameOf = useNameOf(shopId, user?.uid);
   const catalogItems = useCatalogStore((state) => state.items);
   const addCatalogItem = useCatalogStore((state) => state.addItem);
@@ -54,6 +58,10 @@ export default function Products() {
   const [optionEdits, setOptionEdits] = useState({});
   const [joinGroup, setJoinGroup] = useState(null);
   const [convert, setConvert] = useState(false);
+  const [photo, setPhoto] = useState(null); // data URL shown in the form
+  const [photoDirty, setPhotoDirty] = useState(false);
+  const [view, setView] = useState('list');
+  const [exporting, setExporting] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -63,6 +71,8 @@ export default function Products() {
       .filter(item => item.name?.toLowerCase().includes(searchQuery.toLowerCase()))
       .filter(item => {
         if (filter === '__all__') return true;
+        if (filter === '__photo__') return !!item.hasImage;
+        if (filter === '__nophoto__') return !item.hasImage;
         if (filter === '__low__') return item.stockCount != null && item.lowStockAlert != null && item.stockCount <= item.lowStockAlert;
         return (item.category || '').trim() === filter;
       });
@@ -98,7 +108,8 @@ export default function Products() {
   const filterOptions = useMemo(() => {
     const cats = [...new Set(catalogItems.filter((i) => i.isActive !== false).map((i) => (i.category || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     const hasLow = catalogItems.some((i) => i.isActive !== false && i.stockCount != null && i.lowStockAlert != null && i.stockCount <= i.lowStockAlert);
-    return [{ value: '__all__', label: 'All' }, ...(hasLow ? [{ value: '__low__', label: 'Low stock' }] : []), ...cats.map((c) => ({ value: c, label: c }))];
+    const hasPhotos = catalogItems.some((i) => i.isActive !== false && i.hasImage);
+    return [{ value: '__all__', label: 'All' }, ...(hasLow ? [{ value: '__low__', label: 'Low stock' }] : []), ...(hasPhotos ? [{ value: '__photo__', label: 'With photo' }, { value: '__nophoto__', label: 'No photo' }] : []), ...cats.map((c) => ({ value: c, label: c }))];
   }, [catalogItems]);
 
   const inactiveProducts = useMemo(() => {
@@ -120,6 +131,8 @@ export default function Products() {
     setHasVariants(!!group);
     setJoinGroup(group);
     setConvert(false);
+    setPhoto(null);
+    setPhotoDirty(false);
     setComboStock({});
     setOptionEdits(item?.options ? { ...item.options } : {});
     setAxes(group ? Object.keys(group.options).map((k) => ({ name: k, values: '' })) : [{ name: 'Size', values: '' }]);
@@ -147,6 +160,8 @@ export default function Products() {
       setCostPrice('');
       setIsActive(true);
     }
+    const pic = group ? group.from : item;
+    if (pic?.hasImage) loadImage(shopId, imageKey(pic)).then((d) => setPhoto((cur) => cur ?? d));
     setIsDrawerOpen(true);
   };
 
@@ -194,7 +209,20 @@ export default function Products() {
       const baseName = sanitizeText(name.trim());
       const variantFields = editingVariant ? { name: variantName(baseName, cleanOptions), baseName, options: cleanOptions } : {};
 
+      const hasImageNext = photoDirty ? !!photo : !!(editingItem ? editingItem.hasImage : joinGroup?.from?.hasImage);
+      const persistPhoto = async (key) => {
+        if (!photoDirty) return;
+        try {
+          if (photo) await saveImage(shopId, key, photo, user.uid);
+          else await removeImage(shopId, key);
+        } catch (err) {
+          console.error(err);
+          toast.error('Saved, but the picture could not be saved. Try adding it again.');
+        }
+      };
+
       const basePayload = {
+        hasImage: hasImageNext,
         name: baseName,
         lastUsedPrice: Math.round(unitPrice * 100),
         unit: unit,
@@ -245,6 +273,17 @@ export default function Products() {
           stockCount: updatedStockForState,
           updatedAt: new Date()
         });
+        await persistPhoto(imageKey(editingItem));
+        if (editingVariant && photoDirty) {
+          const sibs = catalogItems.filter((i) => i.groupId === editingItem.groupId && i.id !== editingItem.id);
+          for (let i = 0; i < sibs.length; i += 15) {
+            const batch = writeBatch(db);
+            const part = sibs.slice(i, i + 15);
+            part.forEach((sib) => batch.update(doc(db, `shops/${shopId}/catalog`, sib.id), { hasImage: hasImageNext, updatedBy: user.uid, updatedAt: serverTimestamp() }));
+            await batch.commit();
+            part.forEach((sib) => addCatalogItem({ ...sib, hasImage: hasImageNext }));
+          }
+        }
         if (editingVariant && baseName !== editingItem.baseName) {
           const siblings = catalogItems.filter((i) => i.groupId === editingItem.groupId && i.id !== editingItem.id);
           for (let i = 0; i < siblings.length; i += 15) {
@@ -280,6 +319,7 @@ export default function Products() {
         }
         await batch.commit();
         created.forEach((c) => addCatalogItem(c));
+        await persistPhoto(groupId);
         if (convert && editingItem?.id) {
           // The plain product is replaced by its variants: hide it from billing and lists.
           await updateDoc(doc(db, `shops/${shopId}/catalog`, editingItem.id), { isActive: false, updatedBy: user.uid, updatedAt: serverTimestamp() });
@@ -310,6 +350,7 @@ export default function Products() {
           createdAt: new Date(),
           updatedAt: new Date()
         });
+        await persistPhoto(newId);
         toast.success('Product added');
       }
 
@@ -362,6 +403,7 @@ export default function Products() {
         onClick={() => openDrawer(item)}
         className="flex w-full items-center justify-between border-b border-slate-100 py-3 text-left active:bg-slate-50"
       >
+        <ProductThumb item={item} className="mr-3 h-12 w-12" />
         <div className="min-w-0 flex-1 pr-3">
           <h3 className="truncate text-base font-semibold text-slate-900">{item.name}</h3>
           <p className="mt-0.5 truncate text-sm text-slate-500">
@@ -379,11 +421,55 @@ export default function Products() {
     );
   };
 
+  const renderProductCard = (item) => {
+    const tracked = item.stockCount != null;
+    const out = tracked && item.stockCount <= 0;
+    return (
+      <button type="button" key={item.id} onClick={() => openDrawer(item)} className="overflow-hidden rounded-2xl border border-slate-100 bg-white text-left shadow-sm active:scale-[0.98] transition-transform">
+        <ProductThumb item={item} className="aspect-square w-full !rounded-none" />
+        <div className="p-3">
+          <h3 className="line-clamp-2 text-sm font-semibold text-slate-900">{item.name}</h3>
+          <div className="mt-1 flex items-baseline justify-between gap-2">
+            <span className="text-sm font-bold text-blue-600">{formatCurrency(item.lastUsedPrice)}</span>
+            {tracked && <span className={cn('text-xs font-bold', out ? 'text-red-600' : 'text-slate-500')}>{out ? 'Out' : item.stockCount}</span>}
+          </div>
+        </div>
+      </button>
+    );
+  };
+
+  const exportCatalog = async () => {
+    if (!activeProducts.length || exporting) return;
+    setExporting(true);
+    try {
+      const label = filterOptions.find((o) => o.value === filter)?.label;
+      const blob = await buildCatalogPdf({
+        shopName,
+        items: activeProducts,
+        getImage: (it) => loadImage(shopId, imageKey(it)),
+        subtitle: filter === '__all__' ? '' : label,
+      });
+      await saveFile(blob, `Product-Catalog-${new Date().toISOString().slice(0, 10)}.pdf`, 'Product Catalog');
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not create the PDF.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
       <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 pt-4 pb-1">
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-xl font-bold text-slate-900">Products</h1>
+          <div className="flex items-center gap-2">
+            <button type="button" aria-label={view === 'list' ? 'Grid view' : 'List view'} onClick={() => setView(view === 'list' ? 'grid' : 'list')} className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+              {view === 'list' ? <LayoutGrid size={18} /> : <List size={18} />}
+            </button>
+            <button type="button" aria-label="Export catalog PDF" onClick={exportCatalog} disabled={exporting || !activeProducts.length} className="flex h-9 items-center gap-1 rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-700 disabled:opacity-50">
+              <FileDown size={16} /> PDF
+            </button>
           <button
             type="button"
             onClick={() => openDrawer()}
@@ -391,9 +477,10 @@ export default function Products() {
           >
             <Plus size={16} /> New
           </button>
+          </div>
         </div>
         <div className="relative mb-3">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
           <input
             type="text"
             value={searchQuery}
@@ -413,9 +500,9 @@ export default function Products() {
             <p className="text-sm">Tap "New" to add your first product.</p>
           </div>
         ) : (
-          <div>
-            {activeProducts.map(renderProductRow)}
-          </div>
+          view === 'grid'
+            ? <div className="grid grid-cols-2 gap-3">{activeProducts.map(renderProductCard)}</div>
+            : <div>{activeProducts.map(renderProductRow)}</div>
         )}
 
         {inactiveProducts.length > 0 && (
@@ -462,7 +549,7 @@ export default function Products() {
               <form id="product-form" onSubmit={handleSaveProduct} onChange={() => setDirty(true)} className="space-y-6">
 
                 <div className="space-y-4">
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Product Info</h3>
+                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Product Info</h3>
 
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Product Name *</label>
@@ -473,6 +560,27 @@ export default function Products() {
                     />
                   </div>
 
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Photo (catalog only, not shown on bills)</label>
+                    <div className="flex items-center gap-3">
+                      <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100 flex items-center justify-center">
+                        {photo ? <img src={photo} alt="" className="h-full w-full object-cover" /> : <Camera size={24} className="text-slate-400" />}
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="cursor-pointer rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 active:scale-95 transition-transform">
+                          {photo ? 'Change photo' : 'Add photo'}
+                          <input type="file" accept="image/*" className="sr-only" onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            e.target.value = '';
+                            if (!f) return;
+                            try { setPhoto(await compressImage(f)); setPhotoDirty(true); setDirty(true); } catch (err) { toast.error(err.message || 'Could not use that photo.'); }
+                          }} />
+                        </label>
+                        {photo && <button type="button" onClick={() => { setPhoto(null); setPhotoDirty(true); setDirty(true); }} className="text-left text-sm font-bold text-red-600">Remove photo</button>}
+                      </div>
+                    </div>
+                  </div>
+
                   {!editingItem && !joinGroup && (
                     <label className="flex items-center gap-3 text-sm font-semibold text-slate-700">
                       <input type="checkbox" checked={hasVariants} onChange={(e) => setHasVariants(e.target.checked)} className="w-5 h-5 rounded border-slate-300" />
@@ -480,7 +588,7 @@ export default function Products() {
                     </label>
                   )}
                   {editingItem && !isVariant(editingItem) && !convert && (
-                    <button type="button" onClick={() => { setConvert(true); setHasVariants(true); setDirty(true); }} className="text-sm font-bold text-blue-600">
+                    <button type="button" onClick={() => { setConvert(true); setHasVariants(true); setDirty(true); if (photo) setPhotoDirty(true); }} className="text-sm font-bold text-blue-600">
                       Split into variants (size, colour)
                     </button>
                   )}
@@ -506,13 +614,13 @@ export default function Products() {
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Selling Price *</label>
                     <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₹</span>
                       <input
                         type="number" inputMode="decimal" step="0.01" required value={price} onChange={(e) => setPrice(e.target.value.slice(0, 10))} maxLength={99}
                         className="w-full pl-8 pr-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold text-slate-900"
                       />
                     </div>
-                    <p className="text-[10px] font-semibold text-slate-400 mt-1">Past bills will not be affected</p>
+                    <p className="text-xs font-semibold text-slate-500 mt-1">Past bills will not be affected</p>
                   </div>
 
                   <div>
@@ -535,7 +643,7 @@ export default function Products() {
                 <hr className="border-slate-100" />
 
                 <div className="space-y-4">
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Inventory</h3>
+                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Inventory</h3>
 
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Bought from (optional)</label>
@@ -589,7 +697,7 @@ export default function Products() {
                 <hr className="border-slate-100" />
 
                 <div className="space-y-3">
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Category</h3>
+                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Category</h3>
                   <input
                     type="text" value={category} onChange={(e) => setCategory(e.target.value)} maxLength={99}
                     className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
@@ -612,14 +720,14 @@ export default function Products() {
                 <hr className="border-slate-100" />
 
                 {editingItem && (editingItem.createdBy || editingItem.updatedBy) && (
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-500">
                     {editingItem.createdBy ? `Added by ${nameOf(editingItem.createdBy)}` : ''}
                     {editingItem.createdBy && editingItem.updatedBy ? ' · ' : ''}
                     {editingItem.updatedBy ? `Edited by ${nameOf(editingItem.updatedBy)}` : ''}
                   </p>
                 )}
                 <div className="space-y-4">
-                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Status</h3>
+                   <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Status</h3>
                    <label className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer">
                      <div>
                        <span className="font-bold text-slate-900 block">Available for Sale</span>

@@ -171,7 +171,7 @@ export default function Dashboard() {
   return (
     <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
 
-      <div className="bg-slate-100 py-1.5 px-4 flex justify-between items-center text-[11px] font-bold text-slate-500 sticky top-0 z-30">
+      <div className="bg-slate-100 py-1.5 px-4 flex justify-between items-center text-xs font-bold text-slate-500 sticky top-0 z-30">
          <div className="flex items-center gap-1.5">
            {syncStatus.online ? <Cloud size={14} className="text-blue-500" /> : <CloudOff size={14} className="text-amber-500" />}
            {syncStatus.online ? `Online` : <span className="text-amber-600">Offline: reconnect to bill or save</span>}
@@ -211,13 +211,13 @@ export default function Dashboard() {
           <>
             <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                <div className="mb-4">
-                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Today's Net Earnings</p>
+                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Today's Net Earnings</p>
                  <div className="flex items-end gap-3">
                    <h2 className={cn("text-4xl font-black", stats.netEarnings >= 0 ? "text-green-600" : "text-red-500")}>
                      {mask(formatCurrency(stats.netEarnings))}
                    </h2>
                    {stats.vsYesterday !== 0 && (
-                     <span className={cn("text-xs font-medium text-slate-400 mb-1", hidden && "blur-sm select-none")}>
+                     <span className={cn("text-xs font-medium text-slate-500 mb-1", hidden && "blur-sm select-none")}>
                        {stats.vsYesterday > 0 ? '↑' : '↓'} {Math.abs(stats.vsYesterday).toFixed(0)}% vs yesterday
                      </span>
                    )}
@@ -252,11 +252,11 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
-                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Expected Cash</p>
+                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Expected Cash</p>
                  <h2 className="text-2xl font-black text-slate-900">{mask(formatCurrency(stats.expectedCash))}</h2>
               </div>
               <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
-                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">In Bank (UPI)</p>
+                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">In Bank (UPI)</p>
                  <h2 className="text-2xl font-black text-slate-900">{mask(formatCurrency(stats.upiInBank))}</h2>
               </div>
             </div>
@@ -324,7 +324,7 @@ export default function Dashboard() {
                    <div>
                      <label className="block text-sm font-bold text-slate-700 mb-2">Actual cash counted:</label>
                      <div className="relative">
-                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₹</span>
                        <input
                          type="number" inputMode="decimal"
                          value={actualCashCounted}
