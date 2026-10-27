@@ -592,7 +592,18 @@ export default function POS() {
                     const change = Math.round((parseFloat(tendered) || 0) * 100) - grandTotal;
                     return change >= 0
                       ? <p className="rounded-xl bg-green-50 px-4 py-3 text-center text-lg font-black text-green-700 tabular-nums">Give back {formatCurrency(change)}</p>
-                      : <p className="rounded-xl bg-red-50 px-4 py-3 text-center text-sm font-bold text-red-600 tabular-nums">Short by {formatCurrency(-change)}</p>;
+                      : (
+                        <div className="space-y-2">
+                          <p className="rounded-xl bg-red-50 px-4 py-3 text-center text-sm font-bold text-red-600 tabular-nums">Short by {formatCurrency(-change)}</p>
+                          {Math.round((parseFloat(tendered) || 0) * 100) > 0 && (
+                            <button type="button"
+                              onClick={() => dispatch({ type: 'SET_GLOBAL_DISCOUNT', payload: { type: 'flat', value: globalDiscountAmt - change } })}
+                              className="h-12 w-full rounded-xl bg-amber-100 text-sm font-bold text-amber-800 active:scale-95 transition-transform">
+                              Take {formatCurrency(Math.round((parseFloat(tendered) || 0) * 100))} as full payment (discount {formatCurrency(-change)})
+                            </button>
+                          )}
+                        </div>
+                      );
                   })()}
                 </div>
               )}

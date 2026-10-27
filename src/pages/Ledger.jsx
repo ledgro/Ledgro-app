@@ -66,6 +66,15 @@ export default function Ledger() {
   const [editingPayment, setEditingPayment] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
   const [returnItems, setReturnItems] = useState({});
+  const [refundEdits, setRefundEdits] = useState({}); // idx -> rupees per unit typed by the cashier
+  /** Refund per unit in paise: what the cashier typed, never more than the customer paid. */
+  const refundOf = (item, idx) => {
+    const paid = unitRefundOf(item);
+    const raw = refundEdits[idx];
+    if (raw === undefined || raw === '') return paid;
+    const v = Math.round(parseFloat(raw) * 100);
+    return Number.isFinite(v) && v >= 0 ? Math.min(v, Math.round(paid)) : paid;
+  };
   const [alreadyReturned, setAlreadyReturned] = useState({});
   const [refundMethod, setRefundMethod] = useState('cash');
   const [exchangeOn, setExchangeOn] = useState(false);
@@ -261,6 +270,7 @@ export default function Ledger() {
   const openReturnDrawer = async () => {
     if (!selectedBill) return;
     setReturnItems({});
+    setRefundEdits({});
     setAlreadyReturned({});
     setExchangeOn(false);
     setExchangeLines([]);
@@ -311,7 +321,7 @@ export default function Ledger() {
       const maxQty = Math.max(0, (Number(item.qty) || 0) - (alreadyReturned[idx] || 0));
       const returnQty = Math.min(returnItems[idx] || 0, maxQty);
       if (returnQty > 0) {
-        const lineRefund = Math.round(unitRefundOf(item) * returnQty);
+        const lineRefund = Math.round(refundOf(item, idx) * returnQty);
         returnTotal += lineRefund;
         returnedItemsList.push({
           idx,
@@ -564,7 +574,7 @@ export default function Ledger() {
               const isReturn = bill.type === 'return';
 
               return (
-                <button type="button" key={bill.id} onClick={() => { setSelectedBill(bill); setReturnItems({}); }}
+                <button type="button" key={bill.id} onClick={() => { setSelectedBill(bill); setReturnItems({}); setRefundEdits({}); }}
                   className={cn("w-full text-left p-4 rounded-2xl shadow-subtle border active:scale-[0.98] transition-all cursor-pointer block",
                     bill.isVoided ? "bg-slate-50 border-slate-200 opacity-60" : "bg-white border-slate-100"
                   )}
@@ -723,7 +733,15 @@ export default function Ledger() {
                           <div key={idx} className="p-4 flex items-center justify-between">
                             <div className="flex-1">
                                <p className="font-bold text-slate-900">{item.name}</p>
-                               <p className="text-xs text-slate-500">Max qty: {maxQty}{alreadyReturned[idx] ? ` (${alreadyReturned[idx]} already returned)` : ''} • {formatCurrency(Math.round(unitRefundOf(item)))} ea</p>
+                               <p className="text-xs text-slate-500">Max qty: {maxQty}{alreadyReturned[idx] ? ` (${alreadyReturned[idx]} already returned)` : ''} • {formatCurrency(Math.round(unitRefundOf(item)))} paid each</p>
+                               {currentReturnQty > 0 && (
+                                 <label className="mt-2 flex items-center gap-2 text-xs font-bold text-slate-600">
+                                   Refund each ₹
+                                   <input type="number" inputMode="decimal" min="0" step="0.01" value={refundEdits[idx] ?? ''} placeholder={(unitRefundOf(item) / 100).toString()}
+                                     onChange={(e) => setRefundEdits((prev) => ({ ...prev, [idx]: e.target.value.slice(0, 9) }))}
+                                     className="h-9 w-24 rounded-lg border border-slate-200 bg-white px-2 text-sm font-bold text-slate-900" />
+                                 </label>
+                               )}
                             </div>
                             <div className="flex items-center gap-3">
                                <button
@@ -758,13 +776,13 @@ export default function Ledger() {
                        lines={exchangeLines}
                        setLines={setExchangeLines}
                        oldUnitPrice={(() => {
-                         const first = (selectedBill.items || []).find((_, idx) => (returnItems[idx] || 0) > 0);
-                         return first ? Math.round(unitRefundOf(first)) : 0;
+                         const fi = (selectedBill.items || []).findIndex((_, idx) => (returnItems[idx] || 0) > 0);
+                         return fi >= 0 ? Math.round(refundOf(selectedBill.items[fi], fi)) : 0;
                        })()}
                      />
                    )}
                    {exchangeOn && exchangeLines.length > 0 && (() => {
-                     const ret = (selectedBill.items || []).reduce((sum, item, idx) => sum + Math.round(unitRefundOf(item) * Math.min(returnItems[idx] || 0, Math.max(0, (Number(item.qty) || 0) - (alreadyReturned[idx] || 0)))), 0);
+                     const ret = (selectedBill.items || []).reduce((sum, item, idx) => sum + Math.round(refundOf(item, idx) * Math.min(returnItems[idx] || 0, Math.max(0, (Number(item.qty) || 0) - (alreadyReturned[idx] || 0)))), 0);
                      const { newTotal, difference } = exchangeTotals(ret, exchangeLines);
                      return (
                        <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-1 text-sm font-semibold">
