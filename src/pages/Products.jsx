@@ -16,6 +16,7 @@ import { useNameOf } from '../lib/memberNames';
 import { VariantBuilder, VariantEditor } from '../components/VariantBuilder';
 import { MAX_COMBOS, buildCombos, comboKey, isVariant, variantName, colourOf, groupProducts } from '../lib/variants';
 import ProductGroupCard from '../components/ProductGroupCard';
+import CatalogExportSheet from '../components/CatalogExportSheet';
 import { confirm } from '../lib/confirm';
 import ProductThumb from '../components/ProductThumb';
 import { compressImage, loadItemImage, saveImage, removeImage, imageKey } from '../lib/productImage';
@@ -108,6 +109,7 @@ export default function Products() {
   const [photoDirty, setPhotoDirty] = useState(false);
   const [view, setView] = useState('list');
   const [exporting, setExporting] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -450,25 +452,20 @@ export default function Products() {
     : renderProductRow(e.item));
   const renderProductCard = (item) => <ProductCard key={item.id} item={item} onOpen={onOpen} />;
 
-  const exportCatalog = async () => {
-    if (!activeProducts.length || exporting) return;
-    const hasOut = activeProducts.some((i) => i.stockCount != null && i.stockCount <= 0);
-    let list = activeProducts;
-    if (hasOut) {
-      const withOut = await confirm({ title: 'Include out-of-stock items?', message: 'The catalog follows your current search and filter.', confirmText: 'Include all', cancelText: 'In stock only' });
-      if (!withOut) list = activeProducts.filter((i) => i.stockCount == null || i.stockCount > 0);
-      if (!list.length) { toast.error('Nothing in stock to export.'); return; }
-    }
+  const exportCatalog = async ({ items, options, stock, cats }) => {
+    if (!items.length || exporting) return;
     setExporting(true);
     try {
-      const label = filterOptions.find((o) => o.value === filter)?.label;
+      const bits = [filter === '__all__' ? '' : filterOptions.find((o) => o.value === filter)?.label, stock === 'in' ? 'In stock' : stock === 'out' ? 'Out of stock' : '', cats ? `${cats.length} categories` : ''].filter(Boolean);
       const blob = await buildCatalogPdf({
         shopName,
-        items: list,
+        items,
         getImage: (it) => loadItemImage(shopId, it),
-        subtitle: filter === '__all__' ? '' : label,
+        subtitle: bits.join(', '),
+        options,
       });
       await saveFile(blob, `Product-Catalog-${new Date().toISOString().slice(0, 10)}.pdf`, 'Product Catalog');
+      setExportOpen(false);
     } catch (err) {
       console.error(err);
       toast.error('Could not create the PDF.');
@@ -486,7 +483,7 @@ export default function Products() {
             <button type="button" aria-label={view === 'list' ? 'Grid view' : 'List view'} onClick={() => setView(view === 'list' ? 'grid' : 'list')} className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
               {view === 'list' ? <LayoutGrid size={18} /> : <List size={18} />}
             </button>
-            <button type="button" aria-label="Export catalog PDF" onClick={exportCatalog} disabled={exporting || !activeProducts.length} className="flex h-9 items-center gap-1 rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-700 disabled:opacity-50">
+            <button type="button" aria-label="Export catalog PDF" onClick={() => setExportOpen(true)} disabled={!activeProducts.length} className="flex h-9 items-center gap-1 rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-700 disabled:opacity-50">
               <FileDown size={16} /> PDF
             </button>
           <button
@@ -548,8 +545,8 @@ export default function Products() {
 
       <Drawer.Root handleOnly repositionInputs={false} open={isDrawerOpen} onOpenChange={(o) => (o ? setIsDrawerOpen(true) : requestClose())}>
         <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
-          <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[20px] mt-24 max-h-[85vh] fixed bottom-0 left-0 right-0 z-50 focus:outline-none overflow-hidden">
+          <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
+          <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[20px] mt-24 max-h-[85vh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none overflow-hidden">
             <div className="p-4 bg-white rounded-t-[20px] flex-shrink-0 border-b border-slate-100 flex items-center justify-between">
               <Drawer.Title className="font-bold text-slate-900 text-xl flex items-center gap-2">
                 {editingItem ? <Edit2 size={20} className="text-blue-600" /> : <PackagePlus size={20} className="text-blue-600" />}
@@ -802,6 +799,8 @@ export default function Products() {
           </Drawer.Content>
         </Drawer.Portal>
       </Drawer.Root>
+
+      <CatalogExportSheet open={exportOpen} onClose={() => setExportOpen(false)} items={activeProducts} busy={exporting} onExport={exportCatalog} />
 
       <BottomNav />
     </div>

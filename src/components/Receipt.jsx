@@ -4,7 +4,7 @@ import { formatCurrency } from '../lib/utils';
 // 58mm thermal paper: 384 dots across (203dpi). Rendered at this width, PDF is 58mm wide.
 export const RECEIPT_PX = 384;
 
-const Receipt = forwardRef(({ billData }, ref) => {
+const Receipt = forwardRef(({ billData, preview = false }, ref) => {
   const shopProfile = billData?.shopProfile || {};
 
   const { items = [], subtotal = 0, globalDiscountAmt = 0, grandTotal = 0, paymentMethod, shopName, createdAt, clientCreatedAt, payment, tendered, type } = billData || {};
@@ -46,7 +46,7 @@ const Receipt = forwardRef(({ billData }, ref) => {
     <div
       ref={ref}
       data-theme="light"
-      aria-hidden="true"
+      aria-hidden={preview ? undefined : 'true'}
       style={{
         width: `${RECEIPT_PX}px`,
         boxSizing: 'border-box',
@@ -56,8 +56,7 @@ const Receipt = forwardRef(({ billData }, ref) => {
         fontFamily: 'Inter, "Noto Sans Malayalam", sans-serif',
         fontSize: '13px',
         lineHeight: 1.35,
-        position: 'absolute',
-        left: '-9999px',
+        ...(preview ? { margin: '0 auto', boxShadow: '0 1px 8px rgba(0,0,0,.12)', borderRadius: '6px' } : { position: 'absolute', left: '-9999px' }),
         wordBreak: 'break-word'
       }}
     >

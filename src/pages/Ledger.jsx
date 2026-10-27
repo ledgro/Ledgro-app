@@ -66,6 +66,15 @@ export default function Ledger() {
   const [editingPayment, setEditingPayment] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
   const [returnItems, setReturnItems] = useState({});
+  const [refundEdits, setRefundEdits] = useState({}); // idx -> rupees per unit typed by the cashier
+  /** Refund per unit in paise: what the cashier typed, never more than the customer paid. */
+  const refundOf = (item, idx) => {
+    const paid = unitRefundOf(item);
+    const raw = refundEdits[idx];
+    if (raw === undefined || raw === '') return paid;
+    const v = Math.round(parseFloat(raw) * 100);
+    return Number.isFinite(v) && v >= 0 ? Math.min(v, Math.round(paid)) : paid;
+  };
   const [alreadyReturned, setAlreadyReturned] = useState({});
   const [refundMethod, setRefundMethod] = useState('cash');
   const [exchangeOn, setExchangeOn] = useState(false);
@@ -261,6 +270,7 @@ export default function Ledger() {
   const openReturnDrawer = async () => {
     if (!selectedBill) return;
     setReturnItems({});
+    setRefundEdits({});
     setAlreadyReturned({});
     setExchangeOn(false);
     setExchangeLines([]);
@@ -311,7 +321,7 @@ export default function Ledger() {
       const maxQty = Math.max(0, (Number(item.qty) || 0) - (alreadyReturned[idx] || 0));
       const returnQty = Math.min(returnItems[idx] || 0, maxQty);
       if (returnQty > 0) {
-        const lineRefund = Math.round(unitRefundOf(item) * returnQty);
+        const lineRefund = Math.round(refundOf(item, idx) * returnQty);
         returnTotal += lineRefund;
         returnedItemsList.push({
           idx,
@@ -564,7 +574,7 @@ export default function Ledger() {
               const isReturn = bill.type === 'return';
 
               return (
-                <button type="button" key={bill.id} onClick={() => { setSelectedBill(bill); setReturnItems({}); }}
+                <button type="button" key={bill.id} onClick={() => { setSelectedBill(bill); setReturnItems({}); setRefundEdits({}); }}
                   className={cn("w-full text-left p-4 rounded-2xl shadow-subtle border active:scale-[0.98] transition-all cursor-pointer block",
                     bill.isVoided ? "bg-slate-50 border-slate-200 opacity-60" : "bg-white border-slate-100"
                   )}
@@ -612,8 +622,8 @@ export default function Ledger() {
 
       <Drawer.Root handleOnly repositionInputs={false} open={!!selectedBill && !isReturnDrawerOpen} onOpenChange={(open) => { if (!open) { setSelectedBill(null); setEditingPayment(false); } }}>
         <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
-          <Drawer.Content style={sheetStyle} className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 h-[85vh] fixed bottom-0 left-0 right-0 z-50 focus:outline-none overflow-hidden">
+          <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
+          <Drawer.Content style={sheetStyle} className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 h-[85vh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none overflow-hidden">
             <div className="p-4 bg-slate-50 flex-1 overflow-y-auto pb-safe">
               <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-slate-200 mb-6" />
 
@@ -707,7 +717,7 @@ export default function Ledger() {
       <Drawer.Root handleOnly repositionInputs={false} open={isReturnDrawerOpen} onOpenChange={(open) => { setIsReturnDrawerOpen(open); if(!open) setSelectedBill(null); }}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
-          <Drawer.Content style={sheetStyle} className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 h-[90vh] fixed bottom-0 left-0 right-0 z-[60] focus:outline-none overflow-hidden">
+          <Drawer.Content style={sheetStyle} className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 h-[90vh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none overflow-hidden">
              <div className="p-4 bg-slate-50 flex-1 overflow-y-auto pb-safe">
                <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-slate-200 mb-6" />
                <h2 className="text-2xl font-black text-slate-900 mb-2">Process Return</h2>
@@ -723,7 +733,15 @@ export default function Ledger() {
                           <div key={idx} className="p-4 flex items-center justify-between">
                             <div className="flex-1">
                                <p className="font-bold text-slate-900">{item.name}</p>
-                               <p className="text-xs text-slate-500">Max qty: {maxQty}{alreadyReturned[idx] ? ` (${alreadyReturned[idx]} already returned)` : ''} • {formatCurrency(Math.round(unitRefundOf(item)))} ea</p>
+                               <p className="text-xs text-slate-500">Max qty: {maxQty}{alreadyReturned[idx] ? ` (${alreadyReturned[idx]} already returned)` : ''} • {formatCurrency(Math.round(unitRefundOf(item)))} paid each</p>
+                               {currentReturnQty > 0 && (
+                                 <label className="mt-2 flex items-center gap-2 text-xs font-bold text-slate-600">
+                                   Refund each ₹
+                                   <input type="number" inputMode="decimal" min="0" step="0.01" value={refundEdits[idx] ?? ''} placeholder={(unitRefundOf(item) / 100).toString()}
+                                     onChange={(e) => setRefundEdits((prev) => ({ ...prev, [idx]: e.target.value.slice(0, 9) }))}
+                                     className="h-9 w-24 rounded-lg border border-slate-200 bg-white px-2 text-sm font-bold text-slate-900" />
+                                 </label>
+                               )}
                             </div>
                             <div className="flex items-center gap-3">
                                <button
@@ -758,13 +776,13 @@ export default function Ledger() {
                        lines={exchangeLines}
                        setLines={setExchangeLines}
                        oldUnitPrice={(() => {
-                         const first = (selectedBill.items || []).find((_, idx) => (returnItems[idx] || 0) > 0);
-                         return first ? Math.round(unitRefundOf(first)) : 0;
+                         const fi = (selectedBill.items || []).findIndex((_, idx) => (returnItems[idx] || 0) > 0);
+                         return fi >= 0 ? Math.round(refundOf(selectedBill.items[fi], fi)) : 0;
                        })()}
                      />
                    )}
                    {exchangeOn && exchangeLines.length > 0 && (() => {
-                     const ret = (selectedBill.items || []).reduce((sum, item, idx) => sum + Math.round(unitRefundOf(item) * Math.min(returnItems[idx] || 0, Math.max(0, (Number(item.qty) || 0) - (alreadyReturned[idx] || 0)))), 0);
+                     const ret = (selectedBill.items || []).reduce((sum, item, idx) => sum + Math.round(refundOf(item, idx) * Math.min(returnItems[idx] || 0, Math.max(0, (Number(item.qty) || 0) - (alreadyReturned[idx] || 0)))), 0);
                      const { newTotal, difference } = exchangeTotals(ret, exchangeLines);
                      return (
                        <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-1 text-sm font-semibold">

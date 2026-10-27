@@ -77,8 +77,8 @@ export default function DiscountDrawer({ isOpen, onClose, targetItem, globalDisc
   return (
     <Drawer.Root handleOnly repositionInputs={false} open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
-        <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[24px] mt-24 h-auto fixed bottom-0 left-0 right-0 z-[60] focus:outline-none">
+        <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[75]" />
+        <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[24px] mt-24 h-auto fixed bottom-0 left-0 right-0 z-[76] focus:outline-none">
           <div className="p-4 bg-white rounded-t-[24px] flex-1 pb-safe overflow-y-auto">
             <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-slate-200 mb-6" />
             <div className="max-w-md mx-auto">

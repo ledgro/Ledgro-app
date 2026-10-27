@@ -8,6 +8,7 @@ import { bizDayKey } from '../lib/statsMath';
 import { serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
+import CashNotes from '../components/CashNotes';
 import { Cloud, CloudOff, RefreshCcw, Eye, EyeOff } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { Skeleton } from '../components/Skeleton';
@@ -40,6 +41,10 @@ export default function Dashboard() {
   const mask = (node) => (hidden
     ? <span className="blur-md select-none pointer-events-none" aria-hidden="true">{node}</span>
     : node);
+
+  // Inside the Count Cash sheet numbers are always readable. The privacy blur is for the dashboard.
+  const show = (node) => node;
+  const [countByNotes, setCountByNotes] = useState(false);
 
   const chartRef = useRef(null);
 
@@ -289,8 +294,8 @@ export default function Dashboard() {
 
       <Drawer.Root handleOnly repositionInputs={false} open={isCloseDrawerOpen} onOpenChange={setIsCloseDrawerOpen}>
         <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
-          <Drawer.Content style={sheetStyle} className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 fixed bottom-0 left-0 right-0 z-50 h-[85vh]">
+          <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
+          <Drawer.Content style={sheetStyle} className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 fixed bottom-0 left-0 right-0 z-[61] h-[85vh]">
             <div className="p-4 bg-slate-50 flex-1 overflow-y-auto rounded-t-[24px] pb-safe">
                <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-slate-200 mb-6" />
                <h2 className="text-2xl font-black text-slate-900 mb-6 text-center">Cash Count</h2>
@@ -298,15 +303,15 @@ export default function Dashboard() {
                <div className="space-y-6">
                  <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm font-mono text-sm">
                    <p className="font-bold font-sans text-slate-900 mb-3 border-b pb-2">Expected Cash in Drawer:</p>
-                   <div className="flex justify-between text-slate-600 mb-1"><span>Cash Sales:</span><span>{mask(formatCurrency(stats.cashSplit))}</span></div>
-                   <div className="flex justify-between text-slate-600 mb-1"><span>- Cash Expenses:</span><span>{mask(formatCurrency(stats.cashSplit - stats.expectedCash))}</span></div>
-                   <div className="flex justify-between font-bold text-slate-900 border-t pt-2 mt-2"><span>Expected Total:</span><span>{mask(formatCurrency(stats.expectedCash))}</span></div>
+                   <div className="flex justify-between text-slate-600 mb-1"><span>Cash Sales:</span><span>{show(formatCurrency(stats.cashSplit))}</span></div>
+                   <div className="flex justify-between text-slate-600 mb-1"><span>- Cash Expenses:</span><span>{show(formatCurrency(stats.cashSplit - stats.expectedCash))}</span></div>
+                   <div className="flex justify-between font-bold text-slate-900 border-t pt-2 mt-2"><span>Expected Total:</span><span>{show(formatCurrency(stats.expectedCash))}</span></div>
                  </div>
 
                  <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm font-mono text-sm">
                    <p className="font-bold font-sans text-slate-900 mb-3 border-b pb-2">Expected Bank Deposit (UPI):</p>
-                   <div className="flex justify-between text-slate-600 mb-1"><span>UPI Sales:</span><span>{mask(formatCurrency(stats.upiSplit))}</span></div>
-                   <div className="flex justify-between font-bold text-slate-900 border-t pt-2 mt-2"><span>Expected Total:</span><span>{mask(formatCurrency(stats.upiInBank))}</span></div>
+                   <div className="flex justify-between text-slate-600 mb-1"><span>UPI Sales:</span><span>{show(formatCurrency(stats.upiSplit))}</span></div>
+                   <div className="flex justify-between font-bold text-slate-900 border-t pt-2 mt-2"><span>Expected Total:</span><span>{show(formatCurrency(stats.upiInBank))}</span></div>
                  </div>
 
                  <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
@@ -322,6 +327,10 @@ export default function Dashboard() {
                    </div>
 
                    <div>
+                     <button type="button" onClick={() => setCountByNotes((v) => !v)} className="mb-3 text-sm font-bold text-blue-600">
+                       {countByNotes ? 'Type the total instead' : 'Count by notes and coins'}
+                     </button>
+                     {countByNotes && <div className="mb-4 rounded-xl bg-slate-50 p-3"><CashNotes onTotal={(t) => setActualCashCounted(t ? String(t) : '')} /></div>}
                      <label className="block text-sm font-bold text-slate-700 mb-2">Actual cash counted:</label>
                      <div className="relative">
                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₹</span>
@@ -340,7 +349,7 @@ export default function Dashboard() {
                          <div className="flex items-center gap-2 text-green-600 font-bold bg-green-50 p-3 rounded-lg"><span className="text-xl">✓</span> All balanced</div>
                        ) : (
                          <div className="text-amber-700 font-bold bg-amber-50 p-3 rounded-lg text-sm">
-                           Difference: {mask(formatCurrency(Math.abs(Math.round(parseFloat(actualCashCounted) * 100) - stats.expectedCash)))}
+                           {Math.round(parseFloat(actualCashCounted) * 100) < stats.expectedCash ? 'Short by' : 'Over by'} {show(formatCurrency(Math.abs(Math.round(parseFloat(actualCashCounted) * 100) - stats.expectedCash)))}
                            <p className="text-xs font-medium mt-1">Saved with the count only. It is not added to expenses or income.</p>
                          </div>
                        )}

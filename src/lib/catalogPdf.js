@@ -32,18 +32,19 @@ export function groupCatalog(items) {
  * Product catalog PDF: sections by category, 3 cards per row with photo, name, price
  * (range when sizes differ), available sizes and stock. Cost price is never printed.
  */
-export async function buildCatalogPdf({ shopName, items, getImage, subtitle = '' }) {
+export async function buildCatalogPdf({ shopName, items, getImage, subtitle = '', options = {} }) {
+  const o = { photos: true, prices: true, stock: true, sizes: true, byCategory: true, ...options };
   const { jsPDF } = await import('jspdf');
   const products = groupCatalog(items);
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const W = pdf.internal.pageSize.getWidth();
   const H = pdf.internal.pageSize.getHeight();
   const M = 12;
-  const cols = 3;
+  const cols = o.photos ? 3 : 4;
   const gap = 5;
   const cw = (W - 2 * M - gap * (cols - 1)) / cols;
-  const ih = cw * 0.9;
-  const ch = ih + 25;
+  const ih = o.photos ? cw * 0.9 : 0;
+  const ch = o.photos ? ih + 25 : 24;
   const today = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
   const head = () => {
@@ -68,42 +69,47 @@ export async function buildCatalogPdf({ shopName, items, getImage, subtitle = ''
   };
 
   for (const p of products) {
-    if (p.category !== lastCat) {
+    if (o.byCategory && p.category !== lastCat) {
       if (col !== 0) { y += ch + gap; col = 0; }
       sectionTitle(p.category);
       lastCat = p.category;
     }
-    if (col === 0 && y + ch > H - M) { pdf.addPage(); y = head(); sectionTitle(p.category); }
+    if (col === 0 && y + ch > H - M) { pdf.addPage(); y = head(); if (o.byCategory) sectionTitle(p.category); }
     const x = M + col * (cw + gap);
 
     pdf.setDrawColor(226, 232, 240); pdf.setFillColor(255); pdf.roundedRect(x, y, cw, ch, 2, 2, 'FD');
     let img = null;
-    if (p.img) { try { img = await getImage(p.img); } catch { img = null; } }
+    if (o.photos && p.img) { try { img = await getImage(p.img); } catch { img = null; } }
     let drawn = false;
-    if (img) { try { pdf.addImage(img, 'JPEG', x + 1.5, y + 1.5, cw - 3, ih - 3); drawn = true; } catch { drawn = false; } }
-    if (!drawn) {
-      pdf.setFillColor(241, 245, 249); pdf.rect(x + 1.5, y + 1.5, cw - 3, ih - 3, 'F');
-      pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(150);
-      pdf.text('No photo', x + cw / 2, y + ih / 2, { align: 'center' });
-    }
+    if (o.photos) {
+      if (img) { try { pdf.addImage(img, 'JPEG', x + 1.5, y + 1.5, cw - 3, ih - 3); drawn = true; } catch { drawn = false; } }
+      if (!drawn) {
+        pdf.setFillColor(241, 245, 249); pdf.rect(x + 1.5, y + 1.5, cw - 3, ih - 3, 'F');
+        pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(150);
+        pdf.text('No photo', x + cw / 2, y + ih / 2, { align: 'center' });
+      }
 
-    let ty = y + ih + 4;
+
+    }
+    let ty = y + (o.photos ? ih + 4 : 6);
     pdf.setTextColor(15, 23, 42); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9);
     const nameLines = pdf.splitTextToSize(p.name, cw - 4).slice(0, 2);
     pdf.text(nameLines, x + 2, ty);
     ty += nameLines.length * 4 + 1;
 
-    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(10); pdf.setTextColor(30, 64, 175);
-    pdf.text(p.min === p.max ? rs(p.min) : `${rs(p.min)} - ${rs(p.max)}`, x + 2, ty);
-    ty += 4;
+    if (o.prices) {
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(10); pdf.setTextColor(30, 64, 175);
+      pdf.text(p.min === p.max ? rs(p.min) : `${rs(p.min)} - ${rs(p.max)}`, x + 2, ty);
+      ty += 4;
+    }
 
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5);
-    if (p.variants.length) {
-      const avail = p.variants.filter((v) => !v.out).map((v) => v.label);
+    if (p.variants.length && o.sizes) {
+      const avail = p.variants.filter((v) => !o.stock || !v.out).map((v) => v.label);
       const txt = avail.length ? `Available: ${avail.join(', ')}` : 'All sizes out of stock';
       pdf.setTextColor(avail.length ? 71 : 200, avail.length ? 85 : 30, avail.length ? 105 : 30);
       pdf.text(pdf.splitTextToSize(txt, cw - 4).slice(0, 2), x + 2, ty);
-    } else if (p.stock != null) {
+    } else if (o.stock && !p.variants.length && p.stock != null) {
       pdf.setTextColor(p.stock <= 0 ? 200 : 71, p.stock <= 0 ? 30 : 85, p.stock <= 0 ? 30 : 105);
       pdf.text(p.stock <= 0 ? 'Out of stock' : `In stock: ${p.stock} ${p.unit || ''}`.trim(), x + 2, ty);
     }
