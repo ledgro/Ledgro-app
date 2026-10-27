@@ -294,8 +294,8 @@ export default function Dashboard() {
 
       <Drawer.Root handleOnly repositionInputs={false} open={isCloseDrawerOpen} onOpenChange={setIsCloseDrawerOpen}>
         <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
-          <Drawer.Content style={sheetStyle} className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 fixed bottom-0 left-0 right-0 z-50 h-[85vh]">
+          <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
+          <Drawer.Content style={sheetStyle} className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 fixed bottom-0 left-0 right-0 z-[61] h-[85vh]">
             <div className="p-4 bg-slate-50 flex-1 overflow-y-auto rounded-t-[24px] pb-safe">
                <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-slate-200 mb-6" />
                <h2 className="text-2xl font-black text-slate-900 mb-6 text-center">Cash Count</h2>

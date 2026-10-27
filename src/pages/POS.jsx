@@ -415,7 +415,7 @@ export default function POS() {
 
   if (checkoutSuccess) {
     return (
-      <div className="min-h-screen bg-green-50 flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-green-50 flex flex-col items-center justify-start gap-4 p-4 pb-10">
         <Receipt ref={receiptRef} billData={lastBill} />
 
         <div className="bg-white p-8 rounded-2xl shadow-sm text-center max-w-sm w-full z-10">
@@ -456,6 +456,13 @@ export default function POS() {
             >
               <PlusCircle size={20} /> Done (New Bill)
             </button>
+          </div>
+        </div>
+
+        <div className="w-full max-w-sm">
+          <p className="mb-2 text-center text-xs font-bold uppercase tracking-wider text-slate-500">Receipt preview</p>
+          <div style={{ zoom: Math.min(1, (window.innerWidth - 32) / 384) }}>
+            <Receipt billData={lastBill} preview />
           </div>
         </div>
       </div>
