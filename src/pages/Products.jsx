@@ -101,7 +101,7 @@ export default function Products() {
   const [costPrice, setCostPrice] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [hasVariants, setHasVariants] = useState(false);
-  const [axes, setAxes] = useState([{ name: 'Size', values: '' }]);
+  const [axes, setAxes] = useState([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
   const [comboStock, setComboStock] = useState({});
   const [optionEdits, setOptionEdits] = useState({});
   const [joinGroup, setJoinGroup] = useState(null);
@@ -185,7 +185,7 @@ export default function Products() {
     setPhotoDirty(false);
     setComboStock({});
     setOptionEdits(item?.options ? { ...item.options } : {});
-    setAxes(group ? Object.keys(group.options).map((k) => ({ name: k, values: '' })) : [{ name: 'Size', values: '' }]);
+    setAxes(group ? Object.keys(group.options).map((k) => ({ name: k, values: '' })) : [{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
     const src = group ? group.from : item;
     if (src) {
       setName(group ? group.baseName : (src.baseName || src.name));
