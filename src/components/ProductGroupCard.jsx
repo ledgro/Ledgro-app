@@ -1,7 +1,7 @@
 import { memo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import ProductThumb from './ProductThumb';
-import { sizeLabelOf } from '../lib/variants';
+import { sizeLabelOf, colourSwatch } from '../lib/variants';
 import { formatCurrency, cn } from '../lib/utils';
 
 const stockTone = (it) => {
@@ -44,7 +44,12 @@ function ProductGroupCard({ entry, onOpen, defaultOpen = false }) {
         <div key={colour || '_'} className="flex items-start gap-4 border-t border-slate-100 p-4">
           <ProductThumb item={rep} className="h-12 w-12" />
           <div className="min-w-0 flex-1">
-            {colour && <p className="mb-2.5 text-sm font-bold text-slate-900">{colour}</p>}
+            {colour && (
+              <p className="mb-2.5 flex items-center gap-2 text-sm font-bold text-slate-900">
+                <span aria-hidden="true" className="h-4 w-4 rounded-full border border-slate-300" style={{ background: colourSwatch(colour) }} />
+                {colour}
+              </p>
+            )}
             <div className="flex flex-wrap gap-2.5">
               {list.map((it) => (
                 <button key={it.id} type="button" onClick={() => onOpen(it)}

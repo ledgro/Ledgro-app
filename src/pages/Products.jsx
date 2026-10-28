@@ -7,7 +7,7 @@ import { collection, addDoc, doc, updateDoc, writeBatch, serverTimestamp, increm
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Drawer } from 'vaul';
-import { PackagePlus, Search, Plus, Archive, ChevronDown, ChevronUp, Edit2, Trash2, Camera, FileDown, LayoutGrid, List } from 'lucide-react';
+import { PackagePlus, Search, Plus, Archive, ChevronDown, ChevronUp, Edit2, Trash2, Camera, FileDown, LayoutGrid, List, ArrowLeftRight } from 'lucide-react';
 import { formatCurrency, sanitizeText, cn } from '../lib/utils';
 import { sessionGuard } from '../lib/SessionGuard';
 import { useCatalogLoader } from '../hooks/useCatalogLoader';
@@ -17,6 +17,7 @@ import { VariantBuilder, VariantEditor } from '../components/VariantBuilder';
 import { MAX_COMBOS, buildCombos, comboKey, isVariant, variantName, colourOf, groupProducts } from '../lib/variants';
 import ProductGroupCard from '../components/ProductGroupCard';
 import CatalogExportSheet from '../components/CatalogExportSheet';
+import CatalogTransferSheet from '../components/CatalogTransferSheet';
 import { confirm } from '../lib/confirm';
 import ProductThumb from '../components/ProductThumb';
 import { compressImage, loadItemImage, saveImage, removeImage, imageKey } from '../lib/productImage';
@@ -82,7 +83,7 @@ export default function Products() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showInactive, setShowInactive] = useState(false);
-  const [sortBy] = useState('recently_added');
+  const [sortBy, setSortBy] = useState('recently_added');
   const [filter, setFilter] = useState('__all__');
 
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -110,6 +111,7 @@ export default function Products() {
   const [view, setView] = useState('list');
   const [exporting, setExporting] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -480,9 +482,15 @@ export default function Products() {
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-xl font-bold text-slate-900">Products</h1>
           <div className="flex items-center gap-2">
+            <button type="button" aria-pressed={sortBy === 'a_z'} onClick={() => setSortBy((v) => (v === 'a_z' ? 'recently_added' : 'a_z'))} className={cn('flex h-9 items-center rounded-lg px-3 text-sm font-bold', sortBy === 'a_z' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700')}>A-Z</button>
             <button type="button" aria-label={view === 'list' ? 'Grid view' : 'List view'} onClick={() => setView(view === 'list' ? 'grid' : 'list')} className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
               {view === 'list' ? <LayoutGrid size={18} /> : <List size={18} />}
             </button>
+            {isAdmin && (
+              <button type="button" aria-label="Export or import products" onClick={() => setTransferOpen(true)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                <ArrowLeftRight size={18} />
+              </button>
+            )}
             <button type="button" aria-label="Export catalog PDF" onClick={() => setExportOpen(true)} disabled={!activeProducts.length} className="flex h-9 items-center gap-1 rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-700 disabled:opacity-50">
               <FileDown size={16} /> PDF
             </button>
@@ -801,6 +809,8 @@ export default function Products() {
       </Drawer.Root>
 
       <CatalogExportSheet open={exportOpen} onClose={() => setExportOpen(false)} items={activeProducts} busy={exporting} onExport={exportCatalog} />
+
+      {isAdmin && <CatalogTransferSheet open={transferOpen} onClose={() => setTransferOpen(false)} items={catalogItems} shopId={shopId} shopName={shopName} uid={user?.uid} onAdded={(list) => list.forEach(addCatalogItem)} />}
 
       <BottomNav />
     </div>
