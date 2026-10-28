@@ -49,6 +49,14 @@ export function variantName(baseName, options) {
 
 export const isVariant = (item) => !!(item && item.groupId);
 
+/** An existing product group with this name (any capitalisation), so a second "Hells" joins the first. */
+export function findGroupByName(items, baseName) {
+  const key = clean(baseName).normalize('NFC').toLowerCase();
+  if (!key) return null;
+  const hit = (items || []).find((i) => i.groupId && i.isActive !== false && clean(i.baseName).normalize('NFC').toLowerCase() === key);
+  return hit ? { groupId: hit.groupId, baseName: hit.baseName } : null;
+}
+
 const COLOUR_AXIS = /^colou?rs?$/i;
 
 /** The colour value of a variant ('' when the product has no colour option). */
@@ -56,6 +64,18 @@ export function colourOf(item) {
   const hit = Object.entries(item?.options || {}).find(([k]) => COLOUR_AXIS.test(k.trim()));
   return hit ? clean(hit[1]) : '';
 }
+
+/** Case-insensitive identity of a colour: "black", "Black " and "BLACK" are the same colour. */
+export function colourKey(item) {
+  return colourOf(item).normalize('NFC').toLowerCase();
+}
+
+/** Display form of a colour: first letter of each word upper-case ("dark BROWN" -> "Dark Brown"). */
+export function colourLabel(text) {
+  return clean(text).split(' ').map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w)).join(' ');
+}
+
+const bySize = (a, b) => String(sizeLabelOf(a)).localeCompare(String(sizeLabelOf(b)), undefined, { numeric: true });
 
 /** The variant's label without its colour, e.g. "38" for Size 38 / Black. Falls back to the full label. */
 export function sizeLabelOf(item) {
@@ -79,12 +99,18 @@ export function groupProducts(items) {
       out.push(g);
     }
     g.items.push(it);
-    const c = colourOf(it);
+    const c = colourKey(it);
     if (!g.colours.has(c)) g.colours.set(c, []);
     g.colours.get(c).push(it);
   });
   return out.map((e) => (e.type === 'group'
-    ? { ...e, colours: [...e.colours.entries()].map(([colour, list]) => ({ colour, items: list, rep: list.find((i) => i.hasImage) || list[0] })) }
+    ? {
+      ...e,
+      colours: [...e.colours.values()].map((list) => {
+        const sorted = [...list].sort(bySize);
+        return { colour: colourLabel(colourOf(sorted[0])), items: sorted, rep: sorted.find((i) => i.hasImage) || sorted[0] };
+      }),
+    }
     : e));
 }
 
@@ -98,4 +124,11 @@ export function colourSwatch(name) {
   const word = t.split(' ').find((w) => COLOURS[w]);
   if (word) return COLOURS[word];
   return typeof CSS !== 'undefined' && CSS.supports?.('color', t) ? t : '#cbd5e1';
+}
+
+/** One card per product and colour: [{ type:'single' }, { type:'colour', name, colour, items, rep }]. */
+export function colourCards(items) {
+  return groupProducts(items).flatMap((e) => (e.type === 'single' ? [e] : e.colours.map((c) => ({
+    type: 'colour', key: `${e.groupId}~${colourKey(c.rep)}`, groupId: e.groupId, name: e.name, colour: c.colour, items: c.items, rep: c.rep,
+  }))));
 }
