@@ -1,7 +1,7 @@
 import { createHashRouter, RouterProvider, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { lazy, Suspense, useState, useEffect } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { lazy, Suspense, useEffect } from 'react';
+import { motion } from 'framer-motion';
 
 const SignIn = lazy(() => import('./pages/SignIn'));
 const ShopSetup = lazy(() => import('./pages/ShopSetup'));
@@ -41,58 +41,35 @@ const AuthRoute = ({ children }) => {
   return children;
 };
 
-const pageVariants = {
-  initial: { x: '100%', opacity: 0 },
-  animate: { x: 0, opacity: 1 },
-  exit: { x: '-30%', opacity: 0 }
-};
-
-const pageTransition = {
-  type: 'spring',
-  stiffness: 300,
-  damping: 30,
-  duration: 0.25
-};
+// Tab switches fade the new page in. No slide and no exit animation, so two pages are never on screen together.
+const preloadPages = () => Promise.all([
+  import('./pages/Dashboard'), import('./pages/POS'), import('./pages/Ledger'), import('./pages/Expenses'),
+  import('./pages/Products'), import('./pages/Settings'), import('./pages/PLScreen'), import('./pages/Members'), import('./pages/Transfers'),
+]).catch(() => {});
 
 const AnimatedLayout = () => {
   const location = useLocation();
-  const [disableExitAnimation, setDisableExitAnimation] = useState(false);
 
   useEffect(() => {
-    let touchStartX = 0;
-    const handleTouchStart = (e) => {
-      touchStartX = e.touches[0].clientX;
-    };
-    const handleTouchEnd = () => {
-      if (touchStartX < 20) {
-        setDisableExitAnimation(true);
-        setTimeout(() => setDisableExitAnimation(false), 500);
-      }
-    };
-    window.addEventListener('touchstart', handleTouchStart);
-    window.addEventListener('touchend', handleTouchEnd);
-    return () => {
-      window.removeEventListener('touchstart', handleTouchStart);
-      window.removeEventListener('touchend', handleTouchEnd);
-    };
+    // After the first screen is up, fetch the other pages quietly so tapping a tab never shows a loading flash.
+    const run = () => { preloadPages(); };
+    if ('requestIdleCallback' in window) { const id = window.requestIdleCallback(run, { timeout: 4000 }); return () => window.cancelIdleCallback(id); }
+    const t = setTimeout(run, 2000);
+    return () => clearTimeout(t);
   }, []);
 
   return (
-    <AnimatePresence mode="popLayout" custom={disableExitAnimation}>
-      <motion.div
-        key={location.pathname}
-        variants={pageVariants}
-        initial="initial"
-        animate="animate"
-        exit={disableExitAnimation ? {} : "exit"}
-        transition={pageTransition}
-        style={{ position: 'absolute', width: '100%', height: '100%' }}
-      >
-        <Suspense fallback={<SplashScreen />}>
-          <Outlet />
-        </Suspense>
-      </motion.div>
-    </AnimatePresence>
+    <motion.div
+      key={location.pathname}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.12, ease: 'easeOut' }}
+      style={{ position: 'absolute', width: '100%', height: '100%' }}
+    >
+      <Suspense fallback={<SplashScreen />}>
+        <Outlet />
+      </Suspense>
+    </motion.div>
   );
 };
 
