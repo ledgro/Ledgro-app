@@ -1,17 +1,17 @@
 import { rs } from './reportExport';
-import { colourOf, sizeLabelOf } from './variants';
+import { colourOf, colourKey, colourLabel, sizeLabelOf } from './variants';
 
 /** One entry per product and colour: sizes of the same shoe are folded into a single card. */
 export function groupCatalog(items) {
   const map = new Map();
   items.forEach((it) => {
-    const key = it.groupId ? `${it.groupId}~${colourOf(it)}` : it.id;
+    const key = it.groupId ? `${it.groupId}~${colourKey(it)}` : it.id;
     if (!map.has(key)) map.set(key, []);
     map.get(key).push(it);
   });
   return [...map.values()].map((list) => {
     const first = list[0];
-    const colour = first.groupId ? colourOf(first) : '';
+    const colour = first.groupId ? colourLabel(colourOf(first)) : '';
     const prices = list.map((i) => Number(i.lastUsedPrice) || 0);
     const tracked = list.filter((i) => i.stockCount != null);
     const base = first.groupId ? (first.baseName || first.name) : first.name;

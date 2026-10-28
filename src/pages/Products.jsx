@@ -14,8 +14,8 @@ import { useCatalogLoader } from '../hooks/useCatalogLoader';
 import CategoryChips from '../components/CategoryChips';
 import { useNameOf } from '../lib/memberNames';
 import { VariantBuilder, VariantEditor } from '../components/VariantBuilder';
-import { MAX_COMBOS, buildCombos, comboKey, isVariant, variantName, colourOf, groupProducts } from '../lib/variants';
-import ProductGroupCard from '../components/ProductGroupCard';
+import { MAX_COMBOS, buildCombos, comboKey, isVariant, variantName, colourKey, colourCards, findGroupByName } from '../lib/variants';
+import ProductColourCard from '../components/ProductColourCard';
 import CatalogExportSheet from '../components/CatalogExportSheet';
 import CatalogTransferSheet from '../components/CatalogTransferSheet';
 import { confirm } from '../lib/confirm';
@@ -327,7 +327,7 @@ export default function Products() {
         });
         await persistPhoto(imageKey(editingItem));
         if (editingVariant && photoDirty) {
-          const sibs = catalogItems.filter((i) => i.groupId === editingItem.groupId && i.id !== editingItem.id && colourOf(i) === colourOf(editingItem));
+          const sibs = catalogItems.filter((i) => i.groupId === editingItem.groupId && i.id !== editingItem.id && colourKey(i) === colourKey(editingItem));
           for (let i = 0; i < sibs.length; i += 15) {
             const batch = writeBatch(db);
             const part = sibs.slice(i, i + 15);
@@ -354,7 +354,9 @@ export default function Products() {
         const taken = new Set(catalogItems.map((i) => i.name?.toLowerCase()));
         const fresh = combos.filter((opts) => !taken.has(variantName(baseName, opts).toLowerCase()));
         if (!fresh.length) { toast.error('Those variants already exist.'); setSubmitting(false); return; }
-        const groupId = joinGroup?.groupId || doc(collection(db, `shops/${shopId}/catalog`)).id;
+        // Same product name (any capitalisation) joins the existing product instead of making a second one.
+        const existing = joinGroup?.groupId || editingItem?.groupId ? null : findGroupByName(catalogItems, baseName);
+        const groupId = joinGroup?.groupId || existing?.groupId || doc(collection(db, `shops/${shopId}/catalog`)).id;
         const batch = writeBatch(db);
         const created = [];
         for (const opts of fresh) {
@@ -448,9 +450,9 @@ export default function Products() {
   useEffect(() => { openRef.current = openDrawer; });
   const onOpen = useCallback((item) => openRef.current?.(item), []);
   const renderProductRow = (item) => <ProductRow key={item.id} item={item} onOpen={onOpen} />;
-  const entries = useMemo(() => groupProducts(activeProducts), [activeProducts]);
-  const renderEntry = (e) => (e.type === 'group'
-    ? <ProductGroupCard key={e.key} entry={e} onOpen={onOpen} />
+  const entries = useMemo(() => colourCards(activeProducts), [activeProducts]);
+  const renderEntry = (e) => (e.type === 'colour'
+    ? <ProductColourCard key={e.key} entry={e} onOpen={onOpen} />
     : renderProductRow(e.item));
   const renderProductCard = (item) => <ProductCard key={item.id} item={item} onOpen={onOpen} />;
 
@@ -525,7 +527,7 @@ export default function Products() {
           </div>
         ) : (
           view === 'grid'
-            ? <div className="grid grid-cols-2 gap-4">{entries.map((e) => (e.type === 'group' ? <div key={e.key} className="col-span-2">{renderEntry(e)}</div> : renderProductCard(e.item)))}</div>
+            ? <div className="grid grid-cols-2 gap-4">{entries.map((e) => (e.type === 'colour' ? <div key={e.key} className="col-span-2">{renderEntry(e)}</div> : renderProductCard(e.item)))}</div>
             : <div>{entries.map(renderEntry)}</div>
         )}
 
