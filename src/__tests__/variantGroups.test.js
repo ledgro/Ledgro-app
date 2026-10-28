@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupProducts, colourOf, sizeLabelOf } from '../lib/variants';
+import { groupProducts, colourOf, sizeLabelOf, colourSwatch } from '../lib/variants';
 
 const v = (id, c, s) => ({ id, groupId: 'g', baseName: 'Hells', name: `Hells - ${s} / ${c}`, options: { Size: s, Colour: c } });
 
@@ -14,5 +14,14 @@ describe('groupProducts', () => {
     expect(sizeLabelOf(v('1', 'Black', '37'))).toBe('37');
     expect(colourOf({ options: { Size: '6' } })).toBe('');
     expect(sizeLabelOf({ options: { Size: '6' } })).toBe('6');
+  });
+});
+
+describe('colourSwatch', () => {
+  it('maps names, shades and unknowns', () => {
+    expect(colourSwatch('Black')).toBe('#111827');
+    expect(colourSwatch('dark brown')).toBe('#78350f');
+    expect(colourSwatch('')).toBe('#cbd5e1');
+    expect(colourSwatch('zzzz')).toBe('#cbd5e1');
   });
 });

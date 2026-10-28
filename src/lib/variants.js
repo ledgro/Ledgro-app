@@ -87,3 +87,15 @@ export function groupProducts(items) {
     ? { ...e, colours: [...e.colours.entries()].map(([colour, list]) => ({ colour, items: list, rep: list.find((i) => i.hasImage) || list[0] })) }
     : e));
 }
+
+const COLOURS = { black: '#111827', white: '#f8fafc', brown: '#78350f', tan: '#d2b48c', beige: '#e7d8b8', red: '#dc2626', maroon: '#7f1d1d', pink: '#ec4899', orange: '#f97316', yellow: '#facc15', green: '#16a34a', olive: '#6b7a2a', blue: '#2563eb', navy: '#1e3a8a', sky: '#38bdf8', purple: '#7c3aed', grey: '#6b7280', gray: '#6b7280', silver: '#c0c0c0', gold: '#d4af37', cream: '#fff7d6', multi: 'conic-gradient(red,orange,yellow,green,blue,purple,red)' };
+
+/** CSS colour for a colour name ("Dark Brown" -> brown). Falls back to a CSS colour name, else neutral grey. */
+export function colourSwatch(name) {
+  const t = clean(name).toLowerCase();
+  if (!t) return '#cbd5e1';
+  if (COLOURS[t]) return COLOURS[t];
+  const word = t.split(' ').find((w) => COLOURS[w]);
+  if (word) return COLOURS[word];
+  return typeof CSS !== 'undefined' && CSS.supports?.('color', t) ? t : '#cbd5e1';
+}
