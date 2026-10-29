@@ -73,6 +73,10 @@ const AnimatedLayout = () => {
   );
 };
 
+// Back button after sign-out or account deletion can restore the old page from the browser's memory,
+// still showing the dashboard with a dead session. Always reload a restored page so it checks the real sign-in state.
+window.addEventListener('pageshow', (e) => { if (e.persisted) window.location.reload(); });
+
 if (navigator.storage && navigator.storage.persist) {
   navigator.storage.persist().then(granted => {
     if (!granted) console.warn('Storage persistence denied');
