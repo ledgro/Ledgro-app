@@ -70,6 +70,8 @@ const SignIn = () => {
           userSnap = await getDoc(userRef);
         } catch (readError) {
           console.error("Consent read failed:", readError);
+          // a database client closed by an earlier sign-out cannot recover without a reload
+          if (/terminated/i.test(readError?.message || '')) { window.location.reload(); return; }
           await auth.signOut();
           setError(lang === 'en' ? "Failed to verify consent. Please try again." : "സമ്മതം പരിശോധിക്കാൻ കഴിഞ്ഞില്ല. വീണ്ടും ശ്രമിക്കുക.");
           return;

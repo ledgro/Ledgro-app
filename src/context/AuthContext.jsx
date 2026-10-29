@@ -26,7 +26,19 @@ function clearLocalSession() {
   OFFLINE_KEYS.forEach((k) => localStorage.removeItem(k));
 }
 
+// Full restart onto the sign-in page. The app uses hash routes, so a plain replace('/') can end up as an
+// in-page hash change with the terminated Firestore client still alive; the timer forces a real reload then.
+function hardRestart() {
+  window.location.replace('/');
+  setTimeout(() => window.location.reload(), 200);
+}
+
 async function wipeOfflineData() {
+  // never let a stuck cache wipe block the exit
+  await Promise.race([wipeNow(), new Promise((r) => setTimeout(r, 3000))]);
+}
+
+async function wipeNow() {
   try {
     await terminate(db);
     await clearIndexedDbPersistence(db);
@@ -77,7 +89,7 @@ export const AuthProvider = ({ children }) => {
           clearLocalSession();
           await wipeOfflineData();
           await firebaseSignOut(auth);
-          window.location.href = '/';
+          hardRestart();
         } catch (e) {
           console.error('Session event auto sign-out failed', e);
         }
@@ -196,7 +208,7 @@ export const AuthProvider = ({ children }) => {
       clearLocalSession();
       await wipeOfflineData();
       try { await firebaseSignOut(auth); } catch (e) { console.error(e); }
-      window.location.replace('/');
+      hardRestart();
     };
 
     const unsubscribe = onSnapshot(doc(db, 'shops', shopId), (snap) => {
@@ -282,7 +294,7 @@ export const AuthProvider = ({ children }) => {
       throw e;
     }
     // Firestore was terminated above; a clean reload is the only safe way to
-    window.location.replace('/');
+    hardRestart();
   }, []);
 
   const beginVoluntaryExit = useCallback(() => {
@@ -365,7 +377,7 @@ export const AuthProvider = ({ children }) => {
 
     clearLocalSession();
     await wipeOfflineData();
-    window.location.replace('/');
+    hardRestart();
   }, [shopId]);
 
   const value = useMemo(() => ({
