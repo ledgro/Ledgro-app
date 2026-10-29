@@ -19,7 +19,7 @@ const num = (v) => {
 
 const csvCell = (v) => {
   let s = String(v ?? '');
-  if (/^[=+\-@]/.test(s) && Number.isNaN(Number(s))) s = `'${s}`; // stop spreadsheet formulas
+  if (/^[=+\-@\t\r]/.test(s) && Number.isNaN(Number(s))) s = `'${s}`; // stop spreadsheet formulas
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
@@ -77,6 +77,19 @@ export function parseCsv(text) {
 
 const parseOther = (s) => Object.fromEntries(String(s || '').split(';').map((p) => p.split('=')).filter(([k, v]) => k?.trim() && v?.trim()).map(([k, v]) => [k.trim().slice(0, 20), v.trim().slice(0, 30)]));
 
+// Backup options come from a file anyone can edit: keep only short text pairs, like the CSV path does.
+const cleanOptions = (o) => {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  const out = {};
+  Object.entries(o).forEach(([k, v]) => {
+    if (typeof v !== 'string' && typeof v !== 'number') return;
+    const key = String(k).trim().slice(0, 20);
+    const val = String(v).trim().slice(0, 30);
+    if (key && val) out[key] = val;
+  });
+  return Object.keys(out).length ? out : null;
+};
+
 /** Text of either format -> records. Throws a readable Error for a file that is not ours. */
 export function parseCatalogFile(text) {
   const trimmed = String(text).trim();
@@ -85,8 +98,8 @@ export function parseCatalogFile(text) {
     try { data = JSON.parse(trimmed); } catch { throw new Error('This file is damaged.'); }
     if (data?.app !== 'ledgro' || !Array.isArray(data.products)) throw new Error('This is not a Ledgro product file.');
     return data.products.map((p, n) => ({
-      line: n + 1, name: p.baseName && p.groupId ? p.baseName : p.name, groupRef: p.groupId || null, options: p.options || null,
-      category: p.category || '', price: Number(p.price), cost: p.cost == null ? null : Number(p.cost), stock: p.stock == null ? null : Number(p.stock),
+      line: n + 1, name: p.baseName && p.groupId ? p.baseName : p.name, groupRef: p.groupId || null, options: cleanOptions(p.options),
+      category: p.category || '', price: p.price == null || p.price === '' ? null : Number(p.price), cost: p.cost == null ? null : Number(p.cost), stock: p.stock == null ? null : Number(p.stock),
       unit: p.unit || 'piece', lowStockAlert: p.lowStockAlert == null ? null : Number(p.lowStockAlert), source: p.source || '', description: p.description || '',
       active: p.active !== false, image: typeof p.image === 'string' && p.image.startsWith('data:image/jpeg;base64,') && p.image.length <= 70000 ? p.image : null,
     }));
@@ -97,7 +110,7 @@ export function parseCatalogFile(text) {
   const col = (...names) => head.findIndex((h) => names.includes(h));
   const ix = { name: col('product', 'name', 'product name', 'item'), cat: col('category'), size: col('size'), colour: col('colour', 'color'), other: col('other options', 'options'), price: col('price', 'selling price', 'mrp'), cost: col('cost price', 'cost'), stock: col('stock', 'quantity', 'qty'), unit: col('unit'), low: col('low stock alert', 'low stock'), source: col('supplier', 'source'), desc: col('description'), active: col('active') };
   if (ix.name < 0 || ix.price < 0) throw new Error('The file needs "Product" and "Price" columns.');
-  const get = (r, i) => (i >= 0 ? String(r[i] ?? '').trim() : '');
+  const get = (r, i) => (i >= 0 ? String(r[i] ?? '').trim().replace(/^'(?=[=+\-@\t\r])/, '') : '');
   return rows.slice(1).map((r, n) => {
     const options = {};
     if (get(r, ix.size)) options.Size = get(r, ix.size).slice(0, 30);
@@ -133,8 +146,9 @@ export function planImport(records, existing, newId) {
     const base = String(r.name || '').replace(/\s+/g, ' ').trim();
     if (!base) return bad('Missing product name');
     if (base.length > 90) return bad('Name is too long');
+    if (r.price == null) return bad('Price is not a number');
     const price = r.csvRupees ? r.price : r.price / 100; // records hold rupees (CSV) or paise (backup)
-    if (price == null || Number.isNaN(price) || price < 0) return bad('Price is not a number');
+    if (Number.isNaN(price) || price < 0) return bad('Price is not a number');
     for (const [label, v] of [['Stock', r.stock], ['Low stock alert', r.lowStockAlert], ['Cost price', r.csvRupees ? r.cost : (r.cost == null ? null : r.cost / 100)]]) {
       if (v != null && (Number.isNaN(v) || v < 0)) return bad(`${label} is not a valid number`);
     }
@@ -150,13 +164,12 @@ export function planImport(records, existing, newId) {
       source: String(r.source || '').slice(0, 60), costPrice: r.cost == null ? null : Math.round((r.csvRupees ? r.cost : r.cost / 100) * 100), isActive: r.active !== false, frequency: 0,
     };
     if (opts) {
-      const key = r.groupRef || `csv:${base.toLowerCase()}`;
-      const ref = r.groupRef && !r.groupRef.startsWith('csv:') ? `bk:${r.groupRef}` : `csv:${base.toLowerCase()}`;
+      // same name = same product, so a backup joins the shop's existing product like the CSV does
+      const ref = `csv:${base.toLowerCase()}`;
       if (!groups.has(ref)) groups.set(ref, newId());
       payload.groupId = groups.get(ref);
       payload.baseName = base;
       payload.options = opts;
-      void key;
     }
     if (r.image) payload.hasImage = true;
     creates.push({ payload, image: r.image || null });
