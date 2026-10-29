@@ -54,6 +54,13 @@ export async function compressImage(file) {
   return out;
 }
 
+// Bumped on every save or remove so thumbnails already on screen reload the new picture.
+let version = 0;
+const listeners = new Set();
+export const imageVersion = () => version;
+export const subscribeImages = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
+const bump = () => { version += 1; listeners.forEach((fn) => fn()); };
+
 const cache = new Map(); // key -> Promise<string|null>
 const ref = (shopId, key) => doc(db, `shops/${shopId}/catalogImages`, key);
 
@@ -78,9 +85,11 @@ export function loadImage(shopId, key) {
 export async function saveImage(shopId, key, dataUrl, uid) {
   await setDoc(ref(shopId, key), { data: dataUrl, updatedAt: serverTimestamp(), updatedBy: uid });
   cache.set(`${shopId}/${key}`, Promise.resolve(dataUrl));
+  bump();
 }
 
 export async function removeImage(shopId, key) {
   await deleteDoc(ref(shopId, key));
   cache.set(`${shopId}/${key}`, Promise.resolve(null));
+  bump();
 }
