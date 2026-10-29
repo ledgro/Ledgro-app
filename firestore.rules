@@ -315,6 +315,7 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['data', 'updatedAt', 'updatedBy'])
           && request.resource.data.data is string
           && request.resource.data.data.size() <= 70000
+          && request.resource.data.data.split(',')[0] == 'data:image/jpeg;base64'
           && request.resource.data.updatedAt == request.time
           && request.resource.data.updatedBy == request.auth.uid;
         allow delete: if isMember(shopId);
