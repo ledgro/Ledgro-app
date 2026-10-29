@@ -58,3 +58,29 @@ describe('catalog backup', () => {
     expect(out.creates[0].payload.lastUsedPrice).toBe(38000);
   });
 });
+
+describe('import hardening', () => {
+  const bk = (products) => JSON.stringify({ app: 'ledgro', kind: 'catalog', version: 1, products });
+  it('backup joins the existing product of the same name', () => {
+    const existing = [{ id: 'a', groupId: 'G1', baseName: 'Hells', name: 'Hells - 37 / Black', options: { Size: '37', Colour: 'Black' } }];
+    const recs = parseCatalogFile(bk([{ name: 'Hells - 38 / Black', baseName: 'Hells', groupId: 'X', options: { Size: '38', Colour: 'Black' }, price: 38000 }]));
+    const { creates } = planImport(recs, existing, () => 'NEW');
+    expect(creates[0].payload.groupId).toBe('G1');
+  });
+  it('cleans odd backup options and flags a null price', () => {
+    const recs = parseCatalogFile(bk([
+      { name: 'A', price: 100, options: ['x'] },
+      { name: 'B', price: 100, options: { Size: 'x'.repeat(200), Bad: { a: 1 } } },
+      { name: 'C', price: null },
+    ]));
+    const { creates, errors } = planImport(recs, [], () => 'N');
+    expect(creates[0].payload.options).toBeUndefined();
+    expect(creates[1].payload.options).toEqual({ Size: 'x'.repeat(30) });
+    expect(errors).toHaveLength(1);
+  });
+  it('escapes tab-led cells and strips the quote on re-import', () => {
+    const csv = buildCatalogCsv([{ id: '1', name: '=cmd', lastUsedPrice: 100 }]);
+    const recs = parseCatalogFile(csv);
+    expect(recs[0].name).toBe('=cmd');
+  });
+});

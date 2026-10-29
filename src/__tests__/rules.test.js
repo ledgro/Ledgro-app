@@ -315,6 +315,8 @@ d('firestore.rules', () => {
     it('rejects wrong type, oversize, extra keys, wrong author, stale time', async () => {
       await assertFails(setDoc(ref(MEMBER, 'p1'), img(MEMBER, { data: 12345 })));
       await assertFails(setDoc(ref(MEMBER, 'p1'), img(MEMBER, { data: `data:image/jpeg;base64,${'A'.repeat(70100)}` })));
+      await assertFails(setDoc(ref(MEMBER, 'p1'), img(MEMBER, { data: 'not an image' })));
+      await assertFails(setDoc(ref(MEMBER, 'p1'), img(MEMBER, { data: 'data:text/html;base64,PGI+' })));
       await assertFails(setDoc(ref(MEMBER, 'p1'), img(MEMBER, { extra: 1 })));
       await assertFails(setDoc(ref(MEMBER, 'p1'), img(ADMIN)));
       await assertFails(setDoc(ref(MEMBER, 'p1'), img(MEMBER, { updatedAt: Timestamp.fromMillis(1000) })));
