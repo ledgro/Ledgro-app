@@ -23,6 +23,6 @@ describe('groupCatalog by colour', () => {
     const v = (id, c, s, stock) => ({ id, groupId: 'g', baseName: 'Hells', name: 'x', options: { Size: s, Colour: c }, lastUsedPrice: 38000, stockCount: stock });
     const out = groupCatalog([v('1', 'Black', '37', 10), v('2', 'Black', '38', 0), v('3', 'Brown', '37', 4)]);
     expect(out.map((p) => p.name)).toEqual(['Hells - Black', 'Hells - Brown']);
-    expect(out[0].variants).toEqual([{ label: '37', out: false }, { label: '38', out: true }]);
+    expect(out[0].variants).toEqual([{ label: '37', qty: 10, out: false }, { label: '38', qty: 0, out: true }]);
   });
 });

@@ -22,7 +22,7 @@ export function groupCatalog(items) {
       min: Math.min(...prices),
       max: Math.max(...prices),
       unit: first.unit,
-      variants: first.groupId ? list.map((i) => ({ label: sizeLabelOf(i), out: i.stockCount != null && i.stockCount <= 0 })) : [],
+      variants: first.groupId ? list.map((i) => ({ label: sizeLabelOf(i), qty: i.stockCount == null ? null : Math.max(0, i.stockCount), out: i.stockCount != null && i.stockCount <= 0 })) : [],
       stock: tracked.length ? tracked.reduce((a, i) => a + Math.max(0, i.stockCount), 0) : null,
     };
   }).sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
@@ -44,11 +44,17 @@ export async function buildCatalogPdf({ shopName, items, getImage, subtitle = ''
   const gap = 5;
   const cw = (W - 2 * M - gap * (cols - 1)) / cols;
   const ih = o.photos ? cw * 0.9 : 0;
-  const ch = o.photos ? ih + 25 : 24;
+  const perRow = cols === 3 ? 4 : 5;
+  const chipGap = 1.2;
+  const chipW = (cw - 4 - chipGap * (perRow - 1)) / perRow;
+  const chipH = o.stock ? 9 : 6;
+  const maxChipRows = o.sizes ? Math.max(0, ...products.map((p) => Math.ceil(p.variants.length / perRow))) : 0;
+  const chipBlock = maxChipRows ? maxChipRows * (chipH + chipGap) + 1 : 0;
+  const ch = (o.photos ? ih + 4 : 5) + 10 + (o.prices ? 4.5 : o.stock ? 4 : 0) + chipBlock + 2;
   const today = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
   const head = () => {
-    pdf.setFillColor(15, 23, 42); pdf.rect(0, 0, W, 22, 'F');
+    pdf.setFillColor(15, 23, 42); pdf.rect(0, 0, W, 22, 'F'); pdf.setFillColor(37, 99, 235); pdf.rect(0, 22, W, 1.2, 'F');
     pdf.setTextColor(255); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(15);
     pdf.text(shopName || 'Product Catalog', M, 11);
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9);
@@ -62,10 +68,11 @@ export async function buildCatalogPdf({ shopName, items, getImage, subtitle = ''
 
   const sectionTitle = (cat) => {
     if (y + 14 + ch > H - M) { pdf.addPage(); y = head(); }
-    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11); pdf.setTextColor(15, 23, 42);
-    pdf.text(cat || 'Other', M, y + 4);
-    pdf.setDrawColor(200); pdf.line(M, y + 6, W - M, y + 6);
-    y += 10;
+    pdf.setFillColor(241, 245, 249); pdf.rect(M, y, W - 2 * M, 7, 'F');
+    pdf.setFillColor(37, 99, 235); pdf.rect(M, y, 1.5, 7, 'F');
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(10.5); pdf.setTextColor(15, 23, 42);
+    pdf.text((cat || 'Other').toUpperCase(), M + 4, y + 4.9);
+    y += 11;
   };
 
   for (const p of products) {
@@ -95,23 +102,40 @@ export async function buildCatalogPdf({ shopName, items, getImage, subtitle = ''
     pdf.setTextColor(15, 23, 42); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9);
     const nameLines = pdf.splitTextToSize(p.name, cw - 4).slice(0, 2);
     pdf.text(nameLines, x + 2, ty);
-    ty += nameLines.length * 4 + 1;
+    ty += nameLines.length * 4 + 2;
 
     if (o.prices) {
-      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(10); pdf.setTextColor(30, 64, 175);
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11); pdf.setTextColor(30, 64, 175);
       pdf.text(p.min === p.max ? rs(p.min) : `${rs(p.min)} - ${rs(p.max)}`, x + 2, ty);
-      ty += 4;
+      ty += 4.5;
     }
 
-    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5);
-    if (p.variants.length && o.sizes) {
-      const avail = p.variants.filter((v) => !o.stock || !v.out).map((v) => v.label);
-      const txt = avail.length ? `Available: ${avail.join(', ')}` : 'All sizes out of stock';
-      pdf.setTextColor(avail.length ? 71 : 200, avail.length ? 85 : 30, avail.length ? 105 : 30);
-      pdf.text(pdf.splitTextToSize(txt, cw - 4).slice(0, 2), x + 2, ty);
-    } else if (o.stock && !p.variants.length && p.stock != null) {
-      pdf.setTextColor(p.stock <= 0 ? 200 : 71, p.stock <= 0 ? 30 : 85, p.stock <= 0 ? 30 : 105);
-      pdf.text(p.stock <= 0 ? 'Out of stock' : `In stock: ${p.stock} ${p.unit || ''}`.trim(), x + 2, ty);
+    if (o.stock && p.stock != null) {
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5);
+      pdf.setTextColor(p.stock <= 0 ? 185 : 100, p.stock <= 0 ? 28 : 116, p.stock <= 0 ? 28 : 139);
+      pdf.text(p.stock <= 0 ? 'Out of stock' : `${p.stock} in stock`, x + cw - 2, o.prices ? ty - 4.5 : ty, { align: 'right' });
+      if (!o.prices) ty += 4;
+    }
+
+    if (o.sizes && p.variants.length) {
+      p.variants.forEach((v, k) => {
+        const cx = x + 2 + (k % perRow) * (chipW + chipGap);
+        const cy = ty + Math.floor(k / perRow) * (chipH + chipGap);
+        if (v.out && o.stock) { pdf.setFillColor(241, 245, 249); pdf.setDrawColor(226, 232, 240); }
+        else { pdf.setFillColor(239, 246, 255); pdf.setDrawColor(191, 219, 254); }
+        pdf.roundedRect(cx, cy, chipW, chipH, 1, 1, 'FD');
+        const dim = v.out && o.stock;
+        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8);
+        pdf.setTextColor(dim ? 160 : 15, dim ? 170 : 23, dim ? 180 : 42);
+        pdf.text(String(v.label), cx + chipW / 2, cy + (o.stock ? 3.9 : 4.2), { align: 'center' });
+        if (o.stock) {
+          pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7);
+          if (v.qty == null) pdf.setTextColor(120);
+          else if (v.qty === 0) pdf.setTextColor(185, 28, 28);
+          else pdf.setTextColor(21, 128, 61);
+          pdf.text(v.qty == null ? '-' : String(v.qty), cx + chipW / 2, cy + 7.4, { align: 'center' });
+        }
+      });
     }
 
     col += 1;
