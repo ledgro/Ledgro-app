@@ -61,6 +61,15 @@ export function billReducer(state = initialBillState, action) {
       };
     }
 
+    case 'UPDATE_PRICE': {
+      const price = Math.round(Number(action.payload.price));
+      if (!Number.isFinite(price) || price < 0) return state;
+      return {
+        ...state,
+        items: state.items.map((item) => (item.id === action.payload.id ? { ...item, unitPriceAtSale: price } : item)),
+      };
+    }
+
     case 'REMOVE_ITEM': {
       return {
         ...state,

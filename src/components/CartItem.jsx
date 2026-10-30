@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 export default function CartItem({ item, dispatch, onOpenDiscount }) {
   const [localQty, setLocalQty] = useState(item.qty.toString());
+  const [editPrice, setEditPrice] = useState(null); // rupees text while editing the price on this bill
 
   // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
@@ -79,7 +80,27 @@ export default function CartItem({ item, dispatch, onOpenDiscount }) {
       <div className="flex justify-between items-start">
         <div className="flex-1 pr-4">
           <h3 className="font-semibold text-slate-900 leading-tight">{item.name}</h3>
-          <p className="text-sm text-slate-500 mt-1">{formatCurrency(priceToFormat)} per {item.unit || 'unit'}</p>
+          {editPrice === null ? (
+            <button type="button" onClick={() => setEditPrice(String(priceToFormat / 100))} aria-label="Change price for this bill"
+              className="mt-1 text-sm text-slate-500 underline decoration-dotted underline-offset-4 active:text-blue-600">
+              {formatCurrency(priceToFormat)} per {item.unit || 'unit'} · tap to change
+            </button>
+          ) : (
+            <div className="mt-1 flex items-center gap-2">
+              <span className="text-sm font-bold text-slate-500">₹</span>
+              <input
+                autoFocus type="number" inputMode="decimal" min="0" value={editPrice} aria-label="Price"
+                onChange={(e) => setEditPrice(e.target.value.slice(0, 9))}
+                onBlur={() => {
+                  const v = parseFloat(editPrice);
+                  if (Number.isFinite(v) && v >= 0) dispatch({ type: 'UPDATE_PRICE', payload: { id: item.id, price: Math.round(v * 100) } });
+                  setEditPrice(null);
+                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                className="h-9 w-28 rounded-lg border border-blue-300 px-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
         </div>
 
         <div className="text-right">
