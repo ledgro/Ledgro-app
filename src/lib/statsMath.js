@@ -32,6 +32,8 @@ export const bizDate = (d = new Date()) => {
   const [y, m, day] = bizDayKey(d).split('-').map(Number);
   return new Date(y, m - 1, day);
 };
+/** Local Date for a yyyy-MM-dd business-day key. */
+export const bizDateFromKey = (key) => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d); };
 /** Real start of a business day given its calendar date (yyyy-MM-dd or a Date): 04:30 IST that day. */
 export const bizDayStart = (day) => {
   const key = typeof day === 'string' ? day.slice(0, 10) : dayKey(day);
