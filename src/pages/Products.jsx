@@ -115,6 +115,8 @@ export default function Products() {
   const [transferOpen, setTransferOpen] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
+  const savingRef = useRef(false);
+  useEffect(() => { if (!submitting) savingRef.current = false; }, [submitting]);
 
   const activeProducts = useMemo(() => {
     let filtered = catalogItems
@@ -186,7 +188,8 @@ export default function Products() {
     setPhotoDirty(false);
     setComboStock({});
     setOptionEdits(item?.options ? { ...item.options } : {});
-    setAxes(group ? Object.keys(group.options).map((k) => ({ name: k, values: '' })) : [{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
+    // Adding to an existing product: keep its colour (and any other axis) filled in, only the size is typed fresh.
+    setAxes(group ? Object.keys(group.options || {}).map((k) => ({ name: k, values: /^sizes?$/i.test(k.trim()) ? '' : String(group.options[k] ?? '') })) : [{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
     const src = group ? group.from : item;
     if (src) {
       setName(group ? group.baseName : (src.baseName || src.name));
@@ -242,6 +245,8 @@ export default function Products() {
       return;
     }
 
+    if (savingRef.current) return; // a double tap must not save twice
+    savingRef.current = true;
     setSubmitting(true);
 
     try {
@@ -358,6 +363,12 @@ export default function Products() {
         // Same product name (any capitalisation) joins the existing product instead of making a second one.
         const existing = joinGroup?.groupId || editingItem?.groupId ? null : findGroupByName(catalogItems, baseName);
         const groupId = joinGroup?.groupId || existing?.groupId || doc(collection(db, `shops/${shopId}/catalog`)).id;
+        // A product that already has Size and Colour must get both on every new variant,
+        // otherwise the new ones land as a separate, colour-less product.
+        const sibling = catalogItems.find((i) => i.groupId === groupId && i.options);
+        const needed = Object.keys(sibling?.options || {});
+        const lacking = needed.find((k) => !fresh.every((o) => Object.keys(o).some((x) => x.toLowerCase() === k.toLowerCase())));
+        if (lacking) { toast.error(`This product already has ${lacking}. Fill ${lacking} too.`); setSubmitting(false); return; }
         const batch = writeBatch(db);
         const created = [];
         for (const opts of fresh) {
