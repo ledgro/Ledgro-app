@@ -198,6 +198,27 @@ service cloud.firestore {
         allow delete: if isMember(shopId) && isAdmin(shopId);
       }
 
+      // Cash a staff member takes from the drawer: salary advance, debt (a loan), or a repayment.
+      // Append-only (no edits); only an admin can delete a wrong entry.
+      match /staffCash/{entryId} {
+        allow get: if isMember(shopId);
+        allow list: if isMember(shopId) && request.query.limit <= 100;
+        allow create: if isMember(shopId)
+          && request.resource.data.keys().hasOnly(['staff', 'kind', 'amount', 'via', 'note', 'creatorId', 'createdAt'])
+          && request.resource.data.keys().hasAll(['staff', 'kind', 'amount', 'creatorId', 'createdAt'])
+          && isValidString(request.resource.data.staff, 1, 40)
+          && request.resource.data.kind in ['advance', 'debt', 'repay']
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && request.resource.data.amount <= 100000000
+          && request.resource.data.get('via', 'cash') in ['cash', 'salary']
+          && (request.resource.data.kind == 'repay' || request.resource.data.get('via', 'cash') == 'cash')
+          && isValidString(request.resource.data.get('note', ''), 0, 200)
+          && request.resource.data.creatorId == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+        allow delete: if isAdmin(shopId);
+      }
+
       match /dailyClosures/{closureId} {
         allow get: if isMember(shopId);
         allow list: if isMember(shopId) && request.query.limit <= 100;

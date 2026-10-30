@@ -300,6 +300,33 @@ d('firestore.rules', () => {
     });
   });
 
+  describe('staff cash', () => {
+    const ref = (uid, id) => doc(as(uid), `shops/${SHOP}/staffCash/${id}`);
+    const entry = (uid, extra = {}) => ({ staff: 'Ravi', kind: 'advance', amount: 50000, creatorId: uid, createdAt: serverTimestamp(), ...extra });
+    it('a member records an advance, debt and repayment', async () => {
+      await assertSucceeds(setDoc(ref(MEMBER, 'a'), entry(MEMBER)));
+      await assertSucceeds(setDoc(ref(MEMBER, 'b'), entry(MEMBER, { kind: 'debt' })));
+      await assertSucceeds(setDoc(ref(MEMBER, 'c'), entry(MEMBER, { kind: 'repay', via: 'salary' })));
+    });
+    it('rejects bad amounts, kinds, authors, stale time, and a salary-paid advance', async () => {
+      await assertFails(setDoc(ref(MEMBER, 'x'), entry(MEMBER, { amount: 0 })));
+      await assertFails(setDoc(ref(MEMBER, 'x'), entry(MEMBER, { amount: -5 })));
+      await assertFails(setDoc(ref(MEMBER, 'x'), entry(MEMBER, { kind: 'gift' })));
+      await assertFails(setDoc(ref(MEMBER, 'x'), entry(ADMIN)));
+      await assertFails(setDoc(ref(MEMBER, 'x'), entry(MEMBER, { createdAt: Timestamp.fromMillis(1000) })));
+      await assertFails(setDoc(ref(MEMBER, 'x'), entry(MEMBER, { via: 'salary' })));
+      await assertFails(setDoc(ref(MEMBER, 'x'), entry(MEMBER, { extra: 1 })));
+    });
+    it('outsiders cannot read or write; entries cannot be edited; only an admin deletes', async () => {
+      await assertSucceeds(setDoc(ref(MEMBER, 'd'), entry(MEMBER)));
+      await assertFails(getDoc(ref('strangerUid', 'd')));
+      await assertFails(setDoc(ref('strangerUid', 'z'), entry('strangerUid')));
+      await assertFails(updateDoc(ref(MEMBER, 'd'), { amount: 1 }));
+      await assertFails(deleteDoc(ref(MEMBER, 'd')));
+      await assertSucceeds(deleteDoc(ref(ADMIN, 'd')));
+    });
+  });
+
   describe('catalog pictures', () => {
     const img = (uid, extra = {}) => ({ data: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==', updatedAt: serverTimestamp(), updatedBy: uid, ...extra });
     const ref = (uid, id) => doc(as(uid), `shops/${SHOP}/catalogImages/${id}`);
