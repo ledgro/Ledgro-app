@@ -735,20 +735,8 @@ export default function Products() {
                   <input
                     type="text" value={category} onChange={(e) => setCategory(e.target.value)} maxLength={99}
                     className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
-                    placeholder="Enter or select a category"
+                    placeholder="Optional, e.g. Men, Ladies, Kids"
                   />
-                  <div className="flex flex-wrap gap-2">
-                    {['Provisions', 'Snacks', 'Toiletries', 'Beverages', 'Stationery', 'Other'].map(cat => (
-                      <button
-                        type="button"
-                        key={cat}
-                        onClick={() => setCategory(cat)}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${category === cat ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-600'}`}
-                      >
-                        {cat}
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
                 <hr className="border-slate-100" />

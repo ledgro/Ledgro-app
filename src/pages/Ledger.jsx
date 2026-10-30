@@ -13,7 +13,7 @@ import { formatCurrency, cn, hapticVibrate } from '../lib/utils';
 import { useBodyLock } from '../hooks/useBodyLock';
 import { fetchAllPaged } from '../lib/firestoreUtils';
 import { writeStats, voidEntries } from '../lib/dayStats';
-import { billDelta, bizDayKey, bizDayStart, bizDate, dayKey, negate, toDate } from '../lib/statsMath';
+import { bizDateFromKey, billDelta, bizDayKey, bizDayStart, bizDate, dayKey, negate, toDate } from '../lib/statsMath';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
 import { buildReport, rs } from '../lib/reportExport';
 import { saveFile } from '../lib/shareFile';
@@ -459,6 +459,27 @@ export default function Ledger() {
     });
   }, [bills, deferredQuery, activeFilter, showVoided]);
 
+  // One block per business day, with that day's count and net total.
+  const sections = useMemo(() => {
+    const today = bizDayKey();
+    const yd = bizDateFromKey(today); yd.setDate(yd.getDate() - 1);
+    const yest = dayKey(yd);
+    const map = new Map();
+    processedBills.forEach((b) => {
+      const when = b.createdAt?.toDate ? b.createdAt.toDate() : new Date();
+      const key = bizDayKey(when);
+      if (!map.has(key)) map.set(key, { key, bills: [], total: 0, count: 0 });
+      const sec = map.get(key);
+      sec.bills.push(b);
+      if (!b.isVoided && (b.type === 'sale' || b.type === 'return' || !b.type)) { sec.total += Number(b.grandTotal) || 0; sec.count += 1; }
+    });
+    return [...map.values()].map((sec) => {
+      const d = bizDateFromKey(sec.key);
+      const label = sec.key === today ? 'Today' : sec.key === yest ? 'Yesterday' : d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+      return { ...sec, label };
+    });
+  }, [processedBills]);
+
   // Exports the WHOLE ledger (paged) as PDF, not just what is scrolled in.
   const handleExportLedger = async (format) => {
     if (!shopId) return;
@@ -568,9 +589,15 @@ export default function Ledger() {
         {processedBills.length === 0 && !loading ? (
           <div className="text-center text-slate-500 mt-20 font-medium">No results found.</div>
         ) : (
-          <div className="space-y-4" ref={ledgerListRef}>
-            {processedBills.map(bill => {
-              const date = bill.createdAt?.toDate ? bill.createdAt.toDate().toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Pending sync...';
+          <div className="space-y-6" ref={ledgerListRef}>
+            {sections.map((sec) => (
+              <section key={sec.key} className="space-y-3">
+                <div className="flex items-baseline justify-between border-b border-slate-200 pb-1.5">
+                  <h2 className="text-sm font-black text-slate-800">{sec.label}</h2>
+                  <span className="text-xs font-semibold text-slate-500">{sec.count} {sec.count === 1 ? 'bill' : 'bills'} · {formatCurrency(sec.total)}</span>
+                </div>
+            {sec.bills.map(bill => {
+              const date = bill.createdAt?.toDate ? bill.createdAt.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : 'Pending sync...';
               const isReturn = bill.type === 'return';
 
               return (
@@ -610,6 +637,8 @@ export default function Ledger() {
                 </button>
               );
             })}
+              </section>
+            ))}
           </div>
         )}
 

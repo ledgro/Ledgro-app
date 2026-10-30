@@ -1,6 +1,6 @@
 import { sheetStyle } from '../hooks/useKeyboardInset';
 import { toast } from 'sonner';
-import { useState, useEffect, useRef, useCallback, useDeferredValue } from 'react';
+import { useState, useEffect, useCallback, useDeferredValue } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { checkStorageHealth } from '../lib/storageHealth';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
@@ -13,12 +13,9 @@ import { Cloud, CloudOff, RefreshCcw, Eye, EyeOff } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { Skeleton } from '../components/Skeleton';
 import { Drawer } from 'vaul';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip } from 'chart.js';
-import { Bar } from 'react-chartjs-2';
 import { computeDailyAggregations } from '../lib/aggregations';
 import { QuickActions, LowStock, RecentBills } from '../components/DashboardExtras';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
 export default function Dashboard() {
   const { user, shopId } = useAuth();
@@ -46,7 +43,6 @@ export default function Dashboard() {
   const show = (node) => node;
   const [countByNotes, setCountByNotes] = useState(false);
 
-  const chartRef = useRef(null);
 
   const [rawStats, setStats] = useState({
     expectedCash: 0,
@@ -227,29 +223,6 @@ export default function Dashboard() {
                      </span>
                    )}
                  </div>
-               </div>
-
-               <div className={cn("h-16 w-full transition-[filter]", hidden && "blur-sm")}>
-                 <Bar
-                   ref={chartRef}
-                   data={{
-                     labels: ['1','2','3','4','5','6','7'],
-                     datasets: [{
-                       data: stats.weekData,
-                       backgroundColor: (ctx) => ctx.dataIndex === 6 ? '#2563EB' : '#CBD5E1',
-                       borderRadius: 4
-                     }]
-                   }}
-                   options={{
-                     responsive: true,
-                     maintainAspectRatio: false,
-                     plugins: { legend: { display: false }, tooltip: { enabled: false } },
-                     scales: {
-                       x: { display: false },
-                       y: { display: false }
-                     }
-                   }}
-                 />
                </div>
             </div>
 
