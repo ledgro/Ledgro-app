@@ -6,6 +6,7 @@ import { useBodyLock } from '../hooks/useBodyLock';
 import { formatCurrency } from '../lib/utils';
 import { variantLabel } from '../lib/variants';
 import CategoryChips from './CategoryChips';
+import { SEARCH_EVENT } from './QuickPicks';
 
 const ALL = '__all__';
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -13,6 +14,7 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigat
 /** Search bar on the bill screen. Opens a full-screen sheet (also with Cmd/Ctrl+K). */
 export default function SearchSheet({ onAddItem, onRemoveOne, cartQty, itemCount }) {
   const [open, setOpen] = useState(false);
+  const [seed, setSeed] = useState('');
 
   useEffect(() => {
     const onKey = (e) => {
@@ -21,15 +23,17 @@ export default function SearchSheet({ onAddItem, onRemoveOne, cartQty, itemCount
         setOpen((o) => !o);
       }
     };
+    const onSeed = (e) => { setSeed(e.detail?.q || ''); setOpen(true); };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener(SEARCH_EVENT, onSeed);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener(SEARCH_EVENT, onSeed); };
   }, []);
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => { setSeed(''); setOpen(true); }}
         className="flex h-12 w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 text-left text-slate-500 active:bg-slate-50"
         aria-haspopup="dialog"
       >
@@ -37,14 +41,14 @@ export default function SearchSheet({ onAddItem, onRemoveOne, cartQty, itemCount
         <span className="flex-1">Search items</span>
         <kbd className="hidden rounded border border-slate-200 px-1.5 py-0.5 text-xs font-medium text-slate-500 md:inline">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
       </button>
-      {open && <Sheet onClose={() => setOpen(false)} onAddItem={onAddItem} onRemoveOne={onRemoveOne} cartQty={cartQty} itemCount={itemCount} />}
+      {open && <Sheet seed={seed} onClose={() => { setOpen(false); setSeed(''); }} onAddItem={onAddItem} onRemoveOne={onRemoveOne} cartQty={cartQty} itemCount={itemCount} />}
     </>
   );
 }
 
-function Sheet({ onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
+function Sheet({ seed, onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
   useBodyLock(true);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(seed || '');
   const [category, setCategory] = useState(ALL);
   const [customPrice, setCustomPrice] = useState('');
   const [toggled, setToggled] = useState(() => new Set());

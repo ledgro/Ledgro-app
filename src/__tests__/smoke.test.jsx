@@ -95,7 +95,7 @@ describe('POS checkout', () => {
     render(<MemoryRouter><POS /></MemoryRouter>);
 
     fireEvent.click(await screen.findByRole('button', { name: /search items/i }));
-    fireEvent.click(await screen.findByText('Rice'));
+    fireEvent.click((await screen.findAllByText('Rice')).pop());
     fireEvent.click(await screen.findByRole('button', { name: /^done/i }));
     fireEvent.click(await screen.findByText(/^Checkout/i));
     fireEvent.click(await screen.findByText(/^Confirm CASH/i));
