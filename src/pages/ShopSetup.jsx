@@ -4,6 +4,7 @@ import { collection, addDoc, doc, runTransaction, serverTimestamp } from 'fireba
 import { db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 import { isStaffEmail } from '../lib/staffLogin';
+import { syncMyProfile } from '../lib/memberNames';
 
 const ShopSetup = () => {
   const { user, setHasShop, setShopId, resendVerification, checkVerified } = useAuth();
@@ -66,6 +67,7 @@ const ShopSetup = () => {
 
       setShopId(docRef.id);
       localStorage.setItem('ledgro_offline_shopId', docRef.id);
+      syncMyProfile(docRef.id, user); // so others see this name right away, not only after the next sign-in
       setHasShop(true);
       navigate('/dashboard');
     } catch (err) {
@@ -130,6 +132,7 @@ const ShopSetup = () => {
 
       setShopId(shopIdToJoin);
       localStorage.setItem('ledgro_offline_shopId', shopIdToJoin);
+      syncMyProfile(shopIdToJoin, user); // a new member's name was only saved at the next sign-in, so others saw "Former member"
       setHasShop(true);
       navigate('/dashboard');
 

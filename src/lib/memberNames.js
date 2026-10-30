@@ -2,39 +2,46 @@ import { useEffect } from 'react';
 import { create } from 'zustand';
 import { collection, doc, getDocs, limit, query, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { memberLabel } from './memberLabel';
 
-export const FORMER_MEMBER = 'Former member';
+export { FORMER_MEMBER, NEW_MEMBER } from './memberLabel';
+
+// Names are read again when a screen opens and they are older than this, so a person who joined
+// after the app started gets a name without restarting the app.
+const NAMES_TTL_MS = 60 * 1000;
 
 export const useMemberNames = create((set, get) => ({
   names: {},
+  current: null, // Set of uids that are members of the shop right now (from the live shop listener)
   loadedFor: null,
+  loadedAt: 0,
   loading: false,
-  load: async (shopId) => {
-    const { loadedFor, loading } = get();
-    if (!shopId || loading || loadedFor === shopId) return;
+  load: async (shopId, { force = false } = {}) => {
+    const { loadedFor, loadedAt, loading } = get();
+    if (!shopId || loading) return;
+    if (!force && loadedFor === shopId && Date.now() - loadedAt < NAMES_TTL_MS) return;
     set({ loading: true });
     try {
       const snap = await getDocs(query(collection(db, `shops/${shopId}/memberProfiles`), limit(100)));
       const names = {};
       snap.forEach((d) => { names[d.id] = d.data().name; });
-      set({ names, loadedFor: shopId, loading: false });
+      set({ names, loadedFor: shopId, loadedAt: Date.now(), loading: false });
     } catch (err) {
       console.error('Failed to load member names', err);
       set({ loading: false });
     }
   },
+  setAll: (shopId, names) => set({ names, loadedFor: shopId, loadedAt: Date.now() }),
+  setCurrent: (uids) => set({ current: new Set(uids) }),
   remember: (uid, name) => set((s) => ({ names: { ...s.names, [uid]: name } })),
 }));
 
 export function useNameOf(shopId, selfUid) {
   const names = useMemberNames((s) => s.names);
+  const current = useMemberNames((s) => s.current);
   const load = useMemberNames((s) => s.load);
   useEffect(() => { load(shopId); }, [load, shopId]);
-  return (uid) => {
-    if (!uid) return '';
-    if (uid === selfUid) return 'You';
-    return names[uid] || FORMER_MEMBER;
-  };
+  return (uid) => memberLabel(uid, { selfUid, names, current });
 }
 
 export async function syncMyProfile(shopId, user) {

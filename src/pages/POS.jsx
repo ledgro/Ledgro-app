@@ -222,6 +222,7 @@ export default function POS() {
           rawTotal: i.rawTotal,
           lineDiscount: i.lineDiscount,
           finalLineTotal: i.finalLineTotal,
+          ...(i.listPrice != null && i.listPrice !== i.unitPriceAtSale ? { listPrice: i.listPrice } : {}),
         })),
         subtotal,
         globalDiscount: billState.globalDiscount,

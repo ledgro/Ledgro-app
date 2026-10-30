@@ -45,6 +45,8 @@ export function billReducer(state = initialBillState, action) {
             unit: action.payload.unit || 'unit',
             lineDiscount: { type: 'flat', value: 0 },
             catalogId: action.payload.catalogId || null,
+            // the catalog price this line started at, kept when the cashier changes the price on the bill
+            ...(action.payload.listPrice != null ? { listPrice: action.payload.listPrice } : {}),
           },
         ],
       };
@@ -66,7 +68,9 @@ export function billReducer(state = initialBillState, action) {
       if (!Number.isFinite(price) || price < 0) return state;
       return {
         ...state,
-        items: state.items.map((item) => (item.id === action.payload.id ? { ...item, unitPriceAtSale: price } : item)),
+        items: state.items.map((item) => (item.id === action.payload.id
+          ? { ...item, listPrice: item.listPrice ?? (item.unitPriceAtSale ?? item.unitPrice), unitPriceAtSale: price }
+          : item)),
       };
     }
 
