@@ -14,6 +14,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useSpring, animated } from '@react-spring/web';
 
 import SearchSheet from '../components/SearchSheet';
+import QuickPicks from '../components/QuickPicks';
 import CartItem from '../components/CartItem';
 import DiscountDrawer from '../components/DiscountDrawer';
 import Receipt, { RECEIPT_PX } from '../components/Receipt';
@@ -490,9 +491,12 @@ export default function POS() {
       <main className={`flex-1 flex flex-col ${items.length > 0 ? (paymentMethod === 'split' ? 'pb-96' : 'pb-80') : 'pb-24'}`}>
         <div className="px-4 flex-1 mt-2">
           {items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center text-slate-500 mt-24 text-center">
-              <p className="font-medium">No items yet</p>
-              <p className="text-sm mt-1">Tap search to add items</p>
+            <div>
+              <div className="flex flex-col items-center justify-center text-slate-500 mt-10 text-center">
+                <p className="font-medium">No items yet</p>
+                <p className="text-sm mt-1">Tap search or pick a best seller</p>
+              </div>
+              <QuickPicks onAddItem={handleAddItem} />
             </div>
           ) : (
             <div className="flex flex-col">
