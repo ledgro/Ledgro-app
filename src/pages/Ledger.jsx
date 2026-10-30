@@ -7,7 +7,7 @@ import { db } from '../firebase';
 import { useInView } from 'react-intersection-observer';
 import BottomNav from '../components/BottomNav';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, XCircle, RefreshCcw, Search, ArrowLeftRight, Pencil } from 'lucide-react';
+import { CheckCircle2, XCircle, RefreshCcw, Search, ArrowLeftRight, Pencil, X } from 'lucide-react';
 import { Drawer } from 'vaul';
 import { formatCurrency, cn, hapticVibrate } from '../lib/utils';
 import { useBodyLock } from '../hooks/useBodyLock';
@@ -534,8 +534,11 @@ export default function Ledger() {
              onChange={e => setSearchQuery(e.target.value)}
              onBlur={() => saveRecentSearch(searchQuery)}
              placeholder="Search bills, items, amounts..."
-             className="w-full bg-slate-100 border border-slate-200 text-slate-900 text-sm rounded-xl pl-10 pr-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+             className="w-full bg-slate-100 border border-slate-200 text-slate-900 text-sm rounded-xl pl-10 pr-10 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 font-medium"
            />
+           {searchQuery && (
+             <button type="button" aria-label="Clear search" onClick={() => setSearchQuery('')} className="absolute right-1 top-1/2 -translate-y-1/2 p-2 text-slate-500"><X size={16} /></button>
+           )}
         </div>
 
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">

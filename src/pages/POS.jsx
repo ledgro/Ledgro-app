@@ -470,6 +470,26 @@ export default function POS() {
     );
   }
 
+  // Under-payment helper shared by cash, UPI and split: shows the gap and offers to take what was paid as full payment (the rest becomes a discount).
+  const shortUi = (paid, giveBack) => {
+    const diff = paid - grandTotal;
+    if (diff >= 0) {
+      return giveBack ? <p className="rounded-xl bg-green-50 px-4 py-3 text-center text-lg font-black text-green-700 tabular-nums">Give back {formatCurrency(diff)}</p> : null;
+    }
+    return (
+      <div className="space-y-2">
+        <p className="rounded-xl bg-red-50 px-4 py-3 text-center text-sm font-bold text-red-600 tabular-nums">Short by {formatCurrency(-diff)}</p>
+        {paid > 0 && (
+          <button type="button"
+            onClick={() => dispatch({ type: 'SET_GLOBAL_DISCOUNT', payload: { type: 'flat', value: globalDiscountAmt - diff } })}
+            className="h-12 w-full rounded-xl bg-amber-100 text-sm font-bold text-amber-800 active:scale-95 transition-transform">
+            Take {formatCurrency(paid)} as full payment (discount {formatCurrency(-diff)})
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="h-[100dvh] overflow-y-auto bg-white flex flex-col">
       <header className="sticky top-0 z-30 border-b border-gray-100 bg-white px-4 pb-3 pt-3">
@@ -599,26 +619,25 @@ export default function POS() {
                       </button>
                     ))}
                   </div>
-                  {tendered !== '' && (() => {
-                    const change = Math.round((parseFloat(tendered) || 0) * 100) - grandTotal;
-                    return change >= 0
-                      ? <p className="rounded-xl bg-green-50 px-4 py-3 text-center text-lg font-black text-green-700 tabular-nums">Give back {formatCurrency(change)}</p>
-                      : (
-                        <div className="space-y-2">
-                          <p className="rounded-xl bg-red-50 px-4 py-3 text-center text-sm font-bold text-red-600 tabular-nums">Short by {formatCurrency(-change)}</p>
-                          {Math.round((parseFloat(tendered) || 0) * 100) > 0 && (
-                            <button type="button"
-                              onClick={() => dispatch({ type: 'SET_GLOBAL_DISCOUNT', payload: { type: 'flat', value: globalDiscountAmt - change } })}
-                              className="h-12 w-full rounded-xl bg-amber-100 text-sm font-bold text-amber-800 active:scale-95 transition-transform">
-                              Take {formatCurrency(Math.round((parseFloat(tendered) || 0) * 100))} as full payment (discount {formatCurrency(-change)})
-                            </button>
-                          )}
-                        </div>
-                      );
-                  })()}
+                  {tendered !== '' && shortUi(Math.round((parseFloat(tendered) || 0) * 100), true)}
+                </div>
+              )}
+              {paymentMethod === 'upi' && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-500">UPI received (optional)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₹</span>
+                    <input type="number" inputMode="decimal" value={tendered} onChange={(e) => setTendered(e.target.value.slice(0, 9))}
+                      className="w-full pl-7 pr-3 h-12 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-900" />
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setTendered(String(grandTotal / 100))} className="shrink-0 rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 active:scale-95 transition-transform">Exact</button>
+                  </div>
+                  {tendered !== '' && shortUi(Math.round((parseFloat(tendered) || 0) * 100), false)}
                 </div>
               )}
               {paymentMethod === 'split' && (
+                <div className="space-y-2">
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <label className="block text-xs font-bold text-slate-500 mb-1">Cash received</label>
@@ -634,6 +653,18 @@ export default function POS() {
                       {formatCurrency(Math.max(0, grandTotal - Math.round((parseFloat(splitCash) || 0) * 100)))}
                     </div>
                   </div>
+                </div>
+                <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                  {[...new Set([...[100, 200, 500, 1000, 2000].map((n) => n * 100), Math.round(grandTotal / 2)])].filter((n) => n > 0 && n < grandTotal).sort((x, y) => x - y).slice(0, 4).map((n) => (
+                    <button key={n} type="button" onClick={() => setSplitCash(String(n / 100))} className="shrink-0 rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 active:scale-95 transition-transform">
+                      {n === Math.round(grandTotal / 2) ? `Half ₹${n / 100}` : `₹${n / 100}`}
+                    </button>
+                  ))}
+                </div>
+                <label className="block text-xs font-bold text-slate-500">UPI actually received (optional)</label>
+                <input type="number" inputMode="decimal" value={tendered} onChange={(e) => setTendered(e.target.value.slice(0, 9))}
+                  className="w-full px-3 h-12 border border-blue-200 bg-blue-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-700" />
+                {tendered !== '' && splitCash !== '' && shortUi(Math.round(((parseFloat(splitCash) || 0) + (parseFloat(tendered) || 0)) * 100), false)}
                 </div>
               )}
               <div className="flex gap-2">
