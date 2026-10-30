@@ -2,6 +2,7 @@ import { sheetStyle } from '../hooks/useKeyboardInset';
 import { toast } from 'sonner';
 import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useInView } from 'react-intersection-observer';
 import { useCatalogStore } from '../store/catalogStore';
 import { collection, addDoc, doc, updateDoc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -451,6 +452,13 @@ export default function Products() {
   const onOpen = useCallback((item) => openRef.current?.(item), []);
   const renderProductRow = (item) => <ProductRow key={item.id} item={item} onOpen={onOpen} />;
   const entries = useMemo(() => colourCards(activeProducts), [activeProducts]);
+  // Show 40 at a time and add more while scrolling, so a big catalog never draws everything at once.
+  const resetKey = `${filter}|${searchQuery}|${view}|${entries.length}`;
+  const [lim, setLim] = useState({ key: resetKey, n: 40 });
+  const limit = lim.key === resetKey ? lim.n : 40;
+  const { ref: moreRef, inView: moreInView } = useInView({ rootMargin: '400px' });
+  useEffect(() => { if (moreInView) setLim((l) => ({ key: resetKey, n: (l.key === resetKey ? l.n : 40) + 40 })); }, [moreInView, resetKey]);
+  const visible = entries.slice(0, limit);
   const renderEntry = (e) => (e.type === 'colour'
     ? <ProductColourCard key={e.key} entry={e} onOpen={onOpen} />
     : renderProductRow(e.item));
@@ -527,9 +535,10 @@ export default function Products() {
           </div>
         ) : (
           view === 'grid'
-            ? <div className="grid grid-cols-2 gap-4">{entries.map((e) => (e.type === 'colour' ? <div key={e.key} className="col-span-2">{renderEntry(e)}</div> : renderProductCard(e.item)))}</div>
-            : <div>{entries.map(renderEntry)}</div>
+            ? <div className="grid grid-cols-2 gap-4">{visible.map((e) => (e.type === 'colour' ? <div key={e.key} className="col-span-2">{renderEntry(e)}</div> : renderProductCard(e.item)))}</div>
+            : <div>{visible.map(renderEntry)}</div>
         )}
+        {entries.length > limit && <div ref={moreRef} className="py-6 text-center text-sm font-semibold text-slate-400">Loading more...</div>}
 
         {inactiveProducts.length > 0 && (
           <div className="mt-8">

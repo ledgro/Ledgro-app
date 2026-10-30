@@ -2,6 +2,7 @@ import { Minus, Plus, Tag, Trash2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { formatCurrency } from '../lib/utils';
 import { toast } from 'sonner';
+import CatalogThumb from './CatalogThumb';
 
 export default function CartItem({ item, dispatch, onOpenDiscount }) {
   const [localQty, setLocalQty] = useState(item.qty.toString());
@@ -76,7 +77,8 @@ export default function CartItem({ item, dispatch, onOpenDiscount }) {
 
   return (
     <div className="py-4 border-b border-slate-100 flex flex-col gap-3">
-      <div className="flex justify-between items-start">
+      <div className="flex justify-between items-start gap-3">
+        <CatalogThumb catalogId={item.catalogId} className="h-12 w-12" />
         <div className="flex-1 pr-4">
           <h3 className="font-semibold text-slate-900 leading-tight">{item.name}</h3>
           <p className="text-sm text-slate-500 mt-1">{formatCurrency(priceToFormat)} per {item.unit || 'unit'}</p>

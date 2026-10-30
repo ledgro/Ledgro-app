@@ -13,6 +13,7 @@ import { formatCurrency, cn, hapticVibrate } from '../lib/utils';
 import { useBodyLock } from '../hooks/useBodyLock';
 import { fetchAllPaged } from '../lib/firestoreUtils';
 import { writeStats, voidEntries } from '../lib/dayStats';
+import CatalogThumb from '../components/CatalogThumb';
 import { bizDateFromKey, billDelta, bizDayKey, bizDayStart, bizDate, dayKey, negate, toDate } from '../lib/statsMath';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
 import { buildReport, rs } from '../lib/reportExport';
@@ -670,8 +671,9 @@ export default function Ledger() {
                   <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 divide-y divide-slate-50">
                     <h3 className="font-bold text-slate-500 uppercase tracking-wider text-xs mb-3 pb-2">Itemized List</h3>
                     {selectedBill.items?.map((item, idx) => (
-                      <div key={idx} className="py-2.5 flex justify-between items-start">
-                        <div>
+                      <div key={idx} className="py-2.5 flex justify-between items-start gap-3">
+                        <CatalogThumb catalogId={item.catalogId} className="h-12 w-12" />
+                        <div className="flex-1 min-w-0">
                           <p className="font-semibold text-slate-900">{item.name}</p>
                           <p className="text-xs font-medium text-slate-500">{item.qty} x {formatCurrency(item.unitPriceAtSale || item.unitPrice)}</p>
                         </div>

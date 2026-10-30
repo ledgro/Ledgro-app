@@ -28,7 +28,8 @@ function clearLocalSession() {
 
 // Full restart onto the sign-in page. The app uses hash routes, so a plain replace('/') can end up as an
 // in-page hash change with the terminated Firestore client still alive; the timer forces a real reload then.
-function hardRestart() {
+function hardRestart(notice) {
+  try { if (notice) localStorage.setItem('ledgro_notice', notice); } catch { /* storage blocked */ }
   window.location.replace('/');
   setTimeout(() => window.location.reload(), 200);
 }
@@ -294,7 +295,7 @@ export const AuthProvider = ({ children }) => {
       throw e;
     }
     // Firestore was terminated above; a clean reload is the only safe way to
-    hardRestart();
+    hardRestart('You have been signed out.');
   }, []);
 
   const beginVoluntaryExit = useCallback(() => {
@@ -377,7 +378,7 @@ export const AuthProvider = ({ children }) => {
 
     clearLocalSession();
     await wipeOfflineData();
-    hardRestart();
+    hardRestart('Your account and shop data were deleted.');
   }, [shopId]);
 
   const value = useMemo(() => ({
