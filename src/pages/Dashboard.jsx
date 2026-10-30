@@ -46,6 +46,7 @@ export default function Dashboard() {
 
   const [rawStats, setStats] = useState({
     expectedCash: 0,
+    staffCashNet: 0,
     upiInBank: 0,
     netEarnings: 0,
     vsYesterday: 0,
@@ -277,7 +278,8 @@ export default function Dashboard() {
                  <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm font-mono text-sm">
                    <p className="font-bold font-sans text-slate-900 mb-3 border-b pb-2">Expected Cash in Drawer:</p>
                    <div className="flex justify-between text-slate-600 mb-1"><span>Cash Sales:</span><span>{show(formatCurrency(stats.cashSplit))}</span></div>
-                   <div className="flex justify-between text-slate-600 mb-1"><span>- Cash Expenses:</span><span>{show(formatCurrency(stats.cashSplit - stats.expectedCash))}</span></div>
+                   <div className="flex justify-between text-slate-600 mb-1"><span>- Cash Expenses:</span><span>{show(formatCurrency(stats.cashSplit - stats.expectedCash - (stats.staffCashNet || 0)))}</span></div>
+                   {!!stats.staffCashNet && <div className="flex justify-between text-slate-600 mb-1"><span>{stats.staffCashNet > 0 ? '- Staff cash taken:' : '+ Staff cash paid back:'}</span><span>{show(formatCurrency(Math.abs(stats.staffCashNet)))}</span></div>}
                    <div className="flex justify-between font-bold text-slate-900 border-t pt-2 mt-2"><span>Expected Total:</span><span>{show(formatCurrency(stats.expectedCash))}</span></div>
                  </div>
 

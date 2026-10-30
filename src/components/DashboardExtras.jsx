@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
-import { FilePlus2, Receipt, PackagePlus, AlertCircle, ChevronRight } from 'lucide-react';
+import { FilePlus2, Receipt, PackagePlus, AlertCircle, ChevronRight, Wallet } from 'lucide-react';
 import { db } from '../firebase';
 import { useCatalogStore } from '../store/catalogStore';
 import { useCatalogLoader } from '../hooks/useCatalogLoader';
@@ -24,6 +24,9 @@ export function QuickActions() {
           {label}
         </Link>
       ))}
+      <Link to="/staff-cash" className="col-span-3 flex h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white text-sm font-bold text-slate-700 shadow-sm active:scale-95 transition-transform">
+        <Wallet size={18} aria-hidden="true" /> Staff cash: advances and debts
+      </Link>
     </div>
   );
 }

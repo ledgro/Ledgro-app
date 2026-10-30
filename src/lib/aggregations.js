@@ -1,6 +1,9 @@
 import { subDays } from 'date-fns';
+import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
+import { db } from '../firebase';
 import { readStatsRange } from './dayStats';
-import { dayKey, bizDate, emptyStats } from './statsMath';
+import { dayKey, bizDate, bizDayStart, emptyStats } from './statsMath';
+import { staffCashNet } from './staffCash';
 
 export { isCashAdjustment, signedBillTotal } from './statsMath';
 
@@ -23,11 +26,21 @@ export async function computeDailyAggregations(shopId) {
   if (yestNet !== 0) percentDiff = ((todayNet - yestNet) / Math.abs(yestNet)) * 100;
   else if (todayNet > 0) percentDiff = 100;
 
+  // Cash staff took from (or paid back into) the drawer today.
+  let staffNet = 0;
+  try {
+    const start = bizDayStart(today);
+    const end = new Date(start.getTime()); end.setDate(end.getDate() + 1);
+    const snap = await getDocs(query(collection(db, `shops/${shopId}/staffCash`), where('createdAt', '>=', start), where('createdAt', '<', end), orderBy('createdAt'), limit(100)));
+    staffNet = staffCashNet(snap.docs.map((d) => d.data()));
+  } catch (err) { console.warn('Staff cash not loaded', err); }
+
   const todayCash = t.cash + t.splitCash;
   const todayUpi = t.upi + t.splitUpi;
 
   return {
-    expectedCash: todayCash - t.expCash,
+    expectedCash: todayCash - t.expCash - staffNet,
+    staffCashNet: staffNet,
     upiInBank: todayUpi,
     netEarnings: todayNet,
     vsYesterday: percentDiff,
