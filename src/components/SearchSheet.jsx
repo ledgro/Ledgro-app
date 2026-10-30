@@ -4,7 +4,7 @@ import { ChevronDown, Minus, Plus, Search, X } from 'lucide-react';
 import { useCatalogStore } from '../store/catalogStore';
 import { useBodyLock } from '../hooks/useBodyLock';
 import { formatCurrency } from '../lib/utils';
-import { variantLabel } from '../lib/variants';
+import { variantLabel, colourOf, colourKey, colourLabel, sizeLabelOf } from '../lib/variants';
 import CategoryChips from './CategoryChips';
 import { SEARCH_EVENT } from './QuickPicks';
 
@@ -81,14 +81,19 @@ function Sheet({ seed, onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
     const groups = new Map();
     results.forEach((p) => {
       if (!p.groupId) { out.push({ type: 'item', item: p }); return; }
-      let g = groups.get(p.groupId);
+      // one row per product and colour; the sizes of that colour sit inside it
+      const key = `${p.groupId}~${colourKey(p)}`;
+      let g = groups.get(key);
       if (!g) {
-        g = { type: 'group', groupId: p.groupId, baseName: p.baseName || p.name, category: p.category, items: [] };
-        groups.set(p.groupId, g);
+        const base = p.baseName || p.name;
+        const colour = colourOf(p);
+        g = { type: 'group', groupId: key, baseName: colour ? `${base} - ${colourLabel(colour)}` : base, category: p.category, items: [] };
+        groups.set(key, g);
         out.push(g);
       }
       g.items.push(p);
     });
+    out.forEach((g) => { if (g.type === 'group') g.items.sort((a, b) => String(sizeLabelOf(a)).localeCompare(String(sizeLabelOf(b)), undefined, { numeric: true })); });
     return out;
   }, [results]);
 
@@ -269,7 +274,7 @@ function VariantGroup({ row, expanded, onToggle, cartQty, onAdd, onRemoveOne, hi
           <span className="block truncate text-base font-semibold text-slate-900">{row.baseName}</span>
           <span className="flex gap-2 text-xs text-slate-500">
             {row.category && <span className="truncate">{row.category}</span>}
-            <span>{row.items.length} {row.items.length === 1 ? 'option' : 'options'}</span>
+            <span>{row.items.length} {row.items.length === 1 ? 'size' : 'sizes'}</span>
           </span>
         </span>
         {inCartTotal > 0 && <span className="mr-3 rounded-full bg-slate-900 px-2 py-0.5 text-xs font-bold text-white">{inCartTotal}</span>}
@@ -290,7 +295,7 @@ function VariantGroup({ row, expanded, onToggle, cartQty, onAdd, onRemoveOne, hi
                   aria-label={`Add ${p.name}`}
                   className={`flex h-16 w-full flex-col items-center justify-center rounded-xl border px-1 text-center active:scale-95 transition-transform ${n > 0 ? 'border-slate-900 bg-slate-900 text-white' : out ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-slate-200 bg-white text-slate-900'}`}
                 >
-                  <span className="max-w-full truncate text-base font-bold">{variantLabel(p.options) || p.name}</span>
+                  <span className="max-w-full truncate text-base font-bold">{sizeLabelOf(p) || variantLabel(p.options) || p.name}</span>
                   <span className={`text-xs ${n > 0 ? 'text-slate-300' : out ? 'text-red-500' : 'text-slate-500'}`}>
                     {out ? 'Out' : stock !== null ? `${stock} left` : ''}{!samePrice ? `${stock !== null || out ? ' · ' : ''}${formatCurrency(p.lastUsedPrice)}` : ''}
                   </span>
