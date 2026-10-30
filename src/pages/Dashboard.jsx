@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { checkStorageHealth } from '../lib/storageHealth';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
 import { bizDayKey } from '../lib/statsMath';
-import { serverTimestamp, doc, setDoc } from 'firebase/firestore';
+import { serverTimestamp, doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import CashNotes from '../components/CashNotes';
@@ -63,6 +63,14 @@ export default function Dashboard() {
   });
   const [isCloseDrawerOpen, setIsCloseDrawerOpen] = useState(false);
   const [isClosingRecord, setIsClosingRecord] = useState(false);
+  const [savedCount, setSavedCount] = useState(null); // today's saved cash count, shown so a save is never in doubt
+
+  useEffect(() => {
+    if (!isCloseDrawerOpen || !shopId) return undefined;
+    let live = true;
+    getDoc(doc(db, `shops/${shopId}/dailyClosures`, bizDayKey())).then((snap) => { if (live) setSavedCount(snap.exists() ? snap.data() : null); }).catch(() => {});
+    return () => { live = false; };
+  }, [isCloseDrawerOpen, shopId]);
 
   // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
@@ -158,12 +166,14 @@ export default function Dashboard() {
       const closureRef = doc(db, `shops/${shopId}/dailyClosures`, closureDocId);
       await setDoc(closureRef, closureData);
 
-      toast.success("Cash count saved!");
+      setSavedCount({ ...closureData, createdAt: null });
+      toast.success(`Cash count saved: ${formatCurrency(closureData.actualCash)}`);
       setIsCloseDrawerOpen(false);
       setActualCashCounted('');
       fetchDashboardData();
     } catch (err) {
-      toast.error(err?.message === 'CLOCK' ? CLOCK_MSG : "Could not save the cash count. Please try again.");
+      console.error('Cash count save failed', err);
+      toast.error(err?.message === 'CLOCK' ? CLOCK_MSG : `Could not save the cash count (${err?.code || 'error'}). Please try again.`);
     } finally {
       setIsClosingRecord(false);
     }
@@ -298,6 +308,12 @@ export default function Dashboard() {
                        className="w-full px-4 h-12 border border-slate-200 rounded-xl font-bold text-slate-600 bg-slate-50 opacity-70 outline-none"
                      />
                    </div>
+
+                   {savedCount && (
+                     <p className="rounded-xl bg-green-50 px-4 py-3 text-sm font-bold text-green-700">
+                       Saved today: counted {formatCurrency(savedCount.actualCash)}{savedCount.difference ? ` (${savedCount.difference < 0 ? 'short' : 'over'} ${formatCurrency(Math.abs(savedCount.difference))})` : ' (balanced)'}. Saving again replaces it.
+                     </p>
+                   )}
 
                    <div>
                      <button type="button" onClick={() => setCountByNotes((v) => !v)} className="mb-3 text-sm font-bold text-blue-600">
