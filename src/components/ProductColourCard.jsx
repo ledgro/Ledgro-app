@@ -19,7 +19,7 @@ const tone = (it) => {
 };
 
 /** One product in one colour: its own photo (change it here, other colours are untouched) and its sizes. */
-function ProductColourCard({ entry, onOpen }) {
+function ProductColourCard({ entry, onEdit }) {
   const { shopId, user } = useAuth();
   const addItem = useCatalogStore((s) => s.addItem);
   const [busy, setBusy] = useState(false);
@@ -83,6 +83,7 @@ function ProductColourCard({ entry, onOpen }) {
           <input ref={input} type="file" accept="image/*" className="sr-only" onChange={onPick} />
         </div>
         <div className="min-w-0 flex-1">
+          <button type="button" onClick={() => onEdit(entry)} className="block w-full text-left">
           <h3 className="truncate text-base font-bold text-slate-900">{name}</h3>
           {colour && (
             <p className="mt-0.5 flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -91,12 +92,13 @@ function ProductColourCard({ entry, onOpen }) {
           )}
           <p className="mt-1 text-sm font-extrabold text-blue-600">{min === max ? formatCurrency(min) : `${formatCurrency(min)} - ${formatCurrency(max)}`}</p>
           <p className="text-xs text-slate-500">{items.length} size{items.length === 1 ? '' : 's'}{tracked.length ? ` · ${total} in stock` : ''}</p>
+          </button>
           {hasPhoto && <button type="button" onClick={onRemove} disabled={busy} className="mt-1 text-xs font-bold text-red-600">Remove photo</button>}
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2.5">
         {items.map((it) => (
-          <button key={it.id} type="button" onClick={() => onOpen(it)}
+          <button key={it.id} type="button" onClick={() => onEdit(entry)}
             className={cn('min-w-[3.5rem] rounded-xl border border-slate-200 px-3 py-2 text-center active:scale-95 transition-transform', it.stockCount != null && it.stockCount <= 0 && 'opacity-50')}>
             <span className={cn('block text-sm font-bold text-slate-900', it.stockCount != null && it.stockCount <= 0 && 'line-through')}>{sizeLabelOf(it)}</span>
             <span className={cn('mt-0.5 block text-[0.7rem] font-semibold', tone(it))}>{it.stockCount == null ? '-' : it.stockCount <= 0 ? 'Out' : it.stockCount}</span>

@@ -21,6 +21,7 @@ import CatalogExportSheet from '../components/CatalogExportSheet';
 import CatalogTransferSheet from '../components/CatalogTransferSheet';
 import { confirm } from '../lib/confirm';
 import ProductThumb from '../components/ProductThumb';
+import ColourEditSheet from '../components/ColourEditSheet';
 import { compressImage, loadItemImage, saveImage, removeImage, imageKey } from '../lib/productImage';
 import { buildCatalogPdf } from '../lib/catalogPdf';
 import { saveFile } from '../lib/shareFile';
@@ -115,6 +116,7 @@ export default function Products() {
   const [transferOpen, setTransferOpen] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
+  const [colourEditKey, setColourEditKey] = useState(null);
   const savingRef = useRef(false);
   useEffect(() => { if (!submitting) savingRef.current = false; }, [submitting]);
 
@@ -463,6 +465,8 @@ export default function Products() {
   const onOpen = useCallback((item) => openRef.current?.(item), []);
   const renderProductRow = (item) => <ProductRow key={item.id} item={item} onOpen={onOpen} />;
   const entries = useMemo(() => colourCards(activeProducts), [activeProducts]);
+  const setColourEdit = useCallback((e) => setColourEditKey(e.key), []);
+  const colourEdit = colourEditKey ? entries.find((e) => e.key === colourEditKey) : null;
   // Show 40 at a time and add more while scrolling, so a big catalog never draws everything at once.
   const resetKey = `${filter}|${searchQuery}|${view}|${entries.length}`;
   const [lim, setLim] = useState({ key: resetKey, n: 40 });
@@ -471,7 +475,7 @@ export default function Products() {
   useEffect(() => { if (moreInView) setLim((l) => ({ key: resetKey, n: (l.key === resetKey ? l.n : 40) + 40 })); }, [moreInView, resetKey]);
   const visible = entries.slice(0, limit);
   const renderEntry = (e) => (e.type === 'colour'
-    ? <ProductColourCard key={e.key} entry={e} onOpen={onOpen} />
+    ? <ProductColourCard key={e.key} entry={e} onEdit={setColourEdit} />
     : renderProductRow(e.item));
   const renderProductCard = (item) => <ProductCard key={item.id} item={item} onOpen={onOpen} />;
 
@@ -572,6 +576,16 @@ export default function Products() {
           </div>
         )}
       </main>
+
+      {colourEdit && (
+        <ColourEditSheet
+          key={colourEdit.key}
+          entry={colourEdit}
+          groupItems={catalogItems.filter((i) => i.groupId === colourEdit.groupId && !i.deleted)}
+          isAdmin={isAdmin}
+          onClose={() => setColourEditKey(null)}
+        />
+      )}
 
       <Drawer.Root handleOnly repositionInputs={false} open={isDrawerOpen} onOpenChange={(o) => (o ? setIsDrawerOpen(true) : requestClose())}>
         <Drawer.Portal>
