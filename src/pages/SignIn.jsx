@@ -33,6 +33,9 @@ const SignIn = () => {
     return { isIAB, targetBrowser };
   }, []);
 
+  const [notice] = useState(() => {
+    try { const n = localStorage.getItem('ledgro_notice'); if (n) localStorage.removeItem('ledgro_notice'); return n || ''; } catch { return ''; }
+  });
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -176,6 +179,7 @@ const SignIn = () => {
                 ? (lang === 'en' ? 'Link Copied!' : 'ലിങ്ക് പകർത്തി!')
                 : (lang === 'en' ? 'Copy Link' : 'ലിങ്ക് പകർത്തുക')}
             </button>
+            {notice && <p className="text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2 font-medium">{notice}</p>}
             {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
           </div>
         ) : (
