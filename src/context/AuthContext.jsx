@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { onAuthStateChanged, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, updatePassword, signOut as firebaseSignOut, setPersistence, indexedDBLocalPersistence, deleteUser, reauthenticateWithPopup } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, updatePassword, sendEmailVerification, signOut as firebaseSignOut, setPersistence, indexedDBLocalPersistence, deleteUser, reauthenticateWithPopup } from 'firebase/auth';
 import { listenForSessionEvents } from '../lib/sessionBroadcast';
 import { clearStore } from '../lib/idb';
 import { sessionGuard } from '../lib/SessionGuard';
@@ -280,7 +280,9 @@ export const AuthProvider = ({ children }) => {
         if (uErr) throw Object.assign(new Error(uErr), { userFacing: true });
         const pErr = passwordError(password);
         if (pErr) throw Object.assign(new Error(pErr), { userFacing: true });
-        await createUserWithEmailAndPassword(auth, email, password);
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        // a real email gets a verification link (staff usernames have no mailbox and join with an invite code instead)
+        if (isEmail(identifier)) { try { await sendEmailVerification(cred.user); } catch (err) { console.warn('Verification email not sent', err); } }
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
@@ -288,6 +290,18 @@ export const AuthProvider = ({ children }) => {
       if (error.userFacing) throw error;
       throw Object.assign(new Error(authMessage(error)), { userFacing: true });
     }
+  }, []);
+
+  // Verification email: resend, and re-check after the link was tapped (refreshes the sign-in token too, so shop rules see it).
+  const resendVerification = useCallback(async () => {
+    if (!auth.currentUser) return;
+    try { await sendEmailVerification(auth.currentUser); } catch (error) { throw Object.assign(new Error(authMessage(error)), { userFacing: true }); }
+  }, []);
+  const checkVerified = useCallback(async () => {
+    if (!auth.currentUser) return false;
+    await auth.currentUser.reload();
+    await auth.currentUser.getIdToken(true);
+    return auth.currentUser.emailVerified;
   }, []);
 
   // A signed-in password user changes their own password: the old one is asked again, as Firebase requires.
@@ -436,10 +450,12 @@ export const AuthProvider = ({ children }) => {
     signInWithGoogle,
     signInWithPassword,
     changePassword,
+    resendVerification,
+    checkVerified,
     signOut,
     beginVoluntaryExit,
     deleteAccount,
-  }), [user, hasShop, shopId, shopAdminId, shopName, shopProfile, loading, signInWithGoogle, signInWithPassword, changePassword, signOut, beginVoluntaryExit, deleteAccount]);
+  }), [user, hasShop, shopId, shopAdminId, shopName, shopProfile, loading, signInWithGoogle, signInWithPassword, changePassword, resendVerification, checkVerified, signOut, beginVoluntaryExit, deleteAccount]);
 
   if (loading) {
     return <AuthContext.Provider value={value}><SplashScreen /></AuthContext.Provider>;

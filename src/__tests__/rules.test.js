@@ -421,6 +421,15 @@ d('firestore.rules', () => {
     });
   });
 
+  describe('opening a shop needs a verified email', () => {
+    const open = (ctx) => setDoc(doc(ctx.firestore(), 'shops', 'newShop'), { name: 'New', ownerId: 'newOwner', members: { newOwner: 'admin' } });
+    it('refuses an unverified email and accepts a verified one', async () => {
+      await assertFails(open(env.authenticatedContext('newOwner', { email_verified: false })));
+      await assertFails(open(env.authenticatedContext('newOwner')));
+      await assertSucceeds(open(env.authenticatedContext('newOwner', { email_verified: true })));
+    });
+  });
+
   describe('shops', () => {
     it('outsider cannot read', async () => {
       await assertFails(getDoc(doc(as(OUTSIDER), 'shops', SHOP)));
