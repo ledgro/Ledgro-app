@@ -51,7 +51,9 @@ service cloud.firestore {
       allow read: if isAuthenticated() &&
         resource.data.members[request.auth.uid] != null;
 
+      // Only a verified email can open a shop (Google accounts always are), so throwaway sign-ups cannot create shops.
       allow create: if isAuthenticated() &&
+        request.auth.token.email_verified == true &&
         request.resource.data.keys().hasOnly(['name', 'ownerId', 'members']) &&
         request.resource.data.ownerId == request.auth.uid &&
         request.resource.data.members[request.auth.uid] == 'admin' &&
