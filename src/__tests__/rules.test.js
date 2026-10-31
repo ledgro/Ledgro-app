@@ -487,8 +487,10 @@ d('firestore.rules', () => {
       await assertSucceeds(deleteDoc(doc(as(ADMIN), 'shops', SHOP)));
     });
     it('create a shop as yourself only', async () => {
-      await assertSucceeds(setDoc(doc(as('newOwner'), 'shops', 's2'), { name: 'S2', ownerId: 'newOwner', members: { newOwner: 'admin' } }));
-      await assertFails(setDoc(doc(as('newOwner'), 'shops', 's3'), { name: 'S3', ownerId: 'someoneElse', members: { someoneElse: 'admin' } }));
+      // a verified email, so the only thing under test is who the owner is
+      const verified = env.authenticatedContext('newOwner', { email_verified: true }).firestore();
+      await assertSucceeds(setDoc(doc(verified, 'shops', 's2'), { name: 'S2', ownerId: 'newOwner', members: { newOwner: 'admin' } }));
+      await assertFails(setDoc(doc(verified, 'shops', 's3'), { name: 'S3', ownerId: 'someoneElse', members: { someoneElse: 'admin' } }));
     });
   });
 
