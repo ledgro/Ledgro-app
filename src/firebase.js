@@ -1,4 +1,5 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { getAuth, GoogleAuthProvider, setPersistence, indexedDBLocalPersistence } from 'firebase/auth';
 import {
   initializeFirestore,
@@ -20,6 +21,19 @@ const firebaseConfig = {
 };
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+// App Check: Firebase only answers requests that carry a token proven by reCAPTCHA Enterprise, so scripts that
+// call the database directly are turned away once enforcement is switched on in the console.
+// This is a public site key (it ships to every browser by design), not a secret.
+const RECAPTCHA_SITE_KEY = '6LddKdItAAAAAJS2nnWIDQi7ha3BF4pIYCJCZhml';
+if (typeof window !== 'undefined' && import.meta.env.MODE !== 'test') {
+  try {
+    if (import.meta.env.DEV) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true; // local development uses a debug token printed in the console
+    initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(RECAPTCHA_SITE_KEY), isTokenAutoRefreshEnabled: true });
+  } catch (err) {
+    console.warn('App Check not started:', err);
+  }
+}
 
 const auth = getAuth(app);
 
