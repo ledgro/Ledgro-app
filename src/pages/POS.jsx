@@ -471,10 +471,10 @@ export default function POS() {
   }
 
   // Under-payment helper shared by cash, UPI and split: shows the gap and offers to take what was paid as full payment (the rest becomes a discount).
-  const shortUi = (paid, giveBack) => {
+  const shortUi = (paid, giveBack, backWord = 'Give back') => {
     const diff = paid - grandTotal;
     if (diff >= 0) {
-      return giveBack ? <p className="rounded-xl bg-green-50 px-4 py-3 text-center text-lg font-black text-green-700 tabular-nums">Give back {formatCurrency(diff)}</p> : null;
+      return giveBack ? <p className="rounded-xl bg-green-50 px-4 py-3 text-center text-lg font-black text-green-700 tabular-nums">{backWord} {formatCurrency(diff)}</p> : null;
     }
     return (
       <div className="space-y-2">
@@ -633,7 +633,7 @@ export default function POS() {
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setTendered(String(grandTotal / 100))} className="shrink-0 rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 active:scale-95 transition-transform">Exact</button>
                   </div>
-                  {tendered !== '' && shortUi(Math.round((parseFloat(tendered) || 0) * 100), false)}
+                  {tendered !== '' && shortUi(Math.round((parseFloat(tendered) || 0) * 100), true, 'Send back by UPI')}
                 </div>
               )}
               {paymentMethod === 'split' && (
