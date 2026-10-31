@@ -10,7 +10,7 @@ import { setDayCutoff } from '../lib/statsMath';
 import SplashScreen from '../components/SplashScreen';
 import { syncMyProfile } from '../lib/memberNames';
 import { setLogContext } from '../lib/errorLog';
-import { toLoginEmail, isEmail, isStaffEmail, passwordError, authMessage, usesPassword } from '../lib/staffLogin';
+import { toLoginEmail, isEmail, isStaffEmail, usernameError, passwordError, authMessage, usesPassword } from '../lib/staffLogin';
 
 const AuthContext = createContext();
 const SESSION_DURATION = 3 * 24 * 60 * 60 * 1000;
@@ -268,13 +268,16 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // Username (staff) or email (owner) with a password. `create` makes a new owner account and needs a real email.
+  // Username (staff) or email (owner) with a password. `create` registers a new account.
   const signInWithPassword = useCallback(async (identifier, password, { create = false } = {}) => {
     const email = toLoginEmail(identifier);
     try {
       try { await setPersistence(auth, indexedDBLocalPersistence); } catch (err) { console.warn('IndexedDB persistence unavailable:', err); }
       if (create) {
-        if (!isEmail(identifier) || isStaffEmail(email)) throw Object.assign(new Error('Use your real email address to create an account.'), { userFacing: true });
+        // an owner registers with a real email, a staff member with a username (they join a shop with an invite code next)
+        if (isStaffEmail(email) && isEmail(identifier)) throw Object.assign(new Error('Use your own email address.'), { userFacing: true });
+        const uErr = isEmail(identifier) ? '' : usernameError(identifier);
+        if (uErr) throw Object.assign(new Error(uErr), { userFacing: true });
         const pErr = passwordError(password);
         if (pErr) throw Object.assign(new Error(pErr), { userFacing: true });
         await createUserWithEmailAndPassword(auth, email, password);

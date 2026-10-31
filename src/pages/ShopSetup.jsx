@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { collection, addDoc, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -13,6 +13,20 @@ const ShopSetup = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [mode, setMode] = useState('create'); // 'create' | 'join'
+
+  // A new staff member registered with an invite code on the sign-in screen: join with it straight away.
+  const autoJoined = useRef(false);
+  useEffect(() => {
+    if (autoJoined.current || !user?.uid) return;
+    let code = '';
+    try { code = sessionStorage.getItem('ledgro_join_code') || ''; sessionStorage.removeItem('ledgro_join_code'); } catch { /* storage blocked */ }
+    if (!code) return;
+    autoJoined.current = true;
+    // oxlint-disable-next-line react/set-state-in-effect
+    setMode('join'); setInviteCode(code);
+    handleJoin(null, code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -44,11 +58,11 @@ const ShopSetup = () => {
     }
   };
 
-  const handleJoin = async (e) => {
-    e.preventDefault();
+  const handleJoin = async (e, presetCode) => {
+    e?.preventDefault?.();
     if (!user?.uid) return;
 
-    const code = inviteCode.trim().toUpperCase();
+    const code = (presetCode || inviteCode).trim().toUpperCase();
     if (code.length !== 20) {
       setError("Please enter a valid 20-character invite code");
       return;

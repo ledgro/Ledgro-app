@@ -45,7 +45,8 @@ const SignIn = () => {
   const [showPw, setShowPw] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [pwMode, setPwMode] = useState('signin'); // 'signin' | 'join' (new staff, with an invite code) | 'owner' (new owner, with an email)
+  const [joinCode, setJoinCode] = useState('');
 
   useEffect(() => {
     if (user && !isSigningIn) {
@@ -119,7 +120,12 @@ const SignIn = () => {
   const handlePasswordSignIn = (e) => {
     e.preventDefault();
     if (!identifier.trim() || !password) { setError('Enter your username and password.'); return; }
-    runSignIn(() => signInWithPassword(identifier, password, { create: creating }));
+    if (pwMode === 'join') {
+      const code = joinCode.trim().toUpperCase();
+      if (code.length !== 20) { setError('Enter the 20-character invite code from your admin.'); return; }
+      try { sessionStorage.setItem('ledgro_join_code', code); } catch { /* storage blocked */ }
+    }
+    runSignIn(() => signInWithPassword(identifier, password, { create: pwMode !== 'signin' }));
   };
 
   const handleCopyLink = () => {
@@ -272,24 +278,33 @@ const SignIn = () => {
               </button>
             ) : (
               <form onSubmit={handlePasswordSignIn} className="space-y-3 rounded-xl border border-slate-200 p-4">
+                {pwMode === 'join' && (
+                  <input
+                    type="text" autoCapitalize="characters" autoCorrect="off" spellCheck={false} maxLength={20}
+                    value={joinCode} onChange={(e) => setJoinCode(e.target.value)} placeholder="Invite code from your admin"
+                    className="w-full h-12 px-4 border border-slate-200 rounded-xl font-mono font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                )}
                 <input
                   type="text" autoCapitalize="none" autoCorrect="off" autoComplete="username" spellCheck={false}
                   value={identifier} onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder={creating ? 'Your email' : 'Username or email'}
+                  placeholder={pwMode === 'owner' ? 'Your email' : pwMode === 'join' ? 'Choose a username' : 'Username or email'}
                   className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <input
-                  type="password" autoComplete={creating ? 'new-password' : 'current-password'}
+                  type="password" autoComplete={pwMode === 'signin' ? 'current-password' : 'new-password'}
                   value={password} onChange={(e) => setPassword(e.target.value)}
-                  placeholder={creating ? 'Choose a password (8+ characters)' : 'Password'}
+                  placeholder={pwMode === 'signin' ? 'Password' : 'Choose a password (8+ characters)'}
                   className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button type="submit" disabled={isSigningIn || !termsAccepted} className="w-full h-12 rounded-xl bg-blue-600 text-white font-bold disabled:opacity-50 active:scale-[0.98]">
-                  {isSigningIn ? 'Please wait...' : creating ? 'Create owner account' : 'Sign in'}
+                  {isSigningIn ? 'Please wait...' : pwMode === 'signin' ? 'Sign in' : pwMode === 'join' ? 'Join the shop' : 'Create owner account'}
                 </button>
-                <button type="button" onClick={() => { setCreating((c) => !c); setError(''); }} className="w-full text-center text-xs font-bold text-slate-500">
-                  {creating ? 'I already have a login' : 'Shop owner without Google? Create an account with email'}
-                </button>
+                <div className="flex flex-col gap-1">
+                  {pwMode !== 'join' && <button type="button" onClick={() => { setPwMode('join'); setError(''); }} className="text-center text-xs font-bold text-blue-600 py-1">New staff? Join with an invite code</button>}
+                  {pwMode !== 'owner' && <button type="button" onClick={() => { setPwMode('owner'); setError(''); }} className="text-center text-xs font-bold text-slate-500 py-1">Shop owner without Google? Create an account with email</button>}
+                  {pwMode !== 'signin' && <button type="button" onClick={() => { setPwMode('signin'); setError(''); }} className="text-center text-xs font-bold text-slate-500 py-1">I already have a login</button>}
+                </div>
               </form>
             )}
             {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
