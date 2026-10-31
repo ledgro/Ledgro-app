@@ -9,6 +9,8 @@ import { broadcastSessionTerminated } from '../lib/sessionBroadcast';
 import { deleteShopCascade, flushPendingWrites } from '../lib/firestoreUtils';
 import { useNameOf } from '../lib/memberNames';
 import { confirm } from '../lib/confirm';
+import { createStaffLogin } from '../lib/createStaffLogin';
+import { usernameError, passwordError, authMessage } from '../lib/staffLogin';
 
 export default function Members() {
   const { user, shopId, shopAdminId, signOut, beginVoluntaryExit } = useAuth();
@@ -16,6 +18,9 @@ export default function Members() {
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [staffForm, setStaffForm] = useState(null); // { username, password } while the form is open
+  const [staffDone, setStaffDone] = useState(null); // login to hand over after creating
+  const [creatingStaff, setCreatingStaff] = useState(false);
 
   const nameOf = useNameOf(shopId, user?.uid);
   const isCreator = user?.uid === shopAdminId;
@@ -83,6 +88,25 @@ export default function Members() {
       toast.error("Failed to generate invite code");
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleCreateStaff = async (e) => {
+    e.preventDefault();
+    if (creatingStaff || !staffForm) return;
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
+    const err = usernameError(staffForm.username) || passwordError(staffForm.password);
+    if (err) { toast.error(err); return; }
+    setCreatingStaff(true);
+    try {
+      const username = await createStaffLogin({ shopId, username: staffForm.username, password: staffForm.password });
+      setStaffDone({ username, password: staffForm.password });
+      setStaffForm(null);
+    } catch (error) {
+      console.error(error);
+      toast.error(error.userFacing ? error.message : error?.code?.startsWith('auth/') ? authMessage(error) : 'Could not add this person. Try again.');
+    } finally {
+      setCreatingStaff(false);
     }
   };
 
@@ -183,6 +207,37 @@ export default function Members() {
       </header>
 
 <main className="p-4 space-y-6">
+        {isCreator && (
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-3">
+            {staffDone ? (
+              <div className="space-y-3 text-center">
+                <p className="text-sm font-medium text-slate-500">Give these to your staff member. The password is not shown again.</p>
+                <div className="rounded-xl bg-blue-50 p-4 text-left font-mono text-sm text-blue-900">
+                  <p>Username: <b>{staffDone.username}</b></p>
+                  <p>Password: <b>{staffDone.password}</b></p>
+                </div>
+                <button type="button" onClick={() => setStaffDone(null)} className="text-sm font-bold text-blue-600">Done</button>
+              </div>
+            ) : staffForm ? (
+              <form onSubmit={handleCreateStaff} className="space-y-3">
+                <p className="text-sm font-bold text-slate-900">New staff login</p>
+                <input value={staffForm.username} onChange={(e) => setStaffForm((f) => ({ ...f, username: e.target.value }))} autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={20}
+                  placeholder="Username, e.g. ravi" className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium" />
+                <input value={staffForm.password} onChange={(e) => setStaffForm((f) => ({ ...f, password: e.target.value }))} type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={64}
+                  placeholder="Password (8+ characters)" className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium" />
+                <div className="flex gap-2">
+                  <button type="button" disabled={creatingStaff} onClick={() => setStaffForm(null)} className="h-12 flex-1 rounded-xl bg-slate-100 font-bold text-slate-600">Cancel</button>
+                  <button type="submit" disabled={creatingStaff} className="h-12 flex-[2] rounded-xl bg-blue-600 font-bold text-white disabled:opacity-50">{creatingStaff ? 'Creating...' : 'Create login'}</button>
+                </div>
+                <p className="text-xs text-slate-500">They sign in on the Ledgro login screen with this username and password.</p>
+              </form>
+            ) : (
+              <button type="button" onClick={() => setStaffForm({ username: '', password: '' })} className="w-full h-12 rounded-xl border border-slate-200 font-bold text-slate-800 flex items-center justify-center gap-2 active:bg-slate-50">
+                <UserPlus size={18} /> Create staff login (username and password)
+              </button>
+            )}
+          </div>
+        )}
         {isCreator && (
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-center">
             {inviteCode ? (

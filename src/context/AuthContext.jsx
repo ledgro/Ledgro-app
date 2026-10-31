@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, setPersistence, indexedDBLocalPersistence, deleteUser, reauthenticateWithPopup } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, updatePassword, signOut as firebaseSignOut, setPersistence, indexedDBLocalPersistence, deleteUser, reauthenticateWithPopup } from 'firebase/auth';
 import { listenForSessionEvents } from '../lib/sessionBroadcast';
 import { clearStore } from '../lib/idb';
 import { sessionGuard } from '../lib/SessionGuard';
@@ -10,6 +10,7 @@ import { setDayCutoff } from '../lib/statsMath';
 import SplashScreen from '../components/SplashScreen';
 import { syncMyProfile } from '../lib/memberNames';
 import { setLogContext } from '../lib/errorLog';
+import { toLoginEmail, isEmail, isStaffEmail, passwordError, authMessage, usesPassword } from '../lib/staffLogin';
 
 const AuthContext = createContext();
 const SESSION_DURATION = 3 * 24 * 60 * 60 * 1000;
@@ -267,6 +268,39 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  // Username (staff) or email (owner) with a password. `create` makes a new owner account and needs a real email.
+  const signInWithPassword = useCallback(async (identifier, password, { create = false } = {}) => {
+    const email = toLoginEmail(identifier);
+    try {
+      try { await setPersistence(auth, indexedDBLocalPersistence); } catch (err) { console.warn('IndexedDB persistence unavailable:', err); }
+      if (create) {
+        if (!isEmail(identifier) || isStaffEmail(email)) throw Object.assign(new Error('Use your real email address to create an account.'), { userFacing: true });
+        const pErr = passwordError(password);
+        if (pErr) throw Object.assign(new Error(pErr), { userFacing: true });
+        await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+    } catch (error) {
+      if (error.userFacing) throw error;
+      throw Object.assign(new Error(authMessage(error)), { userFacing: true });
+    }
+  }, []);
+
+  // A signed-in password user changes their own password: the old one is asked again, as Firebase requires.
+  const changePassword = useCallback(async (current, next) => {
+    const u = auth.currentUser;
+    if (!u?.email) throw Object.assign(new Error('Not signed in.'), { userFacing: true });
+    const pErr = passwordError(next);
+    if (pErr) throw Object.assign(new Error(pErr), { userFacing: true });
+    try {
+      await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, current));
+      await updatePassword(u, next);
+    } catch (error) {
+      throw Object.assign(new Error(authMessage(error)), { userFacing: true });
+    }
+  }, []);
+
   /**
    * Sign out and wipe the offline cache. Refuses (throws SYNC_PENDING) while
    * offline bills are still queued, because wiping would destroy them.
@@ -302,11 +336,15 @@ export const AuthProvider = ({ children }) => {
     voluntaryExitRef.current = true;
   }, []);
 
-  const deleteAccount = useCallback(async () => {
+  const deleteAccount = useCallback(async (password) => {
     if (!auth.currentUser) return;
 
     try {
-      await reauthenticateWithPopup(auth.currentUser, googleProvider);
+      if (usesPassword(auth.currentUser)) {
+        await reauthenticateWithCredential(auth.currentUser, EmailAuthProvider.credential(auth.currentUser.email, password || ''));
+      } else {
+        await reauthenticateWithPopup(auth.currentUser, googleProvider);
+      }
     } catch (error) {
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
         throw new Error('Account deletion cancelled.');
@@ -393,10 +431,12 @@ export const AuthProvider = ({ children }) => {
     setShopId,
     setShopAdminId,
     signInWithGoogle,
+    signInWithPassword,
+    changePassword,
     signOut,
     beginVoluntaryExit,
     deleteAccount,
-  }), [user, hasShop, shopId, shopAdminId, shopName, shopProfile, loading, signInWithGoogle, signOut, beginVoluntaryExit, deleteAccount]);
+  }), [user, hasShop, shopId, shopAdminId, shopName, shopProfile, loading, signInWithGoogle, signInWithPassword, changePassword, signOut, beginVoluntaryExit, deleteAccount]);
 
   if (loading) {
     return <AuthContext.Provider value={value}><SplashScreen /></AuthContext.Provider>;

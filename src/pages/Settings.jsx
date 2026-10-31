@@ -9,6 +9,7 @@ import { buildReport, rs } from '../lib/reportExport';
 import { saveFile } from '../lib/shareFile';
 import ExportMenu from '../components/ExportMenu';
 import BottomNav from '../components/BottomNav';
+import { usesPassword, displayId } from '../lib/staffLogin';
 import { Store, Settings2, Database, User, LogOut, ChevronLeft, Save, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { hapticVibrate } from '../lib/utils';
@@ -18,7 +19,7 @@ import ErrorLogSection from '../components/ErrorLogSection';
 import { confirm } from '../lib/confirm';
 
 export default function Settings() {
-  const { user, shopId, shopAdminId, shopProfile, signOut, deleteAccount } = useAuth();
+  const { user, shopId, shopAdminId, shopProfile, signOut, deleteAccount, changePassword } = useAuth();
   const isOwner = !!user?.uid && shopAdminId === user.uid;
   const [recalculating, setRecalculating] = useState(false);
   const navigate = useNavigate();
@@ -183,6 +184,22 @@ export default function Settings() {
   };
 
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [pw, setPw] = useState({ current: '', next: '' });
+  const [pwBusy, setPwBusy] = useState(false);
+  const passwordUser = usesPassword(user);
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (pwBusy) return;
+    setPwBusy(true);
+    try {
+      await changePassword(pw.current, pw.next);
+      setPw({ current: '', next: '' });
+      toast.success('Password changed.');
+    } catch (err) {
+      toast.error(err.message || 'Could not change the password.');
+    } finally { setPwBusy(false); }
+  };
 
   const handleDeleteAccount = async () => {
     if (!navigator.onLine) {
@@ -194,7 +211,7 @@ export default function Settings() {
 
     setIsDeletingAccount(true);
     try {
-      await deleteAccount();
+      await deleteAccount(pw.current);
     } catch (err) {
       toast.error(err.message || "Failed to delete account.");
     } finally {
@@ -378,10 +395,19 @@ export default function Settings() {
            </div>
            <div className="flex items-center justify-between mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
              <div className="overflow-hidden">
-               <p className="font-bold text-slate-900 text-sm truncate">{user?.email}</p>
-               <p className="text-xs text-slate-500">Logged in via Google</p>
+               <p className="font-bold text-slate-900 text-sm truncate">{displayId(user)}</p>
+               <p className="text-xs text-slate-500">{passwordUser ? 'Logged in with a password' : 'Logged in via Google'}</p>
              </div>
            </div>
+           {passwordUser && (
+             <form onSubmit={handleChangePassword} className="mb-4 space-y-2">
+               <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Change password</p>
+               <input type="password" autoComplete="current-password" value={pw.current} onChange={(e) => setPw((p) => ({ ...p, current: e.target.value }))} placeholder="Current password" className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium" />
+               <input type="password" autoComplete="new-password" value={pw.next} onChange={(e) => setPw((p) => ({ ...p, next: e.target.value }))} placeholder="New password (8+ characters)" className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium" />
+               <button type="submit" disabled={pwBusy || !pw.current || !pw.next} className="w-full h-12 rounded-xl bg-blue-600 font-bold text-white disabled:opacity-50">{pwBusy ? 'Saving...' : 'Change password'}</button>
+               <p className="text-xs text-slate-500">To delete your account, type your current password above, then use the button below.</p>
+             </form>
+           )}
            <button onClick={handleSignOut} className="w-full bg-slate-100 text-slate-700 font-bold h-12 rounded-xl flex items-center justify-center gap-2 active:bg-slate-200 transition-colors">
              <LogOut size={18} /> Sign Out
            </button>

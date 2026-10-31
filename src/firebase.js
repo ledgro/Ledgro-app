@@ -1,5 +1,5 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, setPersistence, indexedDBLocalPersistence } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, setPersistence, indexedDBLocalPersistence, initializeAuth, inMemoryPersistence } from 'firebase/auth';
 import {
   initializeFirestore,
   getFirestore,
@@ -49,6 +49,18 @@ try {
   } else {
     db = initializeFirestore(app, { localCache: memoryLocalCache() });
   }
+}
+
+// A second, separate connection used only to create staff logins: creating a user signs that user in,
+// and this keeps the owner signed in on the main one. Nothing is stored on the device.
+let staffAuth;
+export function getStaffCreateAuth() {
+  if (!staffAuth) {
+    const existing = getApps().find((a) => a.name === 'staff-create');
+    const second = existing || initializeApp(firebaseConfig, 'staff-create');
+    staffAuth = initializeAuth(second, { persistence: inMemoryPersistence });
+  }
+  return staffAuth;
 }
 
 export { auth, googleProvider, db };
