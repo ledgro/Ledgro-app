@@ -9,7 +9,8 @@ import { buildReport, rs } from '../lib/reportExport';
 import { saveFile } from '../lib/shareFile';
 import ExportMenu from '../components/ExportMenu';
 import BottomNav from '../components/BottomNav';
-import { usesPassword, displayId } from '../lib/staffLogin';
+import { usesPassword, displayId, isStaffEmail } from '../lib/staffLogin';
+import AddEmailForm from '../components/AddEmailForm';
 import { Store, Settings2, Database, User, LogOut, ChevronLeft, Save, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { hapticVibrate } from '../lib/utils';
@@ -399,6 +400,7 @@ export default function Settings() {
                <p className="text-xs text-slate-500">{passwordUser ? 'Logged in with a password' : 'Logged in via Google'}</p>
              </div>
            </div>
+           {passwordUser && isStaffEmail(user?.email) && <div className="mb-4"><AddEmailForm /></div>}
            {passwordUser && (
              <form onSubmit={handleChangePassword} className="mb-4 space-y-2">
                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Change password</p>
