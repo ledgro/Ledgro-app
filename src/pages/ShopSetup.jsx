@@ -3,9 +3,10 @@ import { useAuth } from '../context/AuthContext';
 import { collection, addDoc, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
+import { isStaffEmail } from '../lib/staffLogin';
 
 const ShopSetup = () => {
-  const { user, setHasShop, setShopId } = useAuth();
+  const { user, setHasShop, setShopId, resendVerification, checkVerified } = useAuth();
   const navigate = useNavigate();
 
   const [shopName, setShopName] = useState('');
@@ -13,6 +14,22 @@ const ShopSetup = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [mode, setMode] = useState('create'); // 'create' | 'join'
+  const [verified, setVerified] = useState(!!user?.emailVerified);
+  const [sent, setSent] = useState(false);
+  const staffAccount = isStaffEmail(user?.email);
+  const needsVerify = !verified && !user?.emailVerified && !staffAccount;
+
+  const recheck = async () => {
+    setError('');
+    try {
+      if (await checkVerified()) setVerified(true);
+      else setError('Not verified yet. Open the link in the email we sent, then tap this again.');
+    } catch { setError('Could not check. Try again.'); }
+  };
+  const resend = async () => {
+    setError('');
+    try { await resendVerification(); setSent(true); } catch (err) { setError(err.message || 'Could not send the email.'); }
+  };
 
   // A new staff member registered with an invite code on the sign-in screen: join with it straight away.
   const autoJoined = useRef(false);
@@ -166,7 +183,21 @@ const ShopSetup = () => {
             </button>
           </div>
 
-          {mode === 'create' ? (
+          {mode === 'create' && (staffAccount || needsVerify) ? (
+            <div className="space-y-4 text-center">
+              {staffAccount ? (
+                <p className="text-sm font-medium text-slate-600">Staff logins join a shop with an invite code from the shop admin. Tap "Join a Shop".</p>
+              ) : (
+                <>
+                  <p className="text-base font-bold text-slate-900">Verify your email</p>
+                  <p className="text-sm font-medium text-slate-600">We sent a link to {user?.email}. Open it, then come back and tap the button.</p>
+                  <button type="button" onClick={recheck} className="w-full h-12 rounded-xl bg-blue-600 text-white font-bold active:scale-[0.98]">I have verified</button>
+                  <button type="button" onClick={resend} className="w-full text-sm font-bold text-blue-600 py-1">{sent ? 'Sent. Check your inbox and spam.' : 'Send the email again'}</button>
+                  {error && <div className="text-sm text-red-600 font-medium">{error}</div>}
+                </>
+              )}
+            </div>
+          ) : mode === 'create' ? (
             <form className="space-y-6" onSubmit={handleCreate}>
               <div>
                 <label htmlFor="shopName" className="block text-sm font-medium text-slate-700">
