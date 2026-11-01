@@ -4,6 +4,7 @@ import { collection, addDoc, doc, runTransaction, serverTimestamp } from 'fireba
 import { db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 import { isStaffEmail } from '../lib/staffLogin';
+import AddEmailForm from '../components/AddEmailForm';
 import { syncMyProfile } from '../lib/memberNames';
 
 const ShopSetup = () => {
@@ -189,7 +190,10 @@ const ShopSetup = () => {
           {mode === 'create' && (staffAccount || needsVerify) ? (
             <div className="space-y-4 text-center">
               {staffAccount ? (
-                <p className="text-sm font-medium text-slate-600">A username login can only join a shop. To open your own shop, sign out and create an account with your email. To join, tap "Join a Shop" and enter the invite code.</p>
+                <>
+                  <p className="text-sm font-medium text-slate-600">To open your own shop, add a real email to this login. To join a shop instead, tap "Join a Shop".</p>
+                  <AddEmailForm />
+                </>
               ) : (
                 <>
                   <p className="text-base font-bold text-slate-900">Verify your email</p>

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { onAuthStateChanged, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, updatePassword, sendEmailVerification, signOut as firebaseSignOut, setPersistence, indexedDBLocalPersistence, deleteUser, reauthenticateWithPopup } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, updatePassword, sendEmailVerification, signOut as firebaseSignOut, setPersistence, indexedDBLocalPersistence, deleteUser, reauthenticateWithPopup, verifyBeforeUpdateEmail } from 'firebase/auth';
 import { listenForSessionEvents } from '../lib/sessionBroadcast';
 import { clearStore } from '../lib/idb';
 import { sessionGuard } from '../lib/SessionGuard';
@@ -324,6 +324,20 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  /** A username login adds a real email: a link is sent, and once opened the account signs in with that email. */
+  const addEmail = useCallback(async (email, password) => {
+    const u = auth.currentUser;
+    const clean = String(email || '').trim().toLowerCase();
+    if (!u?.email || !isStaffEmail(u.email)) throw Object.assign(new Error('This account already has an email.'), { userFacing: true });
+    if (!isEmail(clean) || isStaffEmail(clean)) throw Object.assign(new Error('Enter a valid email address.'), { userFacing: true });
+    try {
+      await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, password));
+      await verifyBeforeUpdateEmail(u, clean);
+    } catch (error) {
+      throw Object.assign(new Error(authMessage(error)), { userFacing: true });
+    }
+  }, []);
+
   /**
    * Sign out and wipe the offline cache. Refuses (throws SYNC_PENDING) while
    * offline bills are still queued, because wiping would destroy them.
@@ -458,12 +472,13 @@ export const AuthProvider = ({ children }) => {
     signInWithGoogle,
     signInWithPassword,
     changePassword,
+    addEmail,
     resendVerification,
     checkVerified,
     signOut,
     beginVoluntaryExit,
     deleteAccount,
-  }), [user, hasShop, shopId, shopAdminId, isAdminRole, shopName, shopProfile, loading, signInWithGoogle, signInWithPassword, changePassword, resendVerification, checkVerified, signOut, beginVoluntaryExit, deleteAccount]);
+  }), [user, hasShop, shopId, shopAdminId, isAdminRole, shopName, shopProfile, loading, signInWithGoogle, signInWithPassword, changePassword, addEmail, resendVerification, checkVerified, signOut, beginVoluntaryExit, deleteAccount]);
 
   if (loading) {
     return <AuthContext.Provider value={value}><SplashScreen /></AuthContext.Provider>;
