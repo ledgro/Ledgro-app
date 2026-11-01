@@ -35,6 +35,7 @@ const Receipt = forwardRef(({ billData, preview = false }, ref) => {
   const tagline = shopProfile?.tagline || 'Thank you for your purchase!';
 
   const isReturn = type === 'return';
+  const draft = !!billData.draft; // shown to the customer before payment: no bill number or payment lines yet
   const totalQty = items.reduce((a, i) => a + (Number(i.qty) || 0), 0);
   const saved = (Number(globalDiscountAmt) || 0) + items.reduce((a, i) => a + (Number(i.lineDiscount) || 0), 0);
   const rupees = (p) => (Number(p || 0) / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -64,11 +65,11 @@ const Receipt = forwardRef(({ billData, preview = false }, ref) => {
         <div style={{ fontSize: '20px', fontWeight: 700, lineHeight: 1.2 }}>{finalShopName}</div>
         {address && <div style={{ fontSize: '11px', color: mute, marginTop: '3px' }}>{address}</div>}
         {phone && <div style={{ fontSize: '11px', color: mute }}>Ph: {phone}</div>}
-        <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '2px', marginTop: '8px' }}>{isReturn ? 'RETURN RECEIPT' : 'CASH MEMO'}</div>
+        <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '2px', marginTop: '8px' }}>{isReturn ? 'RETURN RECEIPT' : draft ? 'BILL (PAYMENT PENDING)' : 'CASH MEMO'}</div>
       </div>
 
       <div style={{ ...row, fontSize: '11px', color: mute, marginTop: '6px' }}>
-        <span>Bill No: <b style={{ color: '#000' }}>{billNo}</b></span>
+        <span>{draft ? 'Bill' : <>Bill No: <b style={{ color: '#000' }}>{billNo}</b></>}</span>
         <span>{dateStr}</span>
       </div>
 
@@ -123,7 +124,7 @@ const Receipt = forwardRef(({ billData, preview = false }, ref) => {
       </div>
       {saved > 0 && <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, marginTop: '6px' }}>You saved {formatCurrency(saved)}</div>}
 
-      <div style={{ marginTop: '10px', fontSize: '12px' }}>
+      {!draft && <div style={{ marginTop: '10px', fontSize: '12px' }}>
         {payment?.method === 'split' ? (
           <>
             <div style={{ ...row }}><span>Paid by Cash</span><span>{formatCurrency(payment.breakdown?.cash)}</span></div>
@@ -138,7 +139,7 @@ const Receipt = forwardRef(({ billData, preview = false }, ref) => {
             <div style={{ ...row, color: mute }}><span>Change</span><span>{formatCurrency(tendered - grandTotal)}</span></div>
           </>
         )}
-      </div>
+      </div>}
 
       <div style={{ textAlign: 'center', marginTop: '14px', paddingTop: '8px', borderTop: '1px dashed #999999', fontSize: '12px', fontWeight: 700 }}>
         {tagline}
