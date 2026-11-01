@@ -38,4 +38,11 @@ describe('changing a price on the bill keeps the original', () => {
     expect(billReducer(s, { type: 'UPDATE_PRICE', payload: { id: s.items[0].id, price: -1 } })).toBe(s);
     expect(billReducer(s, { type: 'UPDATE_PRICE', payload: { id: s.items[0].id, price: 'abc' } })).toBe(s);
   });
+  it('raising one line by the extra paid makes the bill exactly that amount (UPI 500 on a 480 bill)', () => {
+    let s = add(initialBillState, { unitPriceAtSale: 48000 });
+    const id = s.items[0].id;
+    s = billReducer(s, { type: 'UPDATE_PRICE', payload: { id, price: 48000 + 2000 / 1 } });
+    expect(calculateBillTotals(s).grandTotal).toBe(50000);
+    expect(s.items[0].listPrice).toBe(48000);
+  });
 });
