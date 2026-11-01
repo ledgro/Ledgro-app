@@ -95,6 +95,18 @@ service cloud.firestore {
       allow delete: if resource.data.members[request.auth.uid] == 'admin'
         && resource.data.members.size() == 1;
 
+      // Running invoice number per financial year. Each save moves it up by exactly one, so numbers never repeat or skip.
+      match /billCounters/{series} {
+        allow get: if isMember(shopId);
+        allow create: if isMember(shopId)
+          && request.resource.data.keys().hasOnly(['last'])
+          && request.resource.data.last == 1;
+        allow update: if isMember(shopId)
+          && request.resource.data.keys().hasOnly(['last'])
+          && request.resource.data.last == resource.data.last + 1;
+        allow delete: if isAdmin(shopId);
+      }
+
       match /bills/{billId} {
         allow get: if isMember(shopId);
         allow list: if isMember(shopId) && request.query.limit <= 100;
@@ -124,6 +136,7 @@ service cloud.firestore {
               && request.resource.data.paymentMethod in ['cash', 'upi']
               && request.resource.data.originalBillId is string
               && exists(/databases/$(database)/documents/shops/$(shopId)/bills/$(request.resource.data.originalBillId))
+              && (isAdmin(shopId) || request.time < get(/databases/$(database)/documents/shops/$(shopId)/bills/$(request.resource.data.originalBillId)).data.createdAt + duration.value(1, 'd'))
               && get(/databases/$(database)/documents/shops/$(shopId)/bills/$(request.resource.data.originalBillId)).data.get('type', 'sale') == 'sale'
               && getAfter(/databases/$(database)/documents/shops/$(shopId)/bills/$(request.resource.data.originalBillId)).data.get('returnedAmt', 0)
                    == get(/databases/$(database)/documents/shops/$(shopId)/bills/$(request.resource.data.originalBillId)).data.get('returnedAmt', 0) - request.resource.data.grandTotal

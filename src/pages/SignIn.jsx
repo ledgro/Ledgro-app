@@ -4,6 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { POLICY_VERSION } from '../lib/constants';
+import { isEmail } from '../lib/staffLogin';
 
 const SignIn = () => {
   const { signInWithGoogle, signInWithPassword, user, hasShop } = useAuth();
@@ -47,6 +48,7 @@ const SignIn = () => {
   const [password, setPassword] = useState('');
   const [pwMode, setPwMode] = useState('signin'); // 'signin' | 'create' (an invite code makes it a staff account, no code makes it an owner account)
   const [joinCode, setJoinCode] = useState('');
+  const [showCode, setShowCode] = useState(false);
 
   useEffect(() => {
     if (user && !isSigningIn) {
@@ -122,9 +124,10 @@ const SignIn = () => {
     e.preventDefault();
     if (!identifier.trim() || !password) { setError('Enter your username and password.'); return; }
     const joining = pwMode === 'create' && joinCode.trim() !== '';
+    if (pwMode === 'create' && !joining && !isEmail(identifier)) { setError('Enter your email address.'); return; }
     if (joining) {
       const code = joinCode.trim().toUpperCase();
-      if (code.length !== 20) { setError('Enter the 20-character invite code from your admin.'); return; }
+      if (code.length < 8 || code.length > 20) { setError('Enter the invite code from your admin.'); return; }
       try { sessionStorage.setItem('ledgro_join_code', code); } catch { /* storage blocked */ }
     }
     runSignIn(() => signInWithPassword(identifier, password, { create: pwMode !== 'signin' }));
@@ -280,17 +283,17 @@ const SignIn = () => {
               </button>
             ) : (
               <form onSubmit={handlePasswordSignIn} className="space-y-3 rounded-xl border border-slate-200 p-4">
-                {pwMode === 'create' && (
+                {pwMode === 'create' && showCode && (
                   <input
                     type="text" autoCapitalize="characters" autoCorrect="off" spellCheck={false} maxLength={20}
-                    value={joinCode} onChange={(e) => setJoinCode(e.target.value)} placeholder="Invite code (staff only, else leave empty)"
+                    value={joinCode} onChange={(e) => setJoinCode(e.target.value)} placeholder="Shop invite code"
                     className="w-full h-12 px-4 border border-slate-200 rounded-xl font-mono font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 )}
                 <input
                   type="text" autoCapitalize="none" autoCorrect="off" autoComplete="username" spellCheck={false}
                   value={identifier} onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder={pwMode === 'signin' ? 'Username or email' : joinCode.trim() ? 'Choose a username' : 'Your email (shop owner)'}
+                  placeholder={pwMode === 'signin' ? 'Username or email' : joinCode.trim() ? 'Choose a username' : 'Email'}
                   className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <input
@@ -300,12 +303,15 @@ const SignIn = () => {
                   className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button type="submit" disabled={isSigningIn || !termsAccepted} className="w-full h-12 rounded-xl bg-blue-600 text-white font-bold disabled:opacity-50 active:scale-[0.98]">
-                  {isSigningIn ? 'Please wait...' : pwMode === 'signin' ? 'Sign in' : joinCode.trim() ? 'Join the shop' : 'Create owner account'}
+                  {isSigningIn ? 'Please wait...' : pwMode === 'signin' ? 'Sign in' : joinCode.trim() ? 'Join the shop' : 'Create account'}
                 </button>
                 <div className="flex flex-col gap-1">
                   {pwMode === 'signin'
                     ? <button type="button" onClick={() => { setPwMode('create'); setError(''); }} className="text-center text-xs font-bold text-blue-600 py-1">New here? Create an account</button>
-                    : <button type="button" onClick={() => { setPwMode('signin'); setError(''); }} className="text-center text-xs font-bold text-slate-500 py-1">I already have a login</button>}
+                    : <>
+                        {!showCode && <button type="button" onClick={() => setShowCode(true)} className="text-center text-xs font-bold text-blue-600 py-1">Joining a shop? Enter invite code</button>}
+                        <button type="button" onClick={() => { setPwMode('signin'); setError(''); }} className="text-center text-xs font-bold text-slate-500 py-1">I already have a login</button>
+                      </>}
                 </div>
               </form>
             )}

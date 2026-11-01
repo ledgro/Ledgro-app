@@ -7,7 +7,7 @@ import { isStaffEmail } from '../lib/staffLogin';
 import { syncMyProfile } from '../lib/memberNames';
 
 const ShopSetup = () => {
-  const { user, setHasShop, setShopId, resendVerification, checkVerified } = useAuth();
+  const { user, setHasShop, setShopId, resendVerification, checkVerified, signOut } = useAuth();
   const navigate = useNavigate();
 
   const [shopName, setShopName] = useState('');
@@ -82,8 +82,8 @@ const ShopSetup = () => {
     if (!user?.uid) return;
 
     const code = (presetCode || inviteCode).trim().toUpperCase();
-    if (code.length !== 20) {
-      setError("Please enter a valid 20-character invite code");
+    if (code.length < 8 || code.length > 20) {
+      setError("Please enter the invite code from your admin");
       return;
     }
     if (!navigator.onLine) { setError('You are offline. Reconnect and try again.'); return; }
@@ -189,7 +189,7 @@ const ShopSetup = () => {
           {mode === 'create' && (staffAccount || needsVerify) ? (
             <div className="space-y-4 text-center">
               {staffAccount ? (
-                <p className="text-sm font-medium text-slate-600">Staff logins join a shop with an invite code from the shop admin. Tap "Join a Shop".</p>
+                <p className="text-sm font-medium text-slate-600">A username login can only join a shop. To open your own shop, sign out and create an account with your email. To join, tap "Join a Shop" and enter the invite code.</p>
               ) : (
                 <>
                   <p className="text-base font-bold text-slate-900">Verify your email</p>
@@ -262,9 +262,9 @@ const ShopSetup = () => {
               <div>
                 <button
                   type="submit"
-                  disabled={loading || inviteCode.length !== 20}
+                  disabled={loading || inviteCode.length < 8}
                   className={`w-full flex justify-center items-center h-14 px-4 rounded-xl shadow-sm text-base font-bold text-white transition-all active:scale-[0.98] ${
-                    loading || inviteCode.length !== 20 ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                    loading || inviteCode.length < 8 ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                   } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
                 >
                   {loading ? 'Joining...' : 'Join Shop'}
@@ -274,6 +274,7 @@ const ShopSetup = () => {
           )}
 
         </div>
+        <button type="button" onClick={signOut} className="mt-4 w-full text-center text-sm font-bold text-slate-500 py-2">Use a different account (sign out)</button>
       </div>
     </div>
   );
