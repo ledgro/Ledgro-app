@@ -98,6 +98,7 @@ describe('POS checkout', () => {
     fireEvent.click((await screen.findAllByText('Rice')).pop());
     fireEvent.click(await screen.findByRole('button', { name: /^done/i }));
     fireEvent.click(await screen.findByText(/^Checkout/i));
+    fireEvent.click(await screen.findByText(/^Take payment/i));
     fireEvent.click(await screen.findByText(/^Confirm CASH/i));
 
     await waitFor(() => expect(firestore.__batch.set).toHaveBeenCalled());

@@ -51,6 +51,9 @@ export default function POS() {
   const [splitCash, setSplitCash] = useState('');
   const [tendered, setTendered] = useState(''); // cash handed over, for the change line only. Never saved.
   const [isPayOpen, setIsPayOpen] = useState(false);
+  const [payStep, setPayStep] = useState('review'); // 'review' (show / share the bill) then 'pay' (take the money)
+  const draftRef = useRef(null);
+  const [draftFiles, setDraftFiles] = useState(null);
 
   const { items, subtotal, globalDiscountAmt, grandTotal } = useMemo(() => calculateBillTotals(state), [state]);
 
@@ -411,6 +414,45 @@ export default function POS() {
     return () => { cancelled = true; clearTimeout(t); };
   }, [checkoutSuccess, lastBill]);
 
+  // The bill as the customer sees it before paying: share or save it first, then take payment.
+  const draftBill = useMemo(() => (isPayOpen && payStep === 'review' ? {
+    items, subtotal, globalDiscountAmt, grandTotal, shopName: shopName || '', shopProfile, draft: true, clientCreatedAt: Date.now(),
+  } : null), [isPayOpen, payStep, items, subtotal, globalDiscountAmt, grandTotal, shopName, shopProfile]);
+
+  // oxlint-disable-next-line react/set-state-in-effect
+  useEffect(() => {
+    if (!draftBill) { setDraftFiles(null); return undefined; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      if (!draftRef.current) return;
+      try {
+        const { default: html2canvas } = await import('html2canvas-pro');
+        const canvas = await html2canvas(draftRef.current, { scale: 3, useCORS: true, backgroundColor: '#ffffff', width: RECEIPT_PX, logging: false });
+        const png = await canvasToBlob(canvas);
+        const pdf = await canvasToPdfBlob(canvas);
+        canvas.width = 0; canvas.height = 0;
+        if (!cancelled) setDraftFiles({ png, pdf });
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) setDraftFiles({ error: true });
+      }
+    }, 150);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [draftBill]);
+
+  const draftName = () => `ledgro-bill.${receiptFormat}`;
+  const shareDraft = async () => {
+    const blob = draftFiles?.[receiptFormat];
+    if (!blob) { toast.error(draftFiles?.error ? 'Could not create the bill.' : 'Bill still preparing…'); return; }
+    const r = await shareFile(blob, draftName(), `Bill from ${shopName || 'shop'}`);
+    if (r === 'unsupported') { await saveFile(blob, draftName()); toast.info('Sharing not supported here. Bill saved instead.'); }
+  };
+  const saveDraft = async () => {
+    const blob = draftFiles?.[receiptFormat];
+    if (!blob) { toast.error(draftFiles?.error ? 'Could not create the bill.' : 'Bill still preparing…'); return; }
+    await saveFile(blob, draftName(), 'Save bill');
+  };
+
   const receiptName = () => `ledgro-receipt-${(lastBill?.billNo || 'bill').replace(/[^\w-]/g, '')}.${receiptFormat}`;
 
   const shareReceipt = async () => {
@@ -597,7 +639,7 @@ export default function POS() {
 
             <button
               type="button"
-              onClick={() => setIsPayOpen(true)}
+              onClick={() => { setPayStep('review'); setIsPayOpen(true); }}
               disabled={isCheckingOut}
               className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-all active:scale-[0.98] shadow-sm"
             >
@@ -611,6 +653,44 @@ export default function POS() {
         <div role="dialog" aria-modal="true" aria-label="Payment" style={{ bottom: 'var(--kb, 0px)' }} className="fixed inset-0 z-[70] flex items-end bg-black/40" onClick={() => !isCheckingOut && setIsPayOpen(false)}>
           <div className="w-full max-h-full overflow-y-auto rounded-t-[24px] bg-white p-4 pb-safe" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200" />
+            {payStep === 'review' ? (
+            <div className="mx-auto max-w-md space-y-3">
+              <div className="text-center">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Bill total</p>
+                <p className="text-4xl font-black text-slate-900 tabular-nums">{formatCurrency(grandTotal)}</p>
+              </div>
+              {draftBill && <Receipt ref={draftRef} billData={draftBill} />}
+              {draftBill && (
+                <div className="max-h-56 overflow-y-auto rounded-xl bg-slate-50 p-2">
+                  <div style={{ zoom: Math.min(1, (Math.min(window.innerWidth, 448) - 48) / 384) }}>
+                    <Receipt billData={draftBill} preview />
+                  </div>
+                </div>
+              )}
+              <div className="flex bg-slate-100 p-1 rounded-xl" role="group" aria-label="Bill format">
+                {['png', 'pdf'].map((f) => (
+                  <button key={f} type="button" onClick={() => setReceiptFormat(f)}
+                    className={`flex-1 py-2 text-sm font-black uppercase rounded-lg transition-colors ${receiptFormat === f ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={shareDraft} disabled={!draftFiles || draftFiles.error}
+                  className="flex-1 h-12 rounded-xl bg-indigo-600 font-bold text-white flex items-center justify-center gap-2 active:bg-indigo-700 disabled:opacity-50">
+                  <Share2 size={18} /> {draftFiles ? 'Share bill' : 'Preparing…'}
+                </button>
+                <button type="button" onClick={saveDraft} disabled={!draftFiles || draftFiles.error}
+                  className="flex-1 h-12 rounded-xl border border-slate-200 bg-white font-bold text-slate-700 flex items-center justify-center gap-2 active:bg-slate-100 disabled:opacity-50">
+                  <Download size={18} /> Print / Save
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setIsPayOpen(false)} className="h-14 flex-1 rounded-xl bg-slate-100 font-bold text-slate-600">Back</button>
+                <button type="button" onClick={() => setPayStep('pay')} className="h-14 flex-[2] rounded-xl bg-blue-600 font-bold text-white active:bg-blue-700">Take payment</button>
+              </div>
+            </div>
+            ) : (
             <div className="mx-auto max-w-md space-y-4">
               <div className="text-center">
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Amount to collect</p>
@@ -694,7 +774,7 @@ export default function POS() {
                 </div>
               )}
               <div className="flex gap-2">
-                <button type="button" onClick={() => setIsPayOpen(false)} disabled={isCheckingOut} className="h-14 flex-1 rounded-xl bg-slate-100 font-bold text-slate-600 disabled:opacity-50">Back</button>
+                <button type="button" onClick={() => setPayStep('review')} disabled={isCheckingOut} className="h-14 flex-1 rounded-xl bg-slate-100 font-bold text-slate-600 disabled:opacity-50">Back</button>
                 <button
                   type="button"
                   onClick={handleCheckout}
@@ -705,6 +785,7 @@ export default function POS() {
                 </button>
               </div>
             </div>
+            )}
           </div>
         </div>
       )}
