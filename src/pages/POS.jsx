@@ -154,8 +154,15 @@ export default function POS() {
   const handleCheckout = async () => {
     if (items.length === 0 || !shopId || isSubmittingRef.current) return;
 
+    // UPI: the amount typed is what the customer really paid. If it is less than the bill, the gap becomes a discount.
+    const upiPaid = paymentMethod === 'upi' && tendered !== '' ? Math.round((parseFloat(tendered) || 0) * 100) : 0;
+    const billState = upiPaid > 0 && upiPaid < grandTotal
+      ? { ...state, globalDiscount: { type: 'flat', value: globalDiscountAmt + (grandTotal - upiPaid) } }
+      : state;
+    const { grandTotal: billTotal, globalDiscountAmt: billDiscountAmt } = calculateBillTotals(billState);
+
     const cashPaise = paymentMethod === 'split' ? Math.round((parseFloat(splitCash) || 0) * 100) : 0;
-    if (paymentMethod === 'split' && (cashPaise <= 0 || cashPaise >= grandTotal)) {
+    if (paymentMethod === 'split' && (cashPaise <= 0 || cashPaise >= billTotal)) {
       toast.error('Enter a cash amount between 0 and the bill total.');
       return;
     }
@@ -198,8 +205,8 @@ export default function POS() {
       const paymentData = {
         method: paymentMethod,
         breakdown: {
-          cash: paymentMethod === 'split' ? cashPaise : (paymentMethod === 'cash' ? grandTotal : 0),
-          upi: paymentMethod === 'split' ? grandTotal - cashPaise : (paymentMethod === 'upi' ? grandTotal : 0),
+          cash: paymentMethod === 'split' ? cashPaise : (paymentMethod === 'cash' ? billTotal : 0),
+          upi: paymentMethod === 'split' ? billTotal - cashPaise : (paymentMethod === 'upi' ? billTotal : 0),
         },
       };
 
@@ -217,9 +224,9 @@ export default function POS() {
           finalLineTotal: i.finalLineTotal,
         })),
         subtotal,
-        globalDiscount: state.globalDiscount,
-        globalDiscountAmt,
-        grandTotal,
+        globalDiscount: billState.globalDiscount,
+        globalDiscountAmt: billDiscountAmt,
+        grandTotal: billTotal,
         paymentMethod, // legacy string, keeping for backwards compatibility
         payment: paymentData,
         shopName: shopName || '',
