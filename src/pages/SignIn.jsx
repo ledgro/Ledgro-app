@@ -109,7 +109,8 @@ const SignIn = () => {
       if (err.userFacing) {
         setError(err.message);
       } else if (!cancelled) {
-        setError(lang === 'en' ? 'Failed to sign in. Please try again.' : 'സൈൻ ഇൻ പരാജയപ്പെട്ടു. വീണ്ടും ശ്രമിക്കുക.');
+        const code = err.code ? ` (${err.code})` : '';
+        setError((lang === 'en' ? 'Failed to sign in. Please try again.' : 'സൈൻ ഇൻ പരാജയപ്പെട്ടു. വീണ്ടും ശ്രമിക്കുക.') + code);
       }
     } finally {
       setIsSigningIn(false);

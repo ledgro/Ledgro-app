@@ -40,6 +40,6 @@ export function authMessage(err) {
     case 'auth/network-request-failed': return 'No internet. Check your connection.';
     case 'auth/operation-not-allowed': return 'Password sign-in is not turned on yet.';
     case 'auth/requires-recent-login': return 'Sign in again, then retry.';
-    default: return 'Something went wrong. Please try again.';
+    default: return `Something went wrong. Please try again.${err?.code ? ` (${err.code})` : ''}`;
   }
 }
