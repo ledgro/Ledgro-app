@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { useCatalogStore } from '../store/catalogStore';
 import { formatCurrency } from '../lib/utils';
+import CatalogThumb from './CatalogThumb';
 
 const box = 'w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900 bg-white';
 
@@ -18,6 +19,13 @@ export default function ExchangePicker({ lines, setLines, oldUnitPrice }) {
     });
     setQuery('');
   };
+  // Something that is not in the catalog (bought from another shop, or a one-off): added by name, price typed in, stock not tracked.
+  const addCustom = () => {
+    const name = query.trim().slice(0, 100);
+    if (!name) return;
+    setLines((prev) => [...prev, { catalogId: null, name, unit: 'unit', unitPrice: '', qty: 1, custom: true }]);
+    setQuery('');
+  };
   const patch = (i, next) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...next } : l)));
 
   return (
@@ -28,16 +36,30 @@ export default function ExchangePicker({ lines, setLines, oldUnitPrice }) {
         <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
           {results.map((p) => (
             <button key={p.id} type="button" onClick={() => add(p)} className="w-full flex items-center justify-between px-4 py-3 text-left active:bg-slate-50">
-              <span className="font-semibold text-slate-900 truncate pr-3">{p.name}</span>
+              <span className="flex min-w-0 items-center gap-3">
+                <CatalogThumb catalogId={p.id} className="h-10 w-10 shrink-0" />
+                <span className="truncate pr-3 font-semibold text-slate-900">{p.name}</span>
+              </span>
               <span className="text-sm font-bold text-slate-500 shrink-0">{formatCurrency(p.lastUsedPrice || 0)}</span>
             </button>
           ))}
         </div>
       )}
+      {query.trim() && (
+        <button type="button" onClick={addCustom} className="w-full rounded-xl border border-dashed border-blue-300 px-4 py-3 text-left text-sm font-bold text-blue-600 active:bg-blue-50">
+          + Add "{query.trim()}" as a new item (not in catalog)
+        </button>
+      )}
       {lines.map((l, i) => (
-        <div key={l.catalogId} className="bg-white rounded-xl border border-slate-200 p-3 space-y-2">
+        <div key={l.catalogId || `custom-${i}`} className="bg-white rounded-xl border border-slate-200 p-3 space-y-2">
           <div className="flex items-start justify-between gap-2">
-            <p className="font-bold text-slate-900">{l.name}</p>
+            <div className="flex min-w-0 items-center gap-3">
+              <CatalogThumb catalogId={l.catalogId} className="h-10 w-10 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-bold text-slate-900">{l.name}</p>
+                {l.custom && <p className="text-xs font-semibold text-slate-500">Not in catalog. Stock is not tracked.</p>}
+              </div>
+            </div>
             <button type="button" onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))} aria-label={`Remove ${l.name}`} className="text-slate-500 p-1"><X size={18} /></button>
           </div>
           <div className="flex items-center gap-3">

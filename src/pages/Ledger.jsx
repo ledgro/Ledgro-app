@@ -638,6 +638,13 @@ export default function Ledger() {
                     </span>
                   </div>
 
+                  {(bill.items || []).some((i) => i.catalogId) && (
+                    <div className="mt-3 flex gap-1.5">
+                      {[...new Set((bill.items || []).map((i) => i.catalogId).filter(Boolean))].slice(0, 4).map((cid) => (
+                        <CatalogThumb key={cid} catalogId={cid} className="h-10 w-10" />
+                      ))}
+                    </div>
+                  )}
                   <div className="flex justify-between items-end mt-3">
                     <div className="text-sm font-medium text-slate-500 flex items-center gap-2">
                       <span>{bill.items?.length || 0} {(bill.items?.length || 0) === 1 ? 'item' : 'items'}</span>
