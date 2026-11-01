@@ -128,6 +128,17 @@ d('firestore.rules', () => {
         await assertSucceeds(returnBatch('r3', 4000, 10000));
         await assertFails(returnBatch('r4', 1, 10001));
       });
+      it('staff cannot return a sale older than 24 hours, an admin can', async () => {
+        await env.withSecurityRulesDisabled(async (ctx) => {
+          await updateDoc(doc(ctx.firestore(), `shops/${SHOP}/bills/orig`), { createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) });
+        });
+        await assertFails(returnBatch('r1', 5000, 5000));
+        const db = as(ADMIN);
+        const b = writeBatch(db);
+        b.set(doc(db, `shops/${SHOP}/bills/r2`), ret({ creatorId: ADMIN }));
+        b.update(doc(db, `shops/${SHOP}/bills/orig`), { returnedAmt: 5000 });
+        await assertSucceeds(b.commit());
+      });
       it('zero-value return fails', async () => {
         await assertFails(returnBatch('r1', 0, 0));
       });
@@ -297,6 +308,26 @@ d('firestore.rules', () => {
       await assertSucceeds(updateDoc(ref(MEMBER, 'c2'), touch({ costPrice: null, source: '' })));
       await assertFails(updateDoc(ref(MEMBER, 'c2'), touch({ costPrice: -5 })));
       await assertFails(updateDoc(ref(MEMBER, 'c2'), touch({ source: 'x'.repeat(61) })));
+    });
+  });
+
+  describe('invoice counters', () => {
+    const ctr = (uid, id = '2627') => doc(as(uid), `shops/${SHOP}/billCounters/${id}`);
+    it('starts at 1 and moves up by exactly one', async () => {
+      await assertFails(setDoc(ctr(MEMBER), { last: 5 }));
+      await assertSucceeds(setDoc(ctr(MEMBER), { last: 1 }));
+      await assertFails(setDoc(ctr(MEMBER), { last: 3 }));
+      await assertFails(setDoc(ctr(MEMBER), { last: 1 }));
+      await assertSucceeds(setDoc(ctr(MEMBER), { last: 2 }));
+    });
+    it('rejects extra fields and outsiders', async () => {
+      await assertFails(setDoc(ctr(MEMBER), { last: 1, extra: 1 }));
+      await assertFails(setDoc(ctr('strangerUid'), { last: 1 }));
+    });
+    it('only an admin can delete one', async () => {
+      await assertSucceeds(setDoc(ctr(MEMBER), { last: 1 }));
+      await assertFails(deleteDoc(ctr(MEMBER)));
+      await assertSucceeds(deleteDoc(ctr(ADMIN)));
     });
   });
 

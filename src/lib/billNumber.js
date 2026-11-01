@@ -1,31 +1,39 @@
-// Short bill number: DDMM-TT-NN, e.g. 1510-K7-07.
-// TT = random 2-char tag per device, NN = that device's count for the day, so two phones never clash.
-let memTag = null;
-let memSeq = 0;
-function getDeviceTag() {
-  try {
-    let tag = localStorage.getItem('ledgro_device_tag');
-    if (!tag || tag.length !== 2) {
-      tag = Array.from(crypto.getRandomValues(new Uint8Array(2)), (b) => (b % 36).toString(36)).join('').toUpperCase();
-      localStorage.setItem('ledgro_device_tag', tag);
-    }
-    return tag;
-  } catch {
-    // Storage blocked: keep a random tag for this session so two phones still differ.
-    if (!memTag) memTag = Array.from(crypto.getRandomValues(new Uint8Array(2)), (b) => (b % 36).toString(36)).join('').toUpperCase();
-    return memTag;
-  }
+// GST invoice serial: one running count per shop per financial year (April to March), never repeating, no gaps.
+//   sale          26-27/000123
+//   return        R/26-27/000045   (credit notes are their own series)
+// At most 16 characters, letters, digits, "/" and "-" only, as GST invoice rules require.
+// The count lives in shops/{shopId}/billCounters/{series}; firestore.rules only accept last = previous + 1,
+// so two phones billing at once cannot take the same number (the second save is refused and retried).
+
+/** Financial year of a date, in India time: { key: '2627', label: '26-27' }. */
+export function fiscalYear(date) {
+  const ist = new Date(date.getTime() + 5.5 * 60 * 60 * 1000);
+  const y = ist.getUTCFullYear();
+  const start = ist.getUTCMonth() >= 3 ? y : y - 1; // April is month 3
+  const a = String(start % 100).padStart(2, '0');
+  const b = String((start + 1) % 100).padStart(2, '0');
+  return { key: `${a}${b}`, label: `${a}-${b}` };
 }
 
-export function generateBillNumber() {
-  const now = new Date();
-  const dd = String(now.getDate()).padStart(2, '0');
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dateKey = `billSeq_${dd}${mm}${now.getFullYear()}`;
-  let current = 1;
-  try {
-    current = parseInt(localStorage.getItem(dateKey) || '0', 10) + 1;
-    localStorage.setItem(dateKey, String(current));
-  } catch { current = ++memSeq; }
-  return `${dd}${mm}-${getDeviceTag()}-${String(current).padStart(2, '0')}`;
+export function formatBillNo(date, n, kind = 'S') {
+  const { label } = fiscalYear(date);
+  const serial = String(n).padStart(6, '0');
+  return kind === 'R' ? `R/${label}/${serial}` : `${label}/${serial}`;
+}
+
+export function counterId(date, kind = 'S') {
+  const { key } = fiscalYear(date);
+  return kind === 'R' ? `${key}-R` : key;
+}
+
+/**
+ * Takes the next number in a series. `read(ref)` must read from the server (tx.get or getDocFromServer).
+ * Returns { ref, data, billNo }: the caller writes `data` to `ref` in the SAME transaction or batch as the bill.
+ */
+export async function reserveBillNo({ doc, db, shopId, date, kind = 'S', read }) {
+  const ref = doc(db, `shops/${shopId}/billCounters`, counterId(date, kind));
+  const snap = await read(ref);
+  const last = snap.exists() && Number.isInteger(snap.data().last) ? snap.data().last : 0;
+  const next = last + 1;
+  return { ref, data: { last: next }, billNo: formatBillNo(date, next, kind) };
 }

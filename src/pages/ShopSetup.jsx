@@ -7,7 +7,7 @@ import { isStaffEmail } from '../lib/staffLogin';
 import { syncMyProfile } from '../lib/memberNames';
 
 const ShopSetup = () => {
-  const { user, setHasShop, setShopId, resendVerification, checkVerified } = useAuth();
+  const { user, setHasShop, setShopId, resendVerification, checkVerified, signOut } = useAuth();
   const navigate = useNavigate();
 
   const [shopName, setShopName] = useState('');
@@ -189,7 +189,7 @@ const ShopSetup = () => {
           {mode === 'create' && (staffAccount || needsVerify) ? (
             <div className="space-y-4 text-center">
               {staffAccount ? (
-                <p className="text-sm font-medium text-slate-600">Staff logins join a shop with an invite code from the shop admin. Tap "Join a Shop".</p>
+                <p className="text-sm font-medium text-slate-600">A username login can only join a shop. To open your own shop, sign out and create an account with your email. To join, tap "Join a Shop" and enter the invite code.</p>
               ) : (
                 <>
                   <p className="text-base font-bold text-slate-900">Verify your email</p>
@@ -274,6 +274,7 @@ const ShopSetup = () => {
           )}
 
         </div>
+        <button type="button" onClick={signOut} className="mt-4 w-full text-center text-sm font-bold text-slate-500 py-2">Use a different account (sign out)</button>
       </div>
     </div>
   );

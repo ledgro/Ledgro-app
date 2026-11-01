@@ -2,7 +2,7 @@ import { sheetStyle } from '../hooks/useKeyboardInset';
 import { toast } from 'sonner';
 import { useState, useEffect, useCallback, useMemo, useDeferredValue, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, where, getDocs, getDoc, orderBy, limit, startAfter, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, getDocFromServer, orderBy, limit, startAfter, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useInView } from 'react-intersection-observer';
 import BottomNav from '../components/BottomNav';
@@ -23,7 +23,7 @@ import { useNameOf } from '../lib/memberNames';
 import ExchangePicker from '../components/ExchangePicker';
 import PaymentEditor from '../components/PaymentEditor';
 import { exchangeTotals, replacementItems, netStockDeltas, flooredStockChange } from '../lib/exchange';
-import { generateBillNumber } from '../lib/billNumber';
+import { reserveBillNo } from '../lib/billNumber';
 import { confirm } from '../lib/confirm';
 
 const PAGE = 30;
@@ -42,7 +42,7 @@ const unitRefundOf = (item) => {
 };
 
 export default function Ledger() {
-  const { user, shopId, shopAdminId, shopName } = useAuth();
+  const { user, shopId, shopAdminId, shopName, isAdmin } = useAuth();
   const nameOf = useNameOf(shopId, user?.uid);
   const navigate = useNavigate();
 
@@ -268,6 +268,14 @@ export default function Ledger() {
   };
 
   // Load what was already returned for the open bill so we can't over-refund.
+  /** Staff can return a sale for 24h; an admin any time. Rules enforce it again on save. */
+  const canReturnBill = (b) => {
+    if (isAdmin) return true;
+    const created = b?.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+    // oxlint-disable-next-line react/purity
+    return !!created && Date.now() - created <= 24 * 60 * 60 * 1000;
+  };
+
   const openReturnDrawer = async () => {
     if (!selectedBill) return;
     setReturnItems({});
@@ -364,21 +372,29 @@ export default function Ledger() {
         grandTotal: -returnTotal,
         paymentMethod: refundMethod,
         refundMethod,
-        billNo: `R-${selectedBill.billNo || selectedBill.id.substring(0, 6)}`,
+        billNo: '', // set below from the credit-note series
         clientCreatedAt: Date.now(),
         createdAt: serverTimestamp(),
         ...(exchanging ? { exchangeOf: selectedBill.id } : {}),
       };
 
+      const nowServer = await serverNow();
+      const readServer = (ref) => getDocFromServer(ref);
+      const creditNo = await reserveBillNo({ doc, db, shopId, date: nowServer, kind: 'R', read: readServer });
+      payload.billNo = creditNo.billNo;
+      batch.set(creditNo.ref, creditNo.data);
+
       const returnDocRef = doc(collection(db, `shops/${shopId}/bills`));
       batch.set(returnDocRef, payload);
       batch.update(doc(db, `shops/${shopId}/bills/${selectedBill.id}`), { returnedAmt: increment(returnTotal) });
 
-      const dayKey0 = bizDayKey(await serverNow());
+      const dayKey0 = bizDayKey(nowServer);
       const statEntries = [{ key: dayKey0, delta: billDelta(payload) }];
       let saleDoc = null;
       if (exchanging) {
         const items = replacementItems(exchangeLines);
+        const saleNo = await reserveBillNo({ doc, db, shopId, date: nowServer, kind: 'S', read: readServer });
+        batch.set(saleNo.ref, saleNo.data);
         const salePayload = {
           type: 'sale',
           exchangeOf: selectedBill.id,
@@ -391,7 +407,7 @@ export default function Ledger() {
           paymentMethod: refundMethod,
           payment: { method: refundMethod, breakdown: { cash: refundMethod === 'cash' ? exch.newTotal : 0, upi: refundMethod === 'upi' ? exch.newTotal : 0 } },
           shopName: shopName || '',
-          billNo: generateBillNumber(user.uid),
+          billNo: saleNo.billNo,
           clientCreatedAt: new Date().toISOString(),
           createdAt: serverTimestamp(),
         };
@@ -727,12 +743,16 @@ export default function Ledger() {
                            <Pencil size={20} /> Edit Bill
                          </button>
                        )}
+                       {canReturnBill(selectedBill) ? (
                        <button
                          onClick={openReturnDrawer}
                          className="w-full bg-orange-50 text-orange-600 font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-orange-100 transition-colors shadow-sm"
                        >
                          <ArrowLeftRight size={20} /> Return Items
                        </button>
+                       ) : (
+                       <p className="w-full rounded-xl bg-slate-50 px-3 py-3 text-center text-xs font-bold text-slate-500">Returns after 24 hours need an admin.</p>
+                       )}
                        {!(selectedBill.returnedAmt > 0) && !selectedBill.exchangeOf && (
                        <button
                          onClick={() => { handleVoidBill(selectedBill); setSelectedBill(null); }}

@@ -3,7 +3,7 @@ import { useReducer, useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
 import { useCatalogLoader } from '../hooks/useCatalogLoader';
-import { generateBillNumber } from '../lib/billNumber';
+import { reserveBillNo } from '../lib/billNumber';
 import { writeStats, voidEntries } from '../lib/dayStats';
 import { billDelta, bizDayKey } from '../lib/statsMath';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
@@ -231,7 +231,7 @@ export default function POS() {
         paymentMethod, // legacy string, keeping for backwards compatibility
         payment: paymentData,
         shopName: shopName || '',
-        billNo: generateBillNumber(user.uid),
+        billNo: '', // set inside the transaction from the shop's running invoice count
         clientCreatedAt: new Date().toISOString(),
         createdAt: serverTimestamp(), // critical for offline ledger ordering
       };
@@ -242,7 +242,8 @@ export default function POS() {
       if (!pendingBillRefRef.current) pendingBillRefRef.current = doc(collection(db, `shops/${shopId}/bills`));
       const newBillRef = pendingBillRefRef.current;
       batch.set(newBillRef, payload);
-      const statEntries = [{ key: bizDayKey(await serverNow()), delta: billDelta(payload) }];
+      const saleTime = await serverNow();
+      const statEntries = [{ key: bizDayKey(saleTime), delta: billDelta(payload) }];
 
       // Stock/frequency bookkeeping, one write per catalog doc
       const stockDelta = new Map();
@@ -299,6 +300,7 @@ export default function POS() {
         await Promise.race([
           runTransaction(db, async (tx) => {
             localCatalogUpdates = [];
+            const serial = await reserveBillNo({ doc, db, shopId, date: saleTime, read: (ref) => tx.get(ref) });
             const reads = await Promise.all(stockPlan.map((p) => tx.get(doc(db, `shops/${shopId}/catalog`, p.id))));
             reads.forEach((snap, i) => {
               if (!snap.exists()) return;
@@ -319,7 +321,9 @@ export default function POS() {
                 });
               }
             });
+            payload.billNo = serial.billNo;
             ops.forEach(([kind, ref, data, opt]) => (kind === 'set' ? (opt ? tx.set(ref, data, opt) : tx.set(ref, data)) : tx.update(ref, data)));
+            tx.set(serial.ref, serial.data);
           }),
           new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), COMMIT_TIMEOUT_MS)),
         ]);

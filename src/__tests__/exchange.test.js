@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { exchangeTotals, replacementItems, netStockDeltas, flooredStockChange } from '../lib/exchange';
-import { generateBillNumber } from '../lib/billNumber';
+import { formatBillNo, fiscalYear, reserveBillNo } from '../lib/billNumber';
 
 const lines = [{ catalogId: 'a', name: 'Shoe', unitPrice: 50000, qty: 2 }, { catalogId: 'b', name: 'Sock', unitPrice: 2000, qty: 1 }];
 
@@ -28,12 +28,26 @@ describe('exchange math', () => {
 });
 
 describe('bill number', () => {
-  beforeEach(() => localStorage.clear());
-  it('is short and counts up per day', () => {
-    const a = generateBillNumber();
-    const b = generateBillNumber();
-    expect(a).toMatch(/^\d{4}-[0-9A-Z]{2}-01$/);
-    expect(b.endsWith('-02')).toBe(true);
-    expect(a.slice(0, 7)).toBe(b.slice(0, 7));
+  it('is a GST serial: financial year plus a six digit count, 16 characters at most', () => {
+    expect(formatBillNo(new Date('2026-11-02T10:00:00Z'), 123)).toBe('26-27/000123');
+    expect(formatBillNo(new Date('2026-11-02T10:00:00Z'), 45, 'R')).toBe('R/26-27/000045');
+    expect(formatBillNo(new Date('2026-11-02T10:00:00Z'), 999999, 'R').length).toBeLessThanOrEqual(16);
+  });
+  it('the financial year turns over on 1 April, India time', () => {
+    expect(fiscalYear(new Date('2027-03-31T18:00:00Z')).label).toBe('26-27'); // 31 Mar 23:30 IST
+    expect(fiscalYear(new Date('2027-03-31T18:30:00Z')).label).toBe('27-28'); // 1 Apr 00:00 IST
+    expect(fiscalYear(new Date('2027-01-15T00:00:00Z')).label).toBe('26-27');
+  });
+  it('takes the next number from the shop counter and starts at 1', async () => {
+    const d = new Date('2026-11-02T10:00:00Z');
+    const doc = (_db, path, id) => ({ path: `${path}/${id}` });
+    const first = await reserveBillNo({ doc, db: {}, shopId: 's', date: d, read: async () => ({ exists: () => false }) });
+    expect(first.billNo).toBe('26-27/000001');
+    expect(first.data).toEqual({ last: 1 });
+    expect(first.ref.path).toBe('shops/s/billCounters/2627');
+    const next = await reserveBillNo({ doc, db: {}, shopId: 's', date: d, read: async () => ({ exists: () => true, data: () => ({ last: 41 }) }) });
+    expect(next.billNo).toBe('26-27/000042');
+    const credit = await reserveBillNo({ doc, db: {}, shopId: 's', date: d, kind: 'R', read: async () => ({ exists: () => false }) });
+    expect(credit.ref.path).toBe('shops/s/billCounters/2627-R');
   });
 });
