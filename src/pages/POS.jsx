@@ -90,6 +90,31 @@ export default function POS() {
     }
   }, [user?.uid, shopId]);
 
+  // Draft bill: the cart is kept on this phone as it changes, so leaving the screen, a call or a closed app does not lose it.
+  // Cleared on checkout, Clear, or after 12 hours. Nothing is written to the server until the bill is paid.
+  const DRAFT_KEY = 'ledgro-cart-draft';
+  const draftRestored = useRef(false);
+  useEffect(() => {
+    if (draftRestored.current || !user?.uid || !shopId || location.state?.editBill) return;
+    draftRestored.current = true;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d.uid !== user.uid || d.shopId !== shopId || Date.now() - d.savedAt > 12 * 60 * 60 * 1000 || !d.items?.length) { localStorage.removeItem(DRAFT_KEY); return; }
+      dispatch({ type: 'INIT_FROM_EDIT', payload: { items: d.items, globalDiscount: d.globalDiscount } });
+      toast.success('Draft bill restored');
+    } catch { try { localStorage.removeItem(DRAFT_KEY); } catch { /* storage blocked */ } }
+  }, [user?.uid, shopId, location.state?.editBill]);
+
+  useEffect(() => {
+    if (!draftRestored.current || location.state?.editBill) return;
+    try {
+      if (checkoutSuccess || state.items.length === 0) localStorage.removeItem(DRAFT_KEY);
+      else localStorage.setItem(DRAFT_KEY, JSON.stringify({ uid: user?.uid, shopId, savedAt: Date.now(), items: state.items, globalDiscount: state.globalDiscount }));
+    } catch { /* storage blocked */ }
+  }, [state.items, state.globalDiscount, checkoutSuccess, user?.uid, shopId, location.state?.editBill]);
+
   const springTotal = useSpring({ val: grandTotal, config: { stiffness: 200, damping: 20 } });
   const editBill = location.state?.editBill || null;
 
