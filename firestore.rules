@@ -202,6 +202,7 @@ service cloud.firestore {
 
       // Cash a staff member takes from the drawer: salary advance, debt (a loan), or a repayment.
       // Append-only (no edits); only an admin can delete a wrong entry.
+      // A repayment taken off salary moves no cash, so it can wipe a debt without anyone checking: only an admin may record it.
       match /staffCash/{entryId} {
         allow get: if isMember(shopId);
         allow list: if isMember(shopId) && request.query.limit <= 100;
@@ -215,6 +216,7 @@ service cloud.firestore {
           && request.resource.data.amount <= 100000000
           && request.resource.data.get('via', 'cash') in ['cash', 'salary']
           && (request.resource.data.kind == 'repay' || request.resource.data.get('via', 'cash') == 'cash')
+          && (request.resource.data.get('via', 'cash') != 'salary' || isAdmin(shopId))
           && isValidString(request.resource.data.get('note', ''), 0, 200)
           && request.resource.data.creatorId == request.auth.uid
           && request.resource.data.createdAt == request.time;

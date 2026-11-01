@@ -679,6 +679,9 @@ export default function Ledger() {
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-slate-900">{item.name}</p>
                           <p className="text-xs font-medium text-slate-500">{item.qty} x {formatCurrency(item.unitPriceAtSale || item.unitPrice)}</p>
+                          {item.listPrice != null && item.listPrice !== (item.unitPriceAtSale || item.unitPrice) && (
+                            <p className="text-xs font-bold text-amber-700">Price changed from {formatCurrency(item.listPrice)}</p>
+                          )}
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-slate-900">{formatCurrency(item.finalLineTotal ?? item.lineTotal)}</p>

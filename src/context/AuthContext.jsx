@@ -8,7 +8,7 @@ import { auth, googleProvider, db } from '../firebase';
 import { deleteShopCascade, flushPendingWrites } from '../lib/firestoreUtils';
 import { setDayCutoff } from '../lib/statsMath';
 import SplashScreen from '../components/SplashScreen';
-import { syncMyProfile } from '../lib/memberNames';
+import { syncMyProfile, useMemberNames } from '../lib/memberNames';
 import { setLogContext } from '../lib/errorLog';
 import { toLoginEmail, isEmail, isStaffEmail, usernameError, passwordError, authMessage, usesPassword } from '../lib/staffLogin';
 
@@ -74,6 +74,7 @@ export const AuthProvider = ({ children }) => {
   const [hasShop, setHasShop] = useState(null);
   const [shopId, setShopId] = useState(null);
   const [shopAdminId, setShopAdminId] = useState(null);
+  const [isAdminRole, setIsAdminRole] = useState(false); // this user's role is admin (owner or co-admin), as the rules see it
   const [shopName, setShopName] = useState('');
   const [shopProfile, setShopProfile] = useState({ address: '', phone: '', tagline: '', dayCutoffMin: 270 });
   const [shopError, setShopError] = useState(false);
@@ -116,6 +117,7 @@ export const AuthProvider = ({ children }) => {
       setHasShop(false);
       setShopId(null);
       setShopAdminId(null);
+      setIsAdminRole(false);
       setShopName('');
     };
 
@@ -143,6 +145,7 @@ export const AuthProvider = ({ children }) => {
         setHasShop(null);
         setShopId(null);
         setShopAdminId(null);
+        setIsAdminRole(false);
         setShopName('');
         setShopError(false);
         setLoading(false);
@@ -171,6 +174,7 @@ export const AuthProvider = ({ children }) => {
           setHasShop(true);
           setShopId(foundShop.id);
           setShopAdminId(data.ownerId);
+          setIsAdminRole(data.members?.[currentUser.uid] === 'admin');
           setShopName(data.name);
           setDayCutoff(data.dayCutoffMin);
           syncMyProfile(foundShop.id, currentUser);
@@ -226,6 +230,8 @@ export const AuthProvider = ({ children }) => {
         return;
       }
       setShopAdminId((prev) => (data.ownerId && data.ownerId !== prev ? data.ownerId : prev));
+      setIsAdminRole(members[user.uid] === 'admin');
+      useMemberNames.getState().setCurrent(Object.keys(members));
       setShopName((prev) => (data.name && data.name !== prev ? data.name : prev));
       setDayCutoff(data.dayCutoffMin);
       setShopProfile({ address: data.address || '', phone: data.phone || '', tagline: data.tagline || '', dayCutoffMin: Number.isInteger(data.dayCutoffMin) ? data.dayCutoffMin : 270 });
@@ -334,6 +340,7 @@ export const AuthProvider = ({ children }) => {
     setHasShop(null);
     setShopId(null);
     setShopAdminId(null);
+    setIsAdminRole(false);
     setShopName('');
     sessionGuard.unbindSession();
 
@@ -441,6 +448,7 @@ export const AuthProvider = ({ children }) => {
     hasShop,
     shopId,
     shopAdminId,
+    isAdmin: isAdminRole,
     shopName,
     shopProfile,
     loading,
@@ -455,7 +463,7 @@ export const AuthProvider = ({ children }) => {
     signOut,
     beginVoluntaryExit,
     deleteAccount,
-  }), [user, hasShop, shopId, shopAdminId, shopName, shopProfile, loading, signInWithGoogle, signInWithPassword, changePassword, resendVerification, checkVerified, signOut, beginVoluntaryExit, deleteAccount]);
+  }), [user, hasShop, shopId, shopAdminId, isAdminRole, shopName, shopProfile, loading, signInWithGoogle, signInWithPassword, changePassword, resendVerification, checkVerified, signOut, beginVoluntaryExit, deleteAccount]);
 
   if (loading) {
     return <AuthContext.Provider value={value}><SplashScreen /></AuthContext.Provider>;

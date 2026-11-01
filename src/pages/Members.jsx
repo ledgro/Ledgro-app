@@ -1,13 +1,13 @@
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot, deleteField, Timestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot, deleteField, limit, query, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Trash2, UserPlus, LogOut, ArrowUpCircle, ShieldCheck, ShieldOff } from 'lucide-react';
 import { broadcastSessionTerminated } from '../lib/sessionBroadcast';
 import { deleteShopCascade, flushPendingWrites } from '../lib/firestoreUtils';
-import { useNameOf } from '../lib/memberNames';
+import { useNameOf, useMemberNames } from '../lib/memberNames';
 import { confirm } from '../lib/confirm';
 
 export default function Members() {
@@ -43,6 +43,16 @@ export default function Members() {
 
     return () => unsubscribe();
   }, [shopId, user?.uid]);
+
+  // Live names, so a person who just joined shows their name here instead of a placeholder.
+  useEffect(() => {
+    if (!shopId) return undefined;
+    return onSnapshot(query(collection(db, `shops/${shopId}/memberProfiles`), limit(100)), (snap) => {
+      const names = {};
+      snap.forEach((d) => { names[d.id] = d.data().name; });
+      useMemberNames.getState().setAll(shopId, names);
+    }, (err) => console.warn('Member names listener', err));
+  }, [shopId]);
 
   const handleGenerateInvite = async () => {
     setIsGenerating(true);

@@ -47,6 +47,7 @@ export default function Dashboard() {
   const [rawStats, setStats] = useState({
     expectedCash: 0,
     staffCashNet: 0,
+    staffCashFailed: false,
     upiInBank: 0,
     netEarnings: 0,
     vsYesterday: 0,
@@ -136,6 +137,11 @@ export default function Dashboard() {
   const handleCloseRegister = async () => {
     if (!navigator.onLine) {
       toast.error("You must be online to save the cash count.");
+      return;
+    }
+
+    if (stats.staffCashFailed) {
+      toast.error('Staff cash could not be loaded, so the expected cash may be wrong. Refresh and try again.');
       return;
     }
 
@@ -287,6 +293,7 @@ export default function Dashboard() {
                <div className="space-y-6">
                  <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm font-mono text-sm">
                    <p className="font-bold font-sans text-slate-900 mb-3 border-b pb-2">Expected Cash in Drawer:</p>
+                   {stats.staffCashFailed && <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 font-sans text-xs font-bold text-amber-800">Staff cash could not be loaded, so this total may be wrong. Close this, tap refresh, and try again before saving.</p>}
                    <div className="flex justify-between text-slate-600 mb-1"><span>Cash Sales:</span><span>{show(formatCurrency(stats.cashSplit))}</span></div>
                    <div className="flex justify-between text-slate-600 mb-1"><span>- Cash Expenses:</span><span>{show(formatCurrency(stats.cashSplit - stats.expectedCash - (stats.staffCashNet || 0)))}</span></div>
                    {!!stats.staffCashNet && <div className="flex justify-between text-slate-600 mb-1"><span>{stats.staffCashNet > 0 ? '- Staff cash taken:' : '+ Staff cash paid back:'}</span><span>{show(formatCurrency(Math.abs(stats.staffCashNet)))}</span></div>}
@@ -350,7 +357,7 @@ export default function Dashboard() {
 
                  <button
                    onClick={handleCloseRegister}
-                   disabled={isClosingRecord || actualCashCounted === '' || isNaN(parseFloat(actualCashCounted))}
+                   disabled={isClosingRecord || stats.staffCashFailed || actualCashCounted === '' || isNaN(parseFloat(actualCashCounted))}
                    className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl active:scale-95 disabled:opacity-50"
                  >
                    {isClosingRecord ? 'Saving...' : 'Save Count'}

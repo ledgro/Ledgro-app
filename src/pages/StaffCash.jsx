@@ -25,8 +25,7 @@ const field = 'w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 
 
 export default function StaffCash() {
   const navigate = useNavigate();
-  const { shopId, user, shopAdminId } = useAuth();
-  const isAdmin = user?.uid === shopAdminId;
+  const { shopId, user, isAdmin } = useAuth();
   const nameOf = useNameOf(shopId, user?.uid);
   const [entries, setEntries] = useState(null);
   const [open, setOpen] = useState(false);
@@ -59,6 +58,7 @@ export default function StaffCash() {
     const staff = cleanStaff(f.staff);
     const rupees = parseFloat(f.amount);
     if (!staff) { toast.error('Enter the staff name.'); return; }
+    if (f.kind === 'repay' && f.via === 'salary' && !isAdmin) { toast.error('Only an admin can record a deduction from salary.'); return; }
     if (!Number.isFinite(rupees) || rupees <= 0) { toast.error('Enter a valid amount.'); return; }
     setSaving(true);
     try {
@@ -171,11 +171,12 @@ export default function StaffCash() {
               </div>
               {f.kind === 'repay' && (
                 <div className="flex rounded-xl bg-slate-100 p-1" role="group" aria-label="How was it paid back">
-                  {[['cash', 'Cash back into drawer'], ['salary', 'Deducted from salary']].map(([v, l]) => (
+                  {[['cash', 'Cash back into drawer'], ...(isAdmin ? [['salary', 'Deducted from salary']] : [])].map(([v, l]) => (
                     <button key={v} type="button" onClick={() => setF((p) => ({ ...p, via: v }))} className={cn('flex-1 rounded-lg py-2.5 text-xs font-bold', f.via === v ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500')}>{l}</button>
                   ))}
                 </div>
               )}
+              {f.kind === 'repay' && !isAdmin && <p className="text-xs font-semibold text-slate-500">A deduction from salary is recorded by an admin.</p>}
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Note (optional)</label>
                 <input className={field} value={f.note} maxLength={200} onChange={(e) => setF((p) => ({ ...p, note: e.target.value }))} />

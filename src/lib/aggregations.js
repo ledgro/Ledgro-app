@@ -28,12 +28,13 @@ export async function computeDailyAggregations(shopId) {
 
   // Cash staff took from (or paid back into) the drawer today.
   let staffNet = 0;
+  let staffCashFailed = false;
   try {
     const start = bizDayStart(today);
     const end = new Date(start.getTime()); end.setDate(end.getDate() + 1);
     const snap = await getDocs(query(collection(db, `shops/${shopId}/staffCash`), where('createdAt', '>=', start), where('createdAt', '<', end), orderBy('createdAt'), limit(100)));
     staffNet = staffCashNet(snap.docs.map((d) => d.data()));
-  } catch (err) { console.warn('Staff cash not loaded', err); }
+  } catch (err) { console.warn('Staff cash not loaded', err); staffCashFailed = true; }
 
   const todayCash = t.cash + t.splitCash;
   const todayUpi = t.upi + t.splitUpi;
@@ -41,6 +42,7 @@ export async function computeDailyAggregations(shopId) {
   return {
     expectedCash: todayCash - t.expCash - staffNet,
     staffCashNet: staffNet,
+    staffCashFailed, // true: expected cash is missing the staff-cash entries, so it must not be trusted
     upiInBank: todayUpi,
     netEarnings: todayNet,
     vsYesterday: percentDiff,

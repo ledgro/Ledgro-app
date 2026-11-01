@@ -306,7 +306,7 @@ d('firestore.rules', () => {
     it('a member records an advance, debt and repayment', async () => {
       await assertSucceeds(setDoc(ref(MEMBER, 'a'), entry(MEMBER)));
       await assertSucceeds(setDoc(ref(MEMBER, 'b'), entry(MEMBER, { kind: 'debt' })));
-      await assertSucceeds(setDoc(ref(MEMBER, 'c'), entry(MEMBER, { kind: 'repay', via: 'salary' })));
+      await assertSucceeds(setDoc(ref(MEMBER, 'c'), entry(MEMBER, { kind: 'repay', via: 'cash' })));
     });
     it('rejects bad amounts, kinds, authors, stale time, and a salary-paid advance', async () => {
       await assertFails(setDoc(ref(MEMBER, 'x'), entry(MEMBER, { amount: 0 })));
@@ -316,6 +316,11 @@ d('firestore.rules', () => {
       await assertFails(setDoc(ref(MEMBER, 'x'), entry(MEMBER, { createdAt: Timestamp.fromMillis(1000) })));
       await assertFails(setDoc(ref(MEMBER, 'x'), entry(MEMBER, { via: 'salary' })));
       await assertFails(setDoc(ref(MEMBER, 'x'), entry(MEMBER, { extra: 1 })));
+    });
+    it('a deduction from salary (no cash moves) can only be recorded by an admin', async () => {
+      await assertFails(setDoc(ref(MEMBER, 's1'), entry(MEMBER, { kind: 'repay', via: 'salary' })));
+      await assertSucceeds(setDoc(ref(ADMIN, 's2'), entry(ADMIN, { kind: 'repay', via: 'salary' })));
+      await assertSucceeds(setDoc(ref(MEMBER, 's3'), entry(MEMBER, { kind: 'repay', via: 'cash' })));
     });
     it('outsiders cannot read or write; entries cannot be edited; only an admin deletes', async () => {
       await assertSucceeds(setDoc(ref(MEMBER, 'd'), entry(MEMBER)));
