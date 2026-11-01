@@ -27,6 +27,15 @@ describe('exchange math', () => {
   });
 });
 
+describe('item that is not in the catalog', () => {
+  it('goes on the bill with a null catalogId and no stock change', () => {
+    const custom = [{ catalogId: null, name: 'Sandal from other shop', unitPrice: 58000, qty: 1, custom: true }];
+    expect(replacementItems(custom)[0].catalogId).toBeNull();
+    expect(netStockDeltas([], custom).size).toBe(0);
+    expect(exchangeTotals(58000, custom).difference).toBe(0);
+  });
+});
+
 describe('bill number', () => {
   it('is a GST serial: financial year plus a six digit count, 16 characters at most', () => {
     expect(formatBillNo(new Date('2026-11-02T10:00:00Z'), 123)).toBe('26-27/000123');

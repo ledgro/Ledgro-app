@@ -10,7 +10,7 @@ export function replacementItems(lines) {
     const total = lineTotal(l);
     return {
       name: l.name,
-      catalogId: l.catalogId,
+      catalogId: l.catalogId || null,
       unit: l.unit || 'unit',
       unitPrice: Math.round(Number(l.unitPrice) || 0),
       qty: Number(l.qty) || 0,
