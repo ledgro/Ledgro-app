@@ -54,8 +54,8 @@ export default function Members() {
 
     try {
       while (!isUnique && attempts < 5) {
-        // Without functions to rate limit, we must use a sufficiently long code (e.g. 20 chars minimum or UUID)
-        code = crypto.randomUUID().replace(/-/g, '').substring(0, 20).toUpperCase();
+        // 8 letters/digits (no look-alikes). A code lives 30 minutes and works once, so guessing one is not practical.
+        code = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
         inviteRef = doc(db, 'invites', code);
         const inviteSnap = await getDoc(inviteRef);
         if (!inviteSnap.exists()) {

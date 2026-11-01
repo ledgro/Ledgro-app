@@ -63,8 +63,8 @@ const ShopSetup = () => {
     if (!user?.uid) return;
 
     const code = (presetCode || inviteCode).trim().toUpperCase();
-    if (code.length !== 20) {
-      setError("Please enter a valid 20-character invite code");
+    if (code.length < 8 || code.length > 20) {
+      setError("Please enter the invite code from your admin");
       return;
     }
     if (!navigator.onLine) { setError('You are offline. Reconnect and try again.'); return; }
@@ -228,9 +228,9 @@ const ShopSetup = () => {
               <div>
                 <button
                   type="submit"
-                  disabled={loading || inviteCode.length !== 20}
+                  disabled={loading || inviteCode.length < 8}
                   className={`w-full flex justify-center items-center h-14 px-4 rounded-xl shadow-sm text-base font-bold text-white transition-all active:scale-[0.98] ${
-                    loading || inviteCode.length !== 20 ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                    loading || inviteCode.length < 8 ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                   } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
                 >
                   {loading ? 'Joining...' : 'Join Shop'}

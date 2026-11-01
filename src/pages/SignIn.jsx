@@ -124,7 +124,7 @@ const SignIn = () => {
     const joining = pwMode === 'create' && joinCode.trim() !== '';
     if (joining) {
       const code = joinCode.trim().toUpperCase();
-      if (code.length !== 20) { setError('Enter the 20-character invite code from your admin.'); return; }
+      if (code.length < 8 || code.length > 20) { setError('Enter the invite code from your admin.'); return; }
       try { sessionStorage.setItem('ledgro_join_code', code); } catch { /* storage blocked */ }
     }
     runSignIn(() => signInWithPassword(identifier, password, { create: pwMode !== 'signin' }));
