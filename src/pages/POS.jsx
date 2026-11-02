@@ -9,7 +9,8 @@ import { billDelta, bizDayKey } from '../lib/statsMath';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
 import { collection, getDoc, runTransaction, doc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Tag, Share2, PlusCircle, Download } from 'lucide-react';
+import { Tag, Share2, PlusCircle, Download, Pause } from 'lucide-react';
+import { loadHeld, saveHeld, addHeld, removeHeld, heldSummary, MAX_HELD } from '../lib/heldBills';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSpring, animated } from '@react-spring/web';
 
@@ -162,6 +163,33 @@ export default function POS() {
     const step = ['kg', 'l', 'litre', 'liter'].includes(line.unit) ? 0.5 : 1;
     if (line.qty - step >= step) dispatch({ type: 'UPDATE_QTY', payload: { id: line.id, qty: line.qty - step } });
     else dispatch({ type: 'REMOVE_ITEM', payload: { id: line.id } });
+  };
+
+  // Held bills: park this customer's cart, serve the next one, come back later.
+  const [held, setHeld] = useState([]);
+  const [heldOpen, setHeldOpen] = useState(false);
+  // oxlint-disable-next-line react/set-state-in-effect
+  useEffect(() => { if (user?.uid && shopId) setHeld(loadHeld(user.uid, shopId)); }, [user?.uid, shopId]);
+  const updateHeld = (next) => { setHeld(next); saveHeld(user?.uid, shopId, next); };
+
+  const holdBill = () => {
+    const next = addHeld(held, { items: state.items, globalDiscount: state.globalDiscount });
+    if (!next) { toast.error(`You can hold up to ${MAX_HELD} bills. Finish or delete one first.`); return; }
+    updateHeld(next);
+    dispatch({ type: 'CLEAR_BILL' });
+    toast.success('Bill on hold');
+  };
+
+  const resumeHeld = (h) => {
+    let list = removeHeld(held, h.id);
+    if (state.items.length > 0) { // the bill on screen is parked, not lost
+      const swapped = addHeld(list, { items: state.items, globalDiscount: state.globalDiscount });
+      if (!swapped) { toast.error(`You can hold up to ${MAX_HELD} bills. Finish or delete one first.`); return; }
+      list = swapped;
+    }
+    updateHeld(list);
+    dispatch({ type: 'INIT_FROM_EDIT', payload: { items: h.items, globalDiscount: h.globalDiscount } });
+    setHeldOpen(false);
   };
 
   const clearBill = async () => {
@@ -586,9 +614,17 @@ export default function POS() {
       <header className="sticky top-0 z-30 border-b border-gray-100 bg-white px-4 pb-3 pt-3">
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900">{editBill ? 'Correct & Edit Bill' : 'New Bill'}</h1>
-          {items.length > 0 && !editBill && (
-            <button type="button" onClick={clearBill} className="rounded-lg px-2 py-1 text-sm font-semibold text-red-500 active:bg-red-50">Clear</button>
-          )}
+          <div className="flex items-center gap-1">
+            {held.length > 0 && !editBill && (
+              <button type="button" onClick={() => setHeldOpen(true)} className="rounded-lg bg-amber-100 px-3 py-1.5 text-sm font-bold text-amber-800 active:bg-amber-200">Held ({held.length})</button>
+            )}
+            {items.length > 0 && !editBill && (
+              <button type="button" onClick={holdBill} className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-blue-600 active:bg-blue-50"><Pause size={14} /> Hold</button>
+            )}
+            {items.length > 0 && !editBill && (
+              <button type="button" onClick={clearBill} className="rounded-lg px-2 py-1 text-sm font-semibold text-red-500 active:bg-red-50">Clear</button>
+            )}
+          </div>
         </div>
         <SearchSheet onAddItem={handleAddItem} onRemoveOne={handleRemoveOne} cartQty={cartQty} itemCount={items.length} />
       </header>
@@ -670,6 +706,31 @@ export default function POS() {
             >
               Checkout · {formatCurrency(grandTotal)}
             </button>
+          </div>
+        </div>
+      )}
+
+      {heldOpen && (
+        <div role="dialog" aria-modal="true" aria-label="Held bills" className="fixed inset-0 z-[70] flex items-end bg-black/40" onClick={() => setHeldOpen(false)}>
+          <div className="w-full max-h-[80%] overflow-y-auto rounded-t-[24px] bg-white p-4 pb-safe" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200" />
+            <div className="mx-auto max-w-md space-y-2">
+              <p className="text-center text-xs font-bold uppercase tracking-wider text-slate-500">Held bills</p>
+              {held.length === 0 && <p className="py-6 text-center text-sm font-medium text-slate-500">No held bills.</p>}
+              {held.map((h) => {
+                const sm = heldSummary(h);
+                return (
+                  <div key={h.id} className="flex items-center gap-2 rounded-xl border border-slate-200 p-3">
+                    <button type="button" onClick={() => resumeHeld(h)} className="min-w-0 flex-1 text-left">
+                      <p className="font-bold text-slate-900 tabular-nums">{formatCurrency(sm.total)} <span className="text-xs font-semibold text-slate-500">· {sm.count} {sm.count === 1 ? 'item' : 'items'} · {new Date(h.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></p>
+                      <p className="truncate text-xs font-medium text-slate-500">{sm.names}</p>
+                    </button>
+                    <button type="button" onClick={() => updateHeld(removeHeld(held, h.id))} aria-label="Delete held bill" className="rounded-lg px-2 py-1 text-xs font-bold text-red-500 active:bg-red-50">Delete</button>
+                  </div>
+                );
+              })}
+              <button type="button" onClick={() => setHeldOpen(false)} className="mt-2 h-12 w-full rounded-xl bg-slate-100 font-bold text-slate-600">Close</button>
+            </div>
           </div>
         </div>
       )}
