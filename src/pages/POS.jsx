@@ -7,7 +7,7 @@ import { reserveBillNo } from '../lib/billNumber';
 import { writeStats, voidEntries } from '../lib/dayStats';
 import { billDelta, bizDayKey } from '../lib/statsMath';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
-import { collection, getDoc, runTransaction, doc, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, getDoc, getDocFromServer, runTransaction, doc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Tag, Share2, PlusCircle, Download, Pause } from 'lucide-react';
 import { loadHeld, saveHeld, addHeld, removeHeld, heldSummary, MAX_HELD } from '../lib/heldBills';
@@ -356,6 +356,7 @@ export default function POS() {
       writeStats(batch, shopId, statEntries);
 
       let localCatalogUpdates = [];
+      let numberChanged = false;
       // Online-only: wait for the server's verdict. A bill is NEVER shown as success unless
       // the server accepted it. The same bill id is reused on retry, so no duplicates.
       if (!navigator.onLine) throw new Error('OFFLINE');
@@ -390,6 +391,7 @@ export default function POS() {
               }
             });
             payload.billNo = serial.billNo;
+            numberChanged = !!previewNo && serial.billNo !== previewNo;
             ops.forEach(([kind, ref, data, opt]) => (kind === 'set' ? (opt ? tx.set(ref, data, opt) : tx.set(ref, data)) : tx.update(ref, data)));
             tx.set(serial.ref, serial.data);
           }),
@@ -398,6 +400,7 @@ export default function POS() {
       }
       pendingBillRefRef.current = null;
       timedOutRef.current = false;
+      if (numberChanged) toast.warning(`Another phone billed first. This bill is ${payload.billNo}, not the number shown before. Share the new receipt.`, { duration: 8000 });
 
       // Keep the local catalog in step with what we just wrote
       localCatalogUpdates.forEach((u) => addCatalogItem(u));
@@ -468,9 +471,25 @@ export default function POS() {
   }, [checkoutSuccess, lastBill]);
 
   // The bill as the customer sees it before paying: share or save it first, then take payment.
-  const draftBill = useMemo(() => (isPayOpen && payStep === 'review' ? {
-    items, subtotal, globalDiscountAmt, grandTotal, shopName: shopName || '', shopProfile, draft: true, clientCreatedAt: Date.now(),
-  } : null), [isPayOpen, payStep, items, subtotal, globalDiscountAmt, grandTotal, shopName, shopProfile]);
+  // The number it will get when saved (next in the shop's running count), so the bill printed now matches the saved one.
+  const [previewNo, setPreviewNo] = useState('');
+  // oxlint-disable-next-line react/set-state-in-effect
+  useEffect(() => {
+    if (!isPayOpen || payStep !== 'review' || !shopId) { setPreviewNo(''); return undefined; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const date = await serverNow();
+        const n = await reserveBillNo({ doc, db, shopId, date, read: (ref) => getDocFromServer(ref) });
+        if (!cancelled) setPreviewNo(n.billNo);
+      } catch { /* no number shown; the bill still saves with its own */ }
+    })();
+    return () => { cancelled = true; };
+  }, [isPayOpen, payStep, shopId]);
+
+  const draftBill = useMemo(() => (isPayOpen && payStep === 'review' && previewNo ? {
+    items, subtotal, globalDiscountAmt, grandTotal, shopName: shopName || '', shopProfile, draft: true, billNo: previewNo, clientCreatedAt: Date.now(),
+  } : null), [isPayOpen, payStep, previewNo, items, subtotal, globalDiscountAmt, grandTotal, shopName, shopProfile]);
 
   // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
