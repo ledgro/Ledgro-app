@@ -42,7 +42,7 @@ const unitRefundOf = (item) => {
 };
 
 export default function Ledger() {
-  const { user, shopId, shopAdminId, shopName, isAdmin } = useAuth();
+  const { user, shopId, shopName, isAdmin } = useAuth();
   const nameOf = useNameOf(shopId, user?.uid);
   const navigate = useNavigate();
 
@@ -176,7 +176,7 @@ export default function Ledger() {
     const created = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
     // oxlint-disable-next-line react/purity
     if (!created || Date.now() - created > 24 * 60 * 60 * 1000) return false;
-    return b.creatorId === user?.uid || user?.uid === shopAdminId;
+    return b.creatorId === user?.uid || isAdmin;
   };
 
   /** Opens the bill in POS. Saving voids this bill and writes a new one (bills are never changed in place). */
