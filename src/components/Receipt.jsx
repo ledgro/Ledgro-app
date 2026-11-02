@@ -65,7 +65,7 @@ const Receipt = forwardRef(({ billData, preview = false }, ref) => {
         <div style={{ fontSize: '20px', fontWeight: 700, lineHeight: 1.2 }}>{finalShopName}</div>
         {address && <div style={{ fontSize: '11px', color: mute, marginTop: '3px' }}>{address}</div>}
         {phone && <div style={{ fontSize: '11px', color: mute }}>Ph: {phone}</div>}
-        <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '2px', marginTop: '8px' }}>{isReturn ? 'RETURN RECEIPT' : draft ? 'BILL (PAYMENT PENDING)' : 'CASH MEMO'}</div>
+        <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '2px', marginTop: '8px' }}>{isReturn ? 'RETURN RECEIPT' : 'CASH MEMO'}</div>
       </div>
 
       <div style={{ ...row, fontSize: '11px', color: mute, marginTop: '6px' }}>
