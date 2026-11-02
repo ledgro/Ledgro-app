@@ -69,7 +69,7 @@ const Receipt = forwardRef(({ billData, preview = false }, ref) => {
       </div>
 
       <div style={{ ...row, fontSize: '11px', color: mute, marginTop: '6px' }}>
-        <span>{draft ? 'Bill' : <>Bill No: <b style={{ color: '#000' }}>{billNo}</b></>}</span>
+        <span>{draft && !billData.billNo ? 'Bill' : <>Bill No: <b style={{ color: '#000' }}>{billNo}</b></>}</span>
         <span>{dateStr}</span>
       </div>
 
