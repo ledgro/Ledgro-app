@@ -210,23 +210,9 @@ export default function POS() {
   const handleCheckout = async () => {
     if (items.length === 0 || !shopId || isSubmittingRef.current) return;
 
-    // UPI: the amount typed is what the customer really paid. If it is less than the bill, the gap becomes a discount.
-    const upiPaid = paymentMethod === 'upi' && tendered !== '' ? Math.round((parseFloat(tendered) || 0) * 100) : 0;
-    // If it is more than the bill, the extra raises the price of an item, so the bill is what was paid.
-    let billState = upiPaid > 0 && upiPaid < grandTotal
-      ? { ...state, globalDiscount: { type: 'flat', value: globalDiscountAmt + (grandTotal - upiPaid) } }
-      : state;
-    if (upiPaid > grandTotal) {
-      const extra = upiPaid - grandTotal;
-      billState = null;
-      for (const line of state.items) {
-        const qty = Number(line.qty) || 0;
-        if (qty <= 0) continue;
-        const raised = billReducer(state, { type: 'UPDATE_PRICE', payload: { id: line.id, price: (line.unitPriceAtSale ?? line.unitPrice) + extra / qty } });
-        if (calculateBillTotals(raised).grandTotal === upiPaid) { billState = raised; break; }
-      }
-      if (!billState) { toast.error(`Cannot add ${formatCurrency(extra)} to the bill. Change an item price instead.`); return; }
-    }
+    // The bill is final once it is shown: the amount typed on the payment screen never changes it.
+    // (A discount for a short payment is given with the button, before confirming.)
+    const billState = state;
     const { grandTotal: billTotal, globalDiscountAmt: billDiscountAmt, subtotal: billSubtotal, items: billItems } = calculateBillTotals(billState);
 
     const cashPaise = paymentMethod === 'split' ? Math.round((parseFloat(splitCash) || 0) * 100) : 0;
@@ -842,9 +828,7 @@ export default function POS() {
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setTendered(String(grandTotal / 100))} className="shrink-0 rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 active:scale-95 transition-transform">Exact</button>
                   </div>
-                  {tendered !== '' && (Math.round((parseFloat(tendered) || 0) * 100) > grandTotal
-                    ? <p className="rounded-xl bg-green-50 px-4 py-3 text-center text-sm font-black text-green-700 tabular-nums">Bill becomes {formatCurrency(Math.round((parseFloat(tendered) || 0) * 100))} (+{formatCurrency(Math.round((parseFloat(tendered) || 0) * 100) - grandTotal)} added to an item)</p>
-                    : shortUi(Math.round((parseFloat(tendered) || 0) * 100), true, 'Send back by UPI'))}
+                  {tendered !== '' && shortUi(Math.round((parseFloat(tendered) || 0) * 100), true, 'Send back by UPI')}
                 </div>
               )}
               {paymentMethod === 'split' && (
