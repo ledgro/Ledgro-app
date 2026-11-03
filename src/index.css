@@ -35,7 +35,7 @@
 
 @layer base {
   :root {
-    color-scheme: light;
+    color-scheme: only light;
     --color-bg-base: #F8FAFC;
     --color-bg-surface: #FFFFFF;
     --color-text-main: #0F172A;

@@ -1,3 +1,4 @@
+import Masked from '../components/Masked';
 import { sheetStyle } from '../hooks/useKeyboardInset';
 import { toast } from 'sonner';
 import { useState, useEffect, useCallback, useDeferredValue } from 'react';
@@ -35,9 +36,11 @@ export default function Dashboard() {
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);
   }, []);
-  const mask = (node) => (hidden
-    ? <span className="blur-md select-none pointer-events-none" aria-hidden="true">{node}</span>
-    : node);
+  // Each hidden number can also be tapped to show just that one; the eye switch still shows or hides all.
+  const [prevHidden, setPrevHidden] = useState(hidden);
+  const [epoch, setEpoch] = useState(0);
+  if (hidden !== prevHidden) { setPrevHidden(hidden); setEpoch((e) => e + 1); }
+  const mask = (node) => <Masked hidden={hidden} epoch={epoch}>{node}</Masked>;
 
   // Inside the Count Cash sheet numbers are always readable. The privacy blur is for the dashboard.
   const show = (node) => node;

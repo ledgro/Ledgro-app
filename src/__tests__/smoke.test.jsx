@@ -127,6 +127,18 @@ describe('Dashboard privacy', () => {
   });
 });
 
+describe('Dashboard privacy, one number at a time', () => {
+  test('tapping a hidden number shows only that one', async () => {
+    const { default: Dashboard } = await import('../pages/Dashboard');
+    render(<MemoryRouter><Dashboard /></MemoryRouter>);
+    await act(async () => { await new Promise((r) => setTimeout(r, 60)); });
+    const before = document.querySelectorAll('.blur-md').length;
+    expect(before).toBeGreaterThan(1);
+    fireEvent.click(screen.getAllByRole('button', { name: /tap to show this amount/i })[0]);
+    expect(document.querySelectorAll('.blur-md').length).toBe(before - 1);
+  });
+});
+
 describe('Legal pages', () => {
   test.each([
     ['Terms of Service', () => import('../pages/TermsOfService'), 15],
