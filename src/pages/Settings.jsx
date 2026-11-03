@@ -20,7 +20,7 @@ import ErrorLogSection from '../components/ErrorLogSection';
 import { confirm } from '../lib/confirm';
 
 export default function Settings() {
-  const { user, shopId, shopAdminId, shopProfile, signOut, deleteAccount, changePassword } = useAuth();
+  const { user, shopId, shopAdminId, shopProfile, signOut, deleteAccount, changePassword, deleteShopData } = useAuth();
   const isOwner = !!user?.uid && shopAdminId === user.uid;
   const [recalculating, setRecalculating] = useState(false);
   const navigate = useNavigate();
@@ -207,7 +207,7 @@ export default function Settings() {
       toast.error("Cannot delete account while offline. Please connect to the internet.");
       return;
     }
-    const confirmDelete = await confirm({ title: 'Delete account?', message: 'This is permanent and cannot be undone.', confirmText: 'Delete account', danger: true });
+    const confirmDelete = await confirm({ title: 'Delete account?', message: 'Your login and your shop data are deleted for good. This cannot be undone.', confirmText: 'Delete account', danger: true, typeToConfirm: 'DELETE' });
     if (!confirmDelete) return;
 
     setIsDeletingAccount(true);
@@ -215,6 +215,24 @@ export default function Settings() {
       await deleteAccount(pw.current);
     } catch (err) {
       toast.error(err.message || "Failed to delete account.");
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
+  const handleDeleteShopData = async () => {
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was deleted.'); return; }
+    const ok = await confirm({
+      title: 'Delete all shop data?',
+      message: 'Every bill, product, expense, photo and cash count of this shop is deleted for good. Your login stays, and you can set up a new shop. This cannot be undone.',
+      confirmText: 'Delete shop data', danger: true, typeToConfirm: 'DELETE',
+    });
+    if (!ok) return;
+    setIsDeletingAccount(true);
+    try {
+      await deleteShopData(pw.current);
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete the shop data.');
     } finally {
       setIsDeletingAccount(false);
     }
@@ -418,6 +436,15 @@ export default function Settings() {
 
            <div className="space-y-2">
              <p className="text-xs font-semibold text-red-600">Danger Zone</p>
+             {shopId && (
+               <button
+                 onClick={handleDeleteShopData}
+                 disabled={isDeletingAccount}
+                 className="w-full border border-red-200 text-red-600 font-bold h-12 rounded-xl flex items-center justify-center gap-2 active:bg-red-50 transition-colors disabled:opacity-50"
+               >
+                 <Trash2 size={18} /> Delete Shop Data (keep my login)
+               </button>
+             )}
              <button
                onClick={handleDeleteAccount}
                disabled={isDeletingAccount}

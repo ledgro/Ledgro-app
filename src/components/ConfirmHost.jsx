@@ -9,8 +9,9 @@ import { cn } from '../lib/utils';
 export default function ConfirmHost() {
   const [req, setReq] = useState(null);
   const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState('');
 
-  useEffect(() => subscribeConfirm((r) => { setReq(r); setOpen(true); }), []);
+  useEffect(() => subscribeConfirm((r) => { setReq(r); setTyped(''); setOpen(true); }), []);
 
   const answer = (v) => {
     if (!req) return;
@@ -19,7 +20,8 @@ export default function ConfirmHost() {
     r.resolve(v);
   };
 
-  const { title, message, confirmText = 'Confirm', cancelText = 'Cancel', danger } = req || {};
+  const { title, message, confirmText = 'Confirm', cancelText = 'Cancel', danger, typeToConfirm } = req || {};
+  const typedOk = !typeToConfirm || typed.trim().toUpperCase() === String(typeToConfirm).toUpperCase();
 
   return (
     <Drawer.Root handleOnly repositionInputs={false} open={open} onOpenChange={(o) => { if (!o) answer(false); }} onAnimationEnd={(o) => { if (!o) setReq(null); }}>
@@ -28,9 +30,17 @@ export default function ConfirmHost() {
         <Drawer.Content style={sheetStyle} aria-describedby={undefined} className="fixed bottom-0 left-0 right-0 z-[101] mx-auto w-full max-w-md rounded-t-2xl bg-white p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] focus:outline-none">
           <Drawer.Title className="text-lg font-bold text-slate-900">{title || 'Please confirm'}</Drawer.Title>
           <p className="mt-1 text-sm text-slate-600 whitespace-pre-line">{message}</p>
+          {typeToConfirm && (
+            <div className="mt-4">
+              <label htmlFor="confirm-typed" className="block text-sm font-bold text-slate-700">Type {typeToConfirm} to confirm</label>
+              <input id="confirm-typed" type="text" autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
+                value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={typeToConfirm}
+                className="mt-2 h-12 w-full rounded-xl border border-slate-200 px-4 font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-red-500" />
+            </div>
+          )}
           <div className="mt-5 flex gap-3">
             <button type="button" onClick={() => answer(false)} className="h-12 flex-1 rounded-xl bg-slate-100 font-bold text-slate-700 active:scale-95 transition-transform">{cancelText}</button>
-            <button type="button" onClick={() => answer(true)} className={cn('h-12 flex-1 rounded-xl font-bold text-white active:scale-95 transition-transform', danger ? 'bg-red-600' : 'bg-blue-600')}>{confirmText}</button>
+            <button type="button" disabled={!typedOk} onClick={() => answer(true)} className={cn('h-12 flex-1 rounded-xl font-bold text-white active:scale-95 transition-transform disabled:opacity-40', danger ? 'bg-red-600' : 'bg-blue-600')}>{confirmText}</button>
           </div>
         </Drawer.Content>
       </Drawer.Portal>

@@ -374,9 +374,8 @@ export const AuthProvider = ({ children }) => {
     voluntaryExitRef.current = true;
   }, []);
 
-  const deleteAccount = useCallback(async (password) => {
-    if (!auth.currentUser) return;
-
+  // Proves it is really the account owner (password, or Google popup) before anything is deleted.
+  const reauthForDelete = async (password) => {
     try {
       if (usesPassword(auth.currentUser)) {
         await reauthenticateWithCredential(auth.currentUser, EmailAuthProvider.credential(auth.currentUser.email, password || ''));
@@ -385,10 +384,46 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-        throw new Error('Account deletion cancelled.');
+        throw new Error('Deletion cancelled.');
       }
       throw new Error('Failed to authenticate. Please try again.');
     }
+  };
+
+  /**
+   * Deletes the shop and everything in it (bills, products, expenses, photos, counts) but keeps the login.
+   * Only when you are the only member: staff must be removed first. Afterwards you land on the shop setup screen.
+   */
+  const deleteShopData = useCallback(async (password) => {
+    if (!auth.currentUser || !shopId) return;
+    await reauthForDelete(password);
+
+    const uid = auth.currentUser.uid;
+    const flushed = await flushPendingWrites();
+    if (!flushed) throw new Error('You have unsynced offline data. Connect to the internet and wait for it to sync first.');
+
+    const shopSnap = await getDoc(doc(db, 'shops', shopId));
+    if (!shopSnap.exists()) throw new Error('This shop no longer exists.');
+    const members = shopSnap.data().members || {};
+    if (members[uid] !== 'admin') throw new Error('Only an admin can delete the shop data.');
+    if (Object.keys(members).length > 1) throw new Error('Remove your staff from the Members page first, then delete the shop data.');
+
+    voluntaryExitRef.current = true;
+    try {
+      await deleteShopCascade(shopId);
+    } catch (err) {
+      voluntaryExitRef.current = false;
+      console.error(err);
+      throw new Error('Could not delete the shop data. Check your internet and try again.');
+    }
+    clearLocalSession();
+    await wipeOfflineData();
+    hardRestart();
+  }, [shopId]);
+
+  const deleteAccount = useCallback(async (password) => {
+    if (!auth.currentUser) return;
+    await reauthForDelete(password);
 
     const uid = auth.currentUser.uid;
 
@@ -478,7 +513,8 @@ export const AuthProvider = ({ children }) => {
     signOut,
     beginVoluntaryExit,
     deleteAccount,
-  }), [user, hasShop, shopId, shopAdminId, isAdminRole, shopName, shopProfile, loading, signInWithGoogle, signInWithPassword, changePassword, addEmail, resendVerification, checkVerified, signOut, beginVoluntaryExit, deleteAccount]);
+    deleteShopData,
+  }), [user, hasShop, shopId, shopAdminId, isAdminRole, shopName, shopProfile, loading, signInWithGoogle, signInWithPassword, changePassword, addEmail, resendVerification, checkVerified, signOut, beginVoluntaryExit, deleteAccount, deleteShopData]);
 
   if (loading) {
     return <AuthContext.Provider value={value}><SplashScreen /></AuthContext.Provider>;
