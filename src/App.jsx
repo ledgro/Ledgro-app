@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 
 const SignIn = lazy(() => import('./pages/SignIn'));
 const ShopSetup = lazy(() => import('./pages/ShopSetup'));
+const Welcome = lazy(() => import('./pages/Welcome'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const POS = lazy(() => import('./pages/POS'));
 const Ledger = lazy(() => import('./pages/Ledger'));
@@ -90,6 +91,7 @@ const router = createHashRouter([
     children: [
       { path: '/login', element: <AuthRoute><SignIn /></AuthRoute> },
       { path: '/setup', element: <ProtectedRoute requireNoShop={true}><ShopSetup /></ProtectedRoute> },
+      { path: '/welcome', element: <ProtectedRoute><Welcome /></ProtectedRoute> },
       { path: '/dashboard', element: <ProtectedRoute><Dashboard /></ProtectedRoute> },
       { path: '/pos', element: <ProtectedRoute><POS /></ProtectedRoute> },
       { path: '/ledger', element: <ProtectedRoute><Ledger /></ProtectedRoute> },
