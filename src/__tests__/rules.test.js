@@ -38,6 +38,37 @@ d('firestore.rules', () => {
     });
   });
 
+  // Invoice numbers: a bill is only accepted together with the counter moving up by one (see billNoOk in firestore.rules).
+  const FY = (() => {
+    const t = new Date(Date.now() + 330 * 60 * 1000);
+    const y = t.getUTCMonth() >= 3 ? t.getUTCFullYear() : t.getUTCFullYear() - 1;
+    const a = String(y % 100).padStart(2, '0');
+    const b = String((y + 1) % 100).padStart(2, '0');
+    return { key: `${a}${b}`, label: `${a}-${b}` };
+  })();
+  const counterPath = (kind) => `shops/${SHOP}/billCounters/${kind === 'R' ? `${FY.key}-R` : FY.key}`;
+  const billNoOf = (kind, n) => (kind === 'R' ? `R/${FY.label}/${String(n).padStart(6, '0')}` : `${FY.label}/${String(n).padStart(6, '0')}`);
+  const nextNumber = async (kind) => {
+    let last = 0;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const snap = await getDoc(doc(ctx.firestore(), counterPath(kind)));
+      if (snap.exists()) last = snap.data().last;
+    });
+    return last + 1;
+  };
+  // adds a numbered bill (and its counter bump) to a batch
+  const numbered = async (b, db, id, data, kind = 'S', n) => {
+    const next = n ?? await nextNumber(kind);
+    b.set(doc(db, counterPath(kind)), { last: next });
+    b.set(doc(db, `shops/${SHOP}/bills/${id}`), { ...data, billNo: billNoOf(kind, next) });
+  };
+  const putBill = async (uid, id, data, kind = 'S') => {
+    const db = as(uid);
+    const b = writeBatch(db);
+    await numbered(b, db, id, data, kind);
+    return b.commit();
+  };
+
   const sale = (uid, extra = {}) => ({
     creatorId: uid,
     items: [{ name: 'Rice', catalogId: 'c1', unit: 'kg', unitPrice: 5000, qty: 2, rawTotal: 10000, lineDiscount: 0, finalLineTotal: 10000 }],
@@ -48,21 +79,21 @@ d('firestore.rules', () => {
 
   describe('bills', () => {
     it('member can create a valid sale', async () => {
-      await assertSucceeds(setDoc(doc(as(MEMBER), `shops/${SHOP}/bills/b1`), sale(MEMBER)));
+      await assertSucceeds(putBill(MEMBER, 'b1', sale(MEMBER)));
     });
     it('outsider cannot create', async () => {
-      await assertFails(setDoc(doc(as(OUTSIDER), `shops/${SHOP}/bills/b1`), sale(OUTSIDER)));
+      await assertFails(putBill(OUTSIDER, 'b1', sale(OUTSIDER)));
     });
     it('rejects creatorId spoof', async () => {
-      await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/bills/b1`), sale(ADMIN)));
+      await assertFails(putBill(MEMBER, 'b1', sale(ADMIN)));
     });
     it('rejects total that ignores discount', async () => {
-      await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/bills/b1`), sale(MEMBER, { globalDiscountAmt: 1000, grandTotal: 10000 })));
-      await assertSucceeds(setDoc(doc(as(MEMBER), `shops/${SHOP}/bills/b2`), sale(MEMBER, { globalDiscountAmt: 1000, grandTotal: 9000 })));
+      await assertFails(putBill(MEMBER, 'b1', sale(MEMBER, { globalDiscountAmt: 1000, grandTotal: 10000 })));
+      await assertSucceeds(putBill(MEMBER, 'b2', sale(MEMBER, { globalDiscountAmt: 1000, grandTotal: 9000 })));
     });
     it('rejects negative sale and unknown fields', async () => {
-      await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/bills/b1`), sale(MEMBER, { subtotal: -5, grandTotal: -5 })));
-      await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/bills/b1`), sale(MEMBER, { hacked: true })));
+      await assertFails(putBill(MEMBER, 'b1', sale(MEMBER, { subtotal: -5, grandTotal: -5 })));
+      await assertFails(putBill(MEMBER, 'b1', sale(MEMBER, { hacked: true })));
     });
     it('list needs limit <= 100', async () => {
       await assertSucceeds(getDocs(query(collection(as(MEMBER), `shops/${SHOP}/bills`), limit(100))));
@@ -71,7 +102,7 @@ d('firestore.rules', () => {
 
     describe('returns and voids', () => {
       beforeEach(async () => {
-        await assertSucceeds(setDoc(doc(as(MEMBER), `shops/${SHOP}/bills/orig`), sale(MEMBER)));
+        await assertSucceeds(putBill(MEMBER, 'orig', sale(MEMBER)));
       });
       const ret = (extra = {}) => ({
         type: 'return', originalBillId: 'orig', creatorId: MEMBER,
@@ -80,10 +111,10 @@ d('firestore.rules', () => {
         billNo: 'R-A-1', clientCreatedAt: Date.now(), createdAt: serverTimestamp(), ...extra,
       });
       const origRef = () => doc(as(MEMBER), `shops/${SHOP}/bills/orig`);
-      const returnBatch = (id, amount, newReturnedAmt, extra = {}) => {
+      const returnBatch = async (id, amount, newReturnedAmt, extra = {}) => {
         const db = as(MEMBER);
         const b = writeBatch(db);
-        b.set(doc(db, `shops/${SHOP}/bills/${id}`), ret({ subtotal: -amount, grandTotal: -amount, ...extra }));
+        await numbered(b, db, id, ret({ subtotal: -amount, grandTotal: -amount, ...extra }), 'R');
         if (newReturnedAmt !== null) b.update(doc(db, `shops/${SHOP}/bills/orig`), { returnedAmt: newReturnedAmt });
         return b.commit();
       };
@@ -113,7 +144,7 @@ d('firestore.rules', () => {
       });
       it('return without updating returnedAmt fails', async () => {
         await assertFails(returnBatch('r1', 5000, null));
-        await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/bills/r1`), ret()));
+        await assertFails(putBill(MEMBER, 'r1', ret(), 'R'));
       });
       it('return with a mismatched returnedAmt fails', async () => {
         await assertFails(returnBatch('r1', 5000, 4000));
@@ -135,7 +166,7 @@ d('firestore.rules', () => {
         await assertFails(returnBatch('r1', 5000, 5000));
         const db = as(ADMIN);
         const b = writeBatch(db);
-        b.set(doc(db, `shops/${SHOP}/bills/r2`), ret({ creatorId: ADMIN }));
+        await numbered(b, db, 'r2', ret({ creatorId: ADMIN }), 'R');
         b.update(doc(db, `shops/${SHOP}/bills/orig`), { returnedAmt: 5000 });
         await assertSucceeds(b.commit());
       });
@@ -153,8 +184,7 @@ d('firestore.rules', () => {
       });
       it('return against another return fails', async () => {
         await assertSucceeds(returnBatch('r1', 5000, 5000));
-        const db = as(MEMBER);
-        await assertFails(setDoc(doc(db, `shops/${SHOP}/bills/r2`), ret({ originalBillId: 'r1', subtotal: -100, grandTotal: -100 })));
+        await assertFails(putBill(MEMBER, 'r2', ret({ originalBillId: 'r1', subtotal: -100, grandTotal: -100 }), 'R'));
       });
       it('returnedAmt cannot be changed on its own to lower or exceed limits', async () => {
         await assertFails(updateDoc(origRef(), { returnedAmt: 20000 }));
@@ -173,7 +203,7 @@ d('firestore.rules', () => {
         });
         const db = as(MEMBER);
         const b = writeBatch(db);
-        b.set(doc(db, `shops/${SHOP}/bills/r1`), ret());
+        await numbered(b, db, 'r1', ret(), 'R');
         b.update(doc(db, `shops/${SHOP}/bills/orig`), { returnedAmt: 5000 });
         for (let i = 0; i < 5; i++) b.update(doc(db, `shops/${SHOP}/catalog/p${i}`), { stockCount: 11, updatedAt: serverTimestamp() });
         const day = bizDate(0);
@@ -181,14 +211,14 @@ d('firestore.rules', () => {
         await assertSucceeds(b.commit());
       });
       describe('exchange', () => {
-        const exchangeBatch = (retExtra = {}, saleExtra = {}, touched = 5) => {
+        const exchangeBatch = async (retExtra = {}, saleExtra = {}, touched = 5) => {
           const db = as(MEMBER);
           const b = writeBatch(db);
-          b.set(doc(db, `shops/${SHOP}/bills/r1`), ret({ exchangeOf: 'orig', ...retExtra }));
+          await numbered(b, db, 'r1', ret({ exchangeOf: 'orig', ...retExtra }), 'R');
           b.update(doc(db, `shops/${SHOP}/bills/orig`), { returnedAmt: 5000 });
-          b.set(doc(db, `shops/${SHOP}/bills/s1`), {
+          await numbered(b, db, 's1', {
             ...sale(MEMBER, { subtotal: 6000, grandTotal: 6000 }), exchangeOf: 'orig', ...saleExtra,
-          });
+          }, 'S');
           for (let i = 0; i < touched; i++) b.update(doc(db, `shops/${SHOP}/catalog/p${i}`), { stockCount: 9, frequency: increment(1), updatedAt: serverTimestamp() });
           const day = bizDate(0);
           b.set(doc(db, `shops/${SHOP}/dailyStats/${day}`), { date: day, rev: 1000, cash: 1000, upi: 0, splitCash: 0, splitUpi: 0, bills: 1, exp: 0, expCash: 0, cats: {} });
@@ -259,12 +289,17 @@ d('firestore.rules', () => {
   describe('dailyClosures', () => {
     const clo = (uid, day, extra = {}) => ({ expectedCash: 100, actualCash: 90, difference: -10, creatorId: uid, createdAt: serverTimestamp(), date: day, ...extra });
     const path = (day) => `shops/${SHOP}/dailyClosures/${day}`;
-    it('cash count can be re-saved; only own uid, correct date', async () => {
+    it('a cashier saves the count once; only own uid, correct date', async () => {
       const today = bizDate(0);
-      await assertSucceeds(setDoc(doc(as(MEMBER), path(today)), clo(MEMBER, today)));
-      await assertSucceeds(setDoc(doc(as(MEMBER), path(today)), clo(MEMBER, today, { actualCash: 100, difference: 0 })));
       await assertFails(setDoc(doc(as(MEMBER), path(today)), clo(ADMIN, today)));
       await assertFails(setDoc(doc(as(MEMBER), path(today)), clo(MEMBER, bizDate(-1))));
+      await assertSucceeds(setDoc(doc(as(MEMBER), path(today)), clo(MEMBER, today)));
+    });
+    it('a cashier cannot overwrite a saved count; an admin can', async () => {
+      const today = bizDate(0);
+      await assertSucceeds(setDoc(doc(as(MEMBER), path(today)), clo(MEMBER, today)));
+      await assertFails(setDoc(doc(as(MEMBER), path(today)), clo(MEMBER, today, { actualCash: 100, difference: 0 })));
+      await assertSucceeds(setDoc(doc(as(ADMIN), path(today)), clo(ADMIN, today, { actualCash: 100, difference: 0 })));
     });
     it('member can write yesterday but not older or future days', async () => {
       await assertSucceeds(setDoc(doc(as(MEMBER), path(bizDate(-1))), clo(MEMBER, bizDate(-1))));
@@ -308,6 +343,60 @@ d('firestore.rules', () => {
       await assertSucceeds(updateDoc(ref(MEMBER, 'c2'), touch({ costPrice: null, source: '' })));
       await assertFails(updateDoc(ref(MEMBER, 'c2'), touch({ costPrice: -5 })));
       await assertFails(updateDoc(ref(MEMBER, 'c2'), touch({ source: 'x'.repeat(61) })));
+    });
+  });
+
+  describe('invoice numbers on bills', () => {
+    it('accepts the next number with the counter moved up by one', async () => {
+      await assertSucceeds(putBill(MEMBER, 'n1', sale(MEMBER)));
+      await assertSucceeds(putBill(MEMBER, 'n2', sale(MEMBER)));
+    });
+    it('rejects a bill whose number was not taken from the counter', async () => {
+      await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/bills/x1`), sale(MEMBER, { billNo: `${FY.label}/000001` })));
+      await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/bills/x2`), sale(MEMBER, { billNo: 'A-1' })));
+    });
+    it('rejects reusing a number, skipping one, or a wrong year', async () => {
+      await assertSucceeds(putBill(MEMBER, 'n1', sale(MEMBER)));
+      const db = as(MEMBER);
+      const reuse = writeBatch(db);
+      await numbered(reuse, db, 'n2', sale(MEMBER), 'S', 1);
+      await assertFails(reuse.commit());
+      const skip = writeBatch(db);
+      await numbered(skip, db, 'n3', sale(MEMBER), 'S', 5);
+      await assertFails(skip.commit());
+      const oldYear = writeBatch(db);
+      oldYear.set(doc(db, `shops/${SHOP}/billCounters/2021`), { last: 1 });
+      oldYear.set(doc(db, `shops/${SHOP}/bills/n4`), sale(MEMBER, { billNo: '20-21/000001' }));
+      await assertFails(oldYear.commit());
+    });
+    it('a sale cannot use the return series, nor a return the sale series', async () => {
+      const db = as(MEMBER);
+      const b = writeBatch(db);
+      b.set(doc(db, counterPath('R')), { last: 1 });
+      b.set(doc(db, `shops/${SHOP}/bills/n1`), sale(MEMBER, { billNo: billNoOf('R', 1) }));
+      await assertFails(b.commit());
+    });
+  });
+
+  describe('void and payment change window', () => {
+    const OLD = () => new Date(Date.now() - 3 * 60 * 60 * 1000); // 3 hours ago
+    const voidIt = (uid) => updateDoc(doc(as(uid), `shops/${SHOP}/bills/orig`), { type: 'reversal', originalBillId: 'orig', reversedBy: uid, reversedAt: serverTimestamp() });
+    const age = async (when) => env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `shops/${SHOP}/bills/orig`), { createdAt: when });
+    });
+    beforeEach(async () => { await putBill(MEMBER, 'orig', sale(MEMBER)); });
+    it('the cashier can void their own sale within the hour', async () => {
+      await assertSucceeds(voidIt(MEMBER));
+    });
+    it('after an hour the cashier cannot void it, an admin still can', async () => {
+      await age(OLD());
+      await assertFails(voidIt(MEMBER));
+      await assertSucceeds(voidIt(ADMIN));
+    });
+    it('after an hour the cashier cannot change the payment method either', async () => {
+      await age(OLD());
+      await assertFails(updateDoc(doc(as(MEMBER), `shops/${SHOP}/bills/orig`), { paymentMethod: 'upi', payment: { method: 'upi', breakdown: { cash: 0, upi: 10000 } } }));
+      await assertSucceeds(updateDoc(doc(as(ADMIN), `shops/${SHOP}/bills/orig`), { paymentMethod: 'upi', payment: { method: 'upi', breakdown: { cash: 0, upi: 10000 } } }));
     });
   });
 

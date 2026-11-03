@@ -18,7 +18,7 @@ import { QuickActions, LowStock, RecentBills } from '../components/DashboardExtr
 
 
 export default function Dashboard() {
-  const { user, shopId } = useAuth();
+  const { user, shopId, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState({ online: navigator.onLine, pending: false, lastSynced: 'Just now' });
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
@@ -137,6 +137,11 @@ export default function Dashboard() {
   const handleCloseRegister = async () => {
     if (!navigator.onLine) {
       toast.error("You must be online to save the cash count.");
+      return;
+    }
+
+    if (savedCount && !isAdmin) {
+      toast.error('Today\'s count is already saved. Only an admin can change it.');
       return;
     }
 
@@ -320,7 +325,7 @@ export default function Dashboard() {
 
                    {savedCount && (
                      <p className="rounded-xl bg-green-50 px-4 py-3 text-sm font-bold text-green-700">
-                       Saved today: counted {formatCurrency(savedCount.actualCash)}{savedCount.difference ? ` (${savedCount.difference < 0 ? 'short' : 'over'} ${formatCurrency(Math.abs(savedCount.difference))})` : ' (balanced)'}. Saving again replaces it.
+                       Saved today: counted {formatCurrency(savedCount.actualCash)}{savedCount.difference ? ` (${savedCount.difference < 0 ? 'short' : 'over'} ${formatCurrency(Math.abs(savedCount.difference))})` : ' (balanced)'}. {isAdmin ? 'Saving again replaces it.' : 'Only an admin can change it.'}
                      </p>
                    )}
 

@@ -43,6 +43,36 @@ service cloud.firestore {
         && (!('options' in d) || (d.options is map && d.options.size() >= 1 && d.options.size() <= 3));
     }
 
+    // ---- Invoice numbers (GST serial) -------------------------------------------------
+    // A bill's number must be the next number of its series, and the counter must move up by one in the SAME
+    // write, so a number can never be reused, skipped or invented. Sales: 26-27/000123. Returns: R/26-27/000045.
+    function pad2(n) { return n < 10 ? '0' + string(n) : string(n); }
+    function pad6(n) {
+      return n < 10 ? '00000' + string(n) : n < 100 ? '0000' + string(n) : n < 1000 ? '000' + string(n)
+        : n < 10000 ? '00' + string(n) : n < 100000 ? '0' + string(n) : string(n);
+    }
+    // Current financial year label in India time (April to March), e.g. 26-27.
+    function fyLabelNow() {
+      let t = request.time + duration.value(330, 'm');
+      let y = t.month() >= 4 ? t.year() : t.year() - 1;
+      return pad2(y % 100) + '-' + pad2((y + 1) % 100);
+    }
+    function billCounterPath(shopId, billNo) {
+      let parts = billNo.split('/');
+      return /databases/$(database)/documents/shops/$(shopId)/billCounters/$(parts[0] == 'R'
+        ? parts[1].split('-')[0] + parts[1].split('-')[1] + '-R'
+        : parts[0].split('-')[0] + parts[0].split('-')[1]);
+    }
+    function billNoOk(shopId, billNo, isReturn) {
+      return billNo is string
+        && billNo.matches(isReturn ? '^R/\\d{2}-\\d{2}/\\d{6}$' : '^\\d{2}-\\d{2}/\\d{6}$')
+        && billNo.split('/')[isReturn ? 1 : 0] == fyLabelNow()
+        && getAfter(billCounterPath(shopId, billNo)).data.keys().hasOnly(['last'])
+        && billNo.split('/')[isReturn ? 2 : 1] == pad6(getAfter(billCounterPath(shopId, billNo)).data.last)
+        && getAfter(billCounterPath(shopId, billNo)).data.last
+             == (exists(billCounterPath(shopId, billNo)) ? get(billCounterPath(shopId, billNo)).data.last + 1 : 1);
+    }
+
     function isValidString(val, minLen, maxLen) {
       return val is string && val.size() >= minLen && val.size() <= maxLen;
     }
@@ -128,12 +158,14 @@ service cloud.firestore {
               && request.resource.data.get('globalDiscountAmt', 0) >= 0
               && request.resource.data.grandTotal == request.resource.data.subtotal - request.resource.data.get('globalDiscountAmt', 0)
               && request.resource.data.grandTotal >= 0
-              && request.resource.data.paymentMethod in ['cash', 'upi', 'split'])
+              && request.resource.data.paymentMethod in ['cash', 'upi', 'split']
+              && billNoOk(shopId, request.resource.data.get('billNo', null), false))
             ||
             (request.resource.data.get('type', 'sale') == 'return'
               && request.resource.data.subtotal < 0
               && request.resource.data.grandTotal == request.resource.data.subtotal
               && request.resource.data.paymentMethod in ['cash', 'upi']
+              && billNoOk(shopId, request.resource.data.get('billNo', null), true)
               && request.resource.data.originalBillId is string
               && exists(/databases/$(database)/documents/shops/$(shopId)/bills/$(request.resource.data.originalBillId))
               && (isAdmin(shopId) || request.time < get(/databases/$(database)/documents/shops/$(shopId)/bills/$(request.resource.data.originalBillId)).data.createdAt + duration.value(1, 'd'))
@@ -146,8 +178,8 @@ service cloud.firestore {
 
         allow update: if isMember(shopId) && (
           (
-            (isAdmin(shopId) || resource.data.creatorId == request.auth.uid)
-            && request.time < resource.data.createdAt + duration.value(1, 'd')
+            ((isAdmin(shopId) && request.time < resource.data.createdAt + duration.value(1, 'd'))
+              || (resource.data.creatorId == request.auth.uid && request.time < resource.data.createdAt + duration.value(1, 'h')))
             && resource.data.get('type', 'sale') == 'sale'
             && resource.data.get('returnedAmt', 0) == 0
             && !('exchangeOf' in resource.data)
@@ -159,8 +191,8 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data)
               .affectedKeys().hasOnly(['type', 'originalBillId', 'reversedAt', 'reversedBy'])
           ) || (
-            (isAdmin(shopId) || resource.data.creatorId == request.auth.uid)
-            && request.time < resource.data.createdAt + duration.value(1, 'd')
+            ((isAdmin(shopId) && request.time < resource.data.createdAt + duration.value(1, 'd'))
+              || (resource.data.creatorId == request.auth.uid && request.time < resource.data.createdAt + duration.value(1, 'h')))
             && resource.data.get('type', 'sale') == 'sale'
             && resource.data.get('returnedAmt', 0) == 0
             && !('exchangeOf' in resource.data)
@@ -239,7 +271,19 @@ service cloud.firestore {
       match /dailyClosures/{closureId} {
         allow get: if isMember(shopId);
         allow list: if isMember(shopId) && request.query.limit <= 100;
-        allow create, update: if isMember(shopId)
+        // A saved count can only be created, so a cashier cannot overwrite the difference afterwards; only an admin can change one.
+        allow create: if isMember(shopId)
+          && closureId.matches('^\\d{4}-\\d{2}-\\d{2}$')
+          && closureId <= bizDay(shopId, request.time)
+          && (isAdmin(shopId) || closureId >= bizDay(shopId, request.time - duration.value(1, 'd')))
+          && request.resource.data.creatorId == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.keys().hasOnly(['expectedCash', 'actualCash', 'difference', 'creatorId', 'createdAt', 'date'])
+          && request.resource.data.expectedCash is number
+          && request.resource.data.actualCash is number
+          && request.resource.data.difference is number
+          && request.resource.data.date == closureId;
+        allow update: if isAdmin(shopId)
           && closureId.matches('^\\d{4}-\\d{2}-\\d{2}$')
           && closureId <= bizDay(shopId, request.time)
           && (isAdmin(shopId) || closureId >= bizDay(shopId, request.time - duration.value(1, 'd')))
