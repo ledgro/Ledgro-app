@@ -395,7 +395,7 @@ export default function POS() {
       dispatch({ type: 'CLEAR_BILL' });
       setSplitCash('');
       setTendered('');
-      setLastBill({ ...payload, shopProfile, tendered: paymentMethod === 'cash' && tendered !== '' ? Math.round((parseFloat(tendered) || 0) * 100) : null });
+      setLastBill({ ...payload, shopProfile, tendered: paymentMethod === 'cash' && tendered !== '' && Math.round((parseFloat(tendered) || 0) * 100) !== grandTotal ? Math.round((parseFloat(tendered) || 0) * 100) : null });
       setCheckoutSuccess(true);
       setIsPayOpen(false);
       const bCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
@@ -534,6 +534,8 @@ export default function POS() {
   }
 
   // Under-payment helper shared by cash, UPI and split: shows the gap and offers to take what was paid as full payment (the rest becomes a discount).
+  // Split: the UPI box starts as what is left after the cash, and can be changed.
+  const splitUpiShown = splitCash === '' ? '' : String(Math.max(0, grandTotal - Math.round((parseFloat(splitCash) || 0) * 100)) / 100);
   const shortUi = (paid, giveBack, backWord = 'Give back') => {
     const diff = paid - grandTotal;
     if (diff >= 0) {
@@ -644,7 +646,7 @@ export default function POS() {
 
             <button
               type="button"
-              onClick={() => setIsPayOpen(true)}
+              onClick={() => { setTendered(paymentMethod === 'split' ? '' : String(grandTotal / 100)); setIsPayOpen(true); }}
               disabled={isCheckingOut}
               className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-all active:scale-[0.98] shadow-sm"
             >
@@ -693,7 +695,7 @@ export default function POS() {
                   <button
                     key={method}
                     type="button"
-                    onClick={() => { setPaymentMethod(method); setTendered(''); if (method !== 'split') setSplitCash(''); }}
+                    onClick={() => { setPaymentMethod(method); setTendered(method === 'split' ? '' : String(grandTotal / 100)); if (method !== 'split') setSplitCash(''); }}
                     className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider rounded-lg transition-all ${paymentMethod === method ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
                   >
                     {method}
@@ -758,9 +760,9 @@ export default function POS() {
                   ))}
                 </div>
                 <label className="block text-xs font-bold text-slate-500">UPI actually received (optional)</label>
-                <input type="number" inputMode="decimal" value={tendered} onChange={(e) => setTendered(e.target.value.slice(0, 9))}
+                <input type="number" inputMode="decimal" value={tendered === '' ? splitUpiShown : tendered} onChange={(e) => setTendered(e.target.value.slice(0, 9))}
                   className="w-full px-3 h-12 border border-blue-200 bg-blue-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-700" />
-                {tendered !== '' && splitCash !== '' && shortUi(Math.round(((parseFloat(splitCash) || 0) + (parseFloat(tendered) || 0)) * 100), false)}
+                {splitCash !== '' && shortUi(Math.round(((parseFloat(splitCash) || 0) + (parseFloat(tendered === '' ? splitUpiShown : tendered) || 0)) * 100), false)}
                 </div>
               )}
               <div className="flex gap-2">

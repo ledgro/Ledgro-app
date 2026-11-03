@@ -170,13 +170,18 @@ export default function Ledger() {
     });
   };
 
-  /** Same rule as void: within 24h, by the bill's creator or the owner. Rules enforce it again on save. */
+  /** Void, edit and payment change: an admin within 24h, the cashier who made the bill within 1 hour. Rules enforce it again on save. */
+  const inChangeWindow = (b) => {
+    const created = b?.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+    // oxlint-disable-next-line react/purity
+    const age = Date.now() - created;
+    if (!created) return false;
+    if (isAdmin) return age <= 24 * 60 * 60 * 1000;
+    return b.creatorId === user?.uid && age <= 60 * 60 * 1000;
+  };
   const canEditBill = (b) => {
     if (!b || b.type !== 'sale' || b.isVoided || b.exchangeOf || (b.returnedAmt || 0) > 0) return false;
-    const created = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
-    // oxlint-disable-next-line react/purity
-    if (!created || Date.now() - created > 24 * 60 * 60 * 1000) return false;
-    return b.creatorId === user?.uid || isAdmin;
+    return inChangeWindow(b);
   };
 
   /** Opens the bill in POS. Saving voids this bill and writes a new one (bills are never changed in place). */
@@ -760,7 +765,7 @@ export default function Ledger() {
                        ) : (
                        <p className="w-full rounded-xl bg-slate-50 px-3 py-3 text-center text-xs font-bold text-slate-500">Returns after 24 hours need an admin.</p>
                        )}
-                       {!(selectedBill.returnedAmt > 0) && !selectedBill.exchangeOf && (
+                       {!(selectedBill.returnedAmt > 0) && !selectedBill.exchangeOf && inChangeWindow(selectedBill) && (
                        <button
                          onClick={() => { handleVoidBill(selectedBill); setSelectedBill(null); }}
                          disabled={reversingId === selectedBill.id}
