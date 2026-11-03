@@ -51,6 +51,7 @@ const pages = [
   ['Expenses', () => import('../pages/Expenses')],
   ['Ledger', () => import('../pages/Ledger')],
   ['Dashboard', () => import('../pages/Dashboard')],
+  ['Welcome', () => import('../pages/Welcome')],
   ['Settings', () => import('../pages/Settings')],
   ['PLScreen', () => import('../pages/PLScreen')],
   ['Products', () => import('../pages/Products')],

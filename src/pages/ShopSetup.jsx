@@ -70,7 +70,7 @@ const ShopSetup = () => {
       localStorage.setItem('ledgro_offline_shopId', docRef.id);
       syncMyProfile(docRef.id, user); // so others see this name right away, not only after the next sign-in
       setHasShop(true);
-      navigate('/dashboard');
+      navigate('/welcome');
     } catch (err) {
       console.error(err);
       setError('Failed to create shop. Please try again.');
