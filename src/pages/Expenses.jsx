@@ -40,11 +40,13 @@ export default function Expenses() {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState(CATEGORIES[0].id);
   const [submitting, setSubmitting] = useState(false);
-  const [paidVia, setPaidVia] = useState('cash'); // 'cash' | 'upi'
+  const [paidVia, setPaidVia] = useState('cash'); // 'cash' | 'upi' | 'staff' (staff paid from own pocket, not in the drawer, owed back)
   const [fetchError, setFetchError] = useState(false);
   const [editing, setEditing] = useState(null);
 
   /** Owner any time; the person who added it within 24 hours. Rules enforce the same on save. */
+  const owedToStaff = expenses.filter((e) => e.paidVia === 'staff').reduce((n, e) => n + (Number(e.amount) || 0), 0);
+
   const canEdit = (e) => {
     if (isAdmin) return true;
     const created = e.createdAt?.toDate ? e.createdAt.toDate().getTime() : 0;
@@ -209,6 +211,11 @@ export default function Expenses() {
           </div>
         ) : (
           <div className="space-y-3 relative">
+            {owedToStaff > 0 && (
+              <div className="rounded-2xl bg-amber-50 border border-amber-200 p-3 text-sm font-semibold text-amber-800">
+                Owed to staff: ₹{(owedToStaff / 100).toLocaleString('en-IN')}. Paid from their own pocket. When you repay, edit the entry and set Drawer Cash or Bank / UPI.
+              </div>
+            )}
             <div className="absolute left-[39px] top-6 bottom-6 w-[2px] bg-slate-100 -z-10 rounded-full" />
 
             {expenses.map(expense => {
@@ -231,7 +238,7 @@ export default function Expenses() {
                     <h3 className="font-bold text-slate-900 truncate pr-2">{expense.description || cat?.label || 'Other'}</h3>
                     <div className="flex items-center gap-2 mt-0.5">
                        <p className="text-xs font-semibold text-slate-500">{date}</p>
-                       <span className="text-xs font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">{expense.paidVia || 'cash'}</span>
+                       <span className="text-xs font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">{expense.paidVia === 'staff' ? 'owed to staff' : (expense.paidVia || 'cash')}</span>
                        <span className="text-xs font-semibold text-slate-500 truncate">{nameOf(expense.creatorId)}</span>
                     </div>
                   </div>
@@ -301,6 +308,7 @@ export default function Expenses() {
                    <div className="flex bg-slate-100 p-1 rounded-xl">
                       <button type="button" onClick={() => setPaidVia('cash')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${paidVia === 'cash' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Drawer Cash</button>
                       <button type="button" onClick={() => setPaidVia('upi')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${paidVia === 'upi' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Bank / UPI</button>
+                      <button type="button" onClick={() => setPaidVia('staff')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${paidVia === 'staff' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Staff pocket</button>
                    </div>
                 </div>
 
