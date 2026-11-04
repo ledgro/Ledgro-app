@@ -288,6 +288,7 @@ export default function Settings() {
             <Store size={20} className="text-blue-600" />
             <h2>Shop Profile</h2>
           </div>
+          <button type="button" onClick={() => navigate('/welcome')} className="mb-4 w-full h-11 rounded-xl bg-blue-50 text-blue-700 font-bold text-sm active:bg-blue-100">Open setup questions</button>
           <form onSubmit={handleSaveProfile} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1">Shop Name *</label>
