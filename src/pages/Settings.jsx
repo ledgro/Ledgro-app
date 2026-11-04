@@ -20,7 +20,7 @@ import ErrorLogSection from '../components/ErrorLogSection';
 import { confirm } from '../lib/confirm';
 
 export default function Settings() {
-  const { user, shopId, shopAdminId, shopProfile, signOut, deleteAccount, changePassword, deleteShopData, reauthWithGoogle } = useAuth();
+  const { user, shopId, shopAdminId, shopProfile, signOut, deleteAccount, changePassword, deleteShopData, reauthWithGoogle, isAdmin } = useAuth();
   const isOwner = !!user?.uid && shopAdminId === user.uid;
   const [recalculating, setRecalculating] = useState(false);
   const navigate = useNavigate();
@@ -438,7 +438,7 @@ export default function Settings() {
 
            <div className="space-y-2">
              <p className="text-xs font-semibold text-red-600">Danger Zone</p>
-             {shopId && (
+             {shopId && isAdmin && (
                <button
                  onClick={handleDeleteShopData}
                  disabled={isDeletingAccount}
