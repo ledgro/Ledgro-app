@@ -2,6 +2,7 @@ import { describe, test, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import SearchSheet from '../components/SearchSheet';
 import { useCatalogStore } from '../store/catalogStore';
+vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ shopId: 's1' }) }));
 
 const slide = (id, size, stock) => ({
   id, groupId: 'g1', baseName: 'Nike Slides', options: { Size: size },
