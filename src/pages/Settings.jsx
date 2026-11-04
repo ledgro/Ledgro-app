@@ -20,7 +20,7 @@ import ErrorLogSection from '../components/ErrorLogSection';
 import { confirm } from '../lib/confirm';
 
 export default function Settings() {
-  const { user, shopId, shopAdminId, shopProfile, signOut, deleteAccount, changePassword, deleteShopData } = useAuth();
+  const { user, shopId, shopAdminId, shopProfile, signOut, deleteAccount, changePassword, deleteShopData, reauthWithGoogle } = useAuth();
   const isOwner = !!user?.uid && shopAdminId === user.uid;
   const [recalculating, setRecalculating] = useState(false);
   const navigate = useNavigate();
@@ -207,6 +207,7 @@ export default function Settings() {
       toast.error("Cannot delete account while offline. Please connect to the internet.");
       return;
     }
+    try { await reauthWithGoogle(); } catch (e) { toast.error(e.message); return; }
     const confirmDelete = await confirm({ title: 'Delete account?', message: 'Your login and your shop data are deleted for good. This cannot be undone.', confirmText: 'Delete account', danger: true, typeToConfirm: 'DELETE' });
     if (!confirmDelete) return;
 
@@ -222,6 +223,7 @@ export default function Settings() {
 
   const handleDeleteShopData = async () => {
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was deleted.'); return; }
+    try { await reauthWithGoogle(); } catch (e) { toast.error(e.message); return; }
     const ok = await confirm({
       title: 'Delete all shop data?',
       message: 'Every bill, product, expense, photo and cash count of this shop is deleted for good. Your login stays, and you can set up a new shop. This cannot be undone.',

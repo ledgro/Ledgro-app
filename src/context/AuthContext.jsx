@@ -31,7 +31,7 @@ function clearLocalSession() {
 // in-page hash change with the terminated Firestore client still alive; the timer forces a real reload then.
 function hardRestart(notice) {
   try { if (notice) localStorage.setItem('ledgro_notice', notice); } catch { /* storage blocked */ }
-  window.location.replace('/');
+  window.location.replace('/#/login');
   setTimeout(() => window.location.reload(), 200);
 }
 
@@ -374,19 +374,32 @@ export const AuthProvider = ({ children }) => {
     voluntaryExitRef.current = true;
   }, []);
 
-  // Proves it is really the account owner (password, or Google popup) before anything is deleted.
-  const reauthForDelete = async (password) => {
+  const recentSignIn = () => {
+    const t = Date.parse(auth.currentUser?.metadata?.lastSignInTime || '');
+    return Number.isFinite(t) && Date.now() - t < 4 * 60 * 1000;
+  };
+
+  // Google users: call this straight from the tap, before any dialog, so the browser does not block the popup.
+  const reauthWithGoogle = useCallback(async () => {
+    if (!auth.currentUser || usesPassword(auth.currentUser) || recentSignIn()) return;
     try {
-      if (usesPassword(auth.currentUser)) {
-        await reauthenticateWithCredential(auth.currentUser, EmailAuthProvider.credential(auth.currentUser.email, password || ''));
-      } else {
-        await reauthenticateWithPopup(auth.currentUser, googleProvider);
-      }
+      await reauthenticateWithPopup(auth.currentUser, googleProvider);
     } catch (error) {
-      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-        throw new Error('Deletion cancelled.');
-      }
-      throw new Error('Failed to authenticate. Please try again.');
+      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') throw new Error('Cancelled. Nothing was deleted.');
+      throw new Error(`Google sign-in failed (${error.code || 'unknown'}). Nothing was deleted.`);
+    }
+  }, []);
+
+  // Proves it is really the account owner before anything is deleted.
+  const reauthForDelete = async (password) => {
+    if (!usesPassword(auth.currentUser)) {
+      if (recentSignIn()) return;
+      throw new Error('Please confirm with Google again. Nothing was deleted.');
+    }
+    try {
+      await reauthenticateWithCredential(auth.currentUser, EmailAuthProvider.credential(auth.currentUser.email, password || ''));
+    } catch (error) {
+      throw new Error(`Wrong password or sign-in expired (${error.code || 'unknown'}). Nothing was deleted.`);
     }
   };
 
@@ -513,8 +526,9 @@ export const AuthProvider = ({ children }) => {
     signOut,
     beginVoluntaryExit,
     deleteAccount,
+    reauthWithGoogle,
     deleteShopData,
-  }), [user, hasShop, shopId, shopAdminId, isAdminRole, shopName, shopProfile, loading, signInWithGoogle, signInWithPassword, changePassword, addEmail, resendVerification, checkVerified, signOut, beginVoluntaryExit, deleteAccount, deleteShopData]);
+  }), [user, hasShop, shopId, shopAdminId, isAdminRole, shopName, shopProfile, loading, signInWithGoogle, signInWithPassword, changePassword, addEmail, resendVerification, checkVerified, signOut, beginVoluntaryExit, deleteAccount, deleteShopData, reauthWithGoogle]);
 
   if (loading) {
     return <AuthContext.Provider value={value}><SplashScreen /></AuthContext.Provider>;
