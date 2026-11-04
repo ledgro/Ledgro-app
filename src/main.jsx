@@ -4,6 +4,10 @@ import './index.css'
 import { Toaster, toast } from 'sonner';
 import { registerSW } from 'virtual:pwa-register'
 import { installErrorOverlay } from './lib/errorOverlay'
+import { applyTheme, watchSystemTheme } from './lib/theme'
+
+applyTheme();
+watchSystemTheme();
 
 window.addEventListener('vite:preloadError', (event) => {
   event.preventDefault();
