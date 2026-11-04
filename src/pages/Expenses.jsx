@@ -221,9 +221,27 @@ export default function Expenses() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   key={expense.id}
-                  className={`bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4 relative overflow-hidden group ${canEdit(expense) ? 'cursor-pointer' : ''}`}
-                  onClick={(ev) => { if (ev.target.closest('button[aria-label="Delete Expense"]')) return; openEdit(expense); }}
+                  className="relative overflow-hidden rounded-3xl"
                 >
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      aria-label="Delete Expense"
+                      className="absolute inset-y-0 right-0 w-20 bg-red-600 text-white flex items-center justify-center"
+                      onClick={() => handleDeleteExpense(expense.id)}
+                    >
+                      <Trash2 size={20} strokeWidth={2.5} />
+                    </button>
+                  )}
+                  <motion.div
+                    drag={isAdmin ? 'x' : false}
+                    dragDirectionLock
+                    dragConstraints={{ left: -80, right: 0 }}
+                    dragElastic={0.05}
+                    dragSnapToOrigin={false}
+                    onTap={() => openEdit(expense)}
+                    className={`bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4 relative ${canEdit(expense) ? 'cursor-pointer' : ''}`}
+                  >
                   <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm shrink-0">
                     <Icon size={20} strokeWidth={2.5} />
                   </div>
@@ -239,16 +257,7 @@ export default function Expenses() {
                     <p className="font-black text-slate-900 text-lg">₹{(expense.amount / 100).toLocaleString('en-IN')}</p>
                   </div>
 
-                  {isAdmin && (
-                    <button
-                         type="button"
-                         aria-label="Delete Expense"
-                         className="absolute inset-y-0 right-0 bg-red-50 text-red-600 flex items-center justify-center w-0 overflow-hidden group-active:w-20 lg:group-hover:w-20 transition-all duration-300 ease-out z-10 border-red-100 group-active:border-l lg:group-hover:border-l group-active:shadow-[-10px_0_15px_-5px_rgba(0,0,0,0.05)] cursor-pointer"
-                         onClick={() => handleDeleteExpense(expense.id)}
-                    >
-                       <Trash2 size={20} strokeWidth={2.5} />
-                    </button>
-                  )}
+                  </motion.div>
                 </motion.div>
               );
             })}
