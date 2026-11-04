@@ -18,8 +18,10 @@ import { format } from 'date-fns';
 import { checkStorageHealth } from '../lib/storageHealth';
 import ErrorLogSection from '../components/ErrorLogSection';
 import { confirm } from '../lib/confirm';
+import { getThemePref, setThemePref } from '../lib/theme';
 
 export default function Settings() {
+  const [themePref, setThemePrefState] = useState(getThemePref());
   const { user, shopId, shopAdminId, shopProfile, signOut, deleteAccount, changePassword, deleteShopData } = useAuth();
   const isOwner = !!user?.uid && shopAdminId === user.uid;
   const [recalculating, setRecalculating] = useState(false);
@@ -281,6 +283,18 @@ export default function Settings() {
       </header>
 
       <main className="p-4 space-y-6">
+        <section className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
+          <h2 className="font-bold text-slate-900 mb-3">Appearance</h2>
+          <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Theme">
+            {[['light', 'Light'], ['dark', 'Dark'], ['auto', 'Auto']].map(([v, label]) => (
+              <button key={v} type="button" role="radio" aria-checked={themePref === v}
+                onClick={() => { setThemePref(v); setThemePrefState(v); }}
+                className={`h-11 rounded-xl text-sm font-bold ${themePref === v ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}>{label}</button>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500 mt-2">Auto follows your phone.</p>
+        </section>
+
         <section className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
           <div className="flex items-center gap-2 text-slate-900 font-bold mb-4">
             <Store size={20} className="text-blue-600" />
