@@ -135,12 +135,14 @@ export default function Products() {
     filtered = filtered.sort((a, b) => {
       const aIsLow = a.stockCount != null && a.lowStockAlert != null && a.stockCount <= a.lowStockAlert;
       const bIsLow = b.stockCount != null && b.lowStockAlert != null && b.stockCount <= b.lowStockAlert;
-      if (aIsLow && !bIsLow) return -1;
-      if (!aIsLow && bIsLow) return 1;
+      if (sortBy !== 'a_z') {
+        if (aIsLow && !bIsLow) return -1;
+        if (!aIsLow && bIsLow) return 1;
+      }
 
       switch (sortBy) {
         case 'a_z':
-          return (a.name || '').localeCompare(b.name || '');
+          return (a.baseName || a.name || '').localeCompare(b.baseName || b.name || '', undefined, { sensitivity: 'base', numeric: true });
         case 'oldest':
           return (a.createdAt?.toMillis ? a.createdAt.toMillis() : 0) - (b.createdAt?.toMillis ? b.createdAt.toMillis() : 0);
         case 'low_stock':
