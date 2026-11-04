@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, increment, writeBatch } from 'firebase/firestore';
-import { ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
+import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, increment, writeBatch, deleteDoc } from 'firebase/firestore';
+import { ArrowDownToLine, ArrowUpFromLine, Trash2 } from 'lucide-react';
+import { confirm } from '../lib/confirm';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { loadCatalog } from '../lib/catalogSync';
@@ -14,7 +15,8 @@ const toDateSafe = (ts) => (ts?.toDate ? ts.toDate() : new Date());
 
 /** Stock moving between this shop and another shop (in or out). Never a sale: it does not touch bills or earnings. */
 export default function Transfers() {
-  const { user, shopId } = useAuth();
+  const { user, shopId, shopAdminId } = useAuth();
+  const isAdmin = user?.uid === shopAdminId;
   const items = useCatalogStore((s) => s.items);
   const hydrateCatalog = useCatalogStore((s) => s.hydrateCatalog);
 
@@ -47,6 +49,18 @@ export default function Transfers() {
 
   // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { load(); }, [load]);
+
+  const removeEntry = async (t) => {
+    const ok = await confirm({ title: 'Delete this entry?', message: 'Only the history line is removed. Your stock count does not change.', confirmText: 'Delete', danger: true });
+    if (!ok) return;
+    try {
+      await deleteDoc(doc(db, `shops/${shopId}/transfers/${t.id}`));
+      setTransfers((l) => l.filter((x) => x.id !== t.id));
+    } catch (err) {
+      console.error(err);
+      toast.error(`Could not delete (${err.code || 'error'}).`);
+    }
+  };
 
   const parties = useMemo(() => [...new Set(transfers.map((t) => t.party).filter(Boolean))], [transfers]);
 
@@ -215,13 +229,16 @@ export default function Transfers() {
                   <div className="min-w-0">
                     <div className="font-semibold text-slate-900 truncate">{t.name}</div>
                     <div className="text-xs text-slate-500 truncate">
-                      {t.direction === 'in' ? 'from' : 'to'} {t.party} · {toDateSafe(t.createdAt).toLocaleDateString([], { day: 'numeric', month: 'short' })}
+                      {t.direction === 'in' ? 'from' : 'to'} {t.party} · {toDateSafe(t.createdAt).toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                       {t.unitPrice != null ? ` · ${formatCurrency(t.unitPrice)} each` : ''}
                     </div>
                   </div>
                   <span className={cn('font-black shrink-0', t.direction === 'in' ? 'text-emerald-600' : 'text-rose-600')}>
                     {t.direction === 'in' ? '+' : '-'}{t.qty}
                   </span>
+                  {isAdmin && (
+                    <button type="button" aria-label="Delete entry" onClick={() => removeEntry(t)} className="shrink-0 p-2 text-slate-400 active:text-rose-600"><Trash2 size={16} /></button>
+                  )}
                 </li>
               ))}
             </ul>

@@ -207,9 +207,15 @@ export default function POS() {
   const handleCheckout = async () => {
     if (items.length === 0 || !shopId || isSubmittingRef.current) return;
 
-    // The bill is final once it is shown: the amount typed on the payment screen never changes it.
-    // (A discount for a short payment is given with the button, before confirming.)
-    const billState = state;
+    // Paying more never changes the bill (the extra is change). Paying less is recorded as a discount for the gap,
+    // shown on the payment screen before confirming, so the bill and the money always agree.
+    const typedPaise = (v) => Math.round((parseFloat(v) || 0) * 100);
+    const paidPaise = paymentMethod === 'split'
+      ? typedPaise(splitCash) + (tendered === '' ? Math.max(0, grandTotal - typedPaise(splitCash)) : typedPaise(tendered))
+      : (tendered === '' ? 0 : typedPaise(tendered));
+    const billState = paidPaise > 0 && paidPaise < grandTotal
+      ? { ...state, globalDiscount: { type: 'flat', value: globalDiscountAmt + (grandTotal - paidPaise) } }
+      : state;
     const { grandTotal: billTotal, globalDiscountAmt: billDiscountAmt, subtotal: billSubtotal, items: billItems } = calculateBillTotals(billState);
 
     const cashPaise = paymentMethod === 'split' ? Math.round((parseFloat(splitCash) || 0) * 100) : 0;
@@ -541,17 +547,11 @@ export default function POS() {
     if (diff >= 0) {
       return giveBack ? <p className="rounded-xl bg-green-50 px-4 py-3 text-center text-lg font-black text-green-700 tabular-nums">{backWord} {formatCurrency(diff)}</p> : null;
     }
+    if (paid <= 0) return null;
     return (
-      <div className="space-y-2">
-        <p className="rounded-xl bg-red-50 px-4 py-3 text-center text-sm font-bold text-red-600 tabular-nums">Short by {formatCurrency(-diff)}</p>
-        {paid > 0 && (
-          <button type="button"
-            onClick={() => dispatch({ type: 'SET_GLOBAL_DISCOUNT', payload: { type: 'flat', value: globalDiscountAmt - diff } })}
-            className="h-12 w-full rounded-xl bg-amber-100 text-sm font-bold text-amber-800 active:scale-95 transition-transform">
-            Take {formatCurrency(paid)} as full payment (discount {formatCurrency(-diff)})
-          </button>
-        )}
-      </div>
+      <p className="rounded-xl bg-amber-100 px-4 py-3 text-center text-sm font-black text-amber-800 tabular-nums">
+        Discount {formatCurrency(-diff)}. Bill becomes {formatCurrency(paid)}
+      </p>
     );
   };
 

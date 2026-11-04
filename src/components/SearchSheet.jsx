@@ -6,6 +6,7 @@ import { useBodyLock } from '../hooks/useBodyLock';
 import { formatCurrency } from '../lib/utils';
 import { variantLabel, colourOf, colourKey, colourLabel, sizeLabelOf } from '../lib/variants';
 import CategoryChips from './CategoryChips';
+import ProductThumb from './ProductThumb';
 import { SEARCH_EVENT } from './QuickPicks';
 
 const ALL = '__all__';
@@ -196,6 +197,7 @@ function Sheet({ seed, onClose, onAddItem, onRemoveOne, cartQty, itemCount }) {
                 onClick={() => add(p)}
                 className="flex min-h-[60px] min-w-0 flex-1 items-center justify-between py-2 pl-1 text-left active:bg-slate-50"
               >
+                <ProductThumb item={p} className="mr-3 h-12 w-12" />
                 <span className="min-w-0 flex-1 pr-3">
                   <span className={`block truncate text-base font-semibold ${out ? 'text-slate-500' : 'text-slate-900'}`}>{p.name}</span>
                   <span className="flex gap-2 text-xs">
@@ -270,6 +272,7 @@ function VariantGroup({ row, expanded, onToggle, cartQty, onAdd, onRemoveOne, hi
         aria-expanded={expanded}
         className="flex min-h-[60px] w-full items-center justify-between py-2 pl-1 text-left active:bg-slate-50"
       >
+        <ProductThumb item={row.items.find((i) => i.hasImage) || row.items[0]} className="mr-3 h-12 w-12" />
         <span className="min-w-0 flex-1 pr-3">
           <span className="block truncate text-base font-semibold text-slate-900">{row.baseName}</span>
           <span className="flex gap-2 text-xs text-slate-500">

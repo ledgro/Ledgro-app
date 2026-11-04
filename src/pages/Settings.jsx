@@ -22,8 +22,7 @@ import { getThemePref, setThemePref } from '../lib/theme';
 
 export default function Settings() {
   const [themePref, setThemePrefState] = useState(getThemePref());
-  const { user, shopId, shopAdminId, shopProfile, signOut, deleteAccount, changePassword, deleteShopData } = useAuth();
-  const isOwner = !!user?.uid && shopAdminId === user.uid;
+>>>>>>> origin/main
   const [recalculating, setRecalculating] = useState(false);
   const navigate = useNavigate();
 
@@ -209,6 +208,7 @@ export default function Settings() {
       toast.error("Cannot delete account while offline. Please connect to the internet.");
       return;
     }
+    try { await reauthWithGoogle(); } catch (e) { toast.error(e.message); return; }
     const confirmDelete = await confirm({ title: 'Delete account?', message: 'Your login and your shop data are deleted for good. This cannot be undone.', confirmText: 'Delete account', danger: true, typeToConfirm: 'DELETE' });
     if (!confirmDelete) return;
 
@@ -224,6 +224,7 @@ export default function Settings() {
 
   const handleDeleteShopData = async () => {
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was deleted.'); return; }
+    try { await reauthWithGoogle(); } catch (e) { toast.error(e.message); return; }
     const ok = await confirm({
       title: 'Delete all shop data?',
       message: 'Every bill, product, expense, photo and cash count of this shop is deleted for good. Your login stays, and you can set up a new shop. This cannot be undone.',
@@ -300,6 +301,7 @@ export default function Settings() {
             <Store size={20} className="text-blue-600" />
             <h2>Shop Profile</h2>
           </div>
+          <button type="button" onClick={() => navigate('/welcome')} className="mb-4 w-full h-11 rounded-xl bg-blue-50 text-blue-700 font-bold text-sm active:bg-blue-100">Open setup questions</button>
           <form onSubmit={handleSaveProfile} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1">Shop Name *</label>

@@ -10,7 +10,7 @@ import { db } from '../firebase';
 import { Drawer } from 'vaul';
 import BottomNav from '../components/BottomNav';
 import { motion } from 'framer-motion';
-import { Zap, Plus, Home, Users, Package, Trash2 } from 'lucide-react';
+import { Zap, Plus, Home, Users, Package, Trash2, HandCoins, Wallet } from 'lucide-react';
 import { Skeleton } from '../components/Skeleton';
 import { useBodyLock } from '../hooks/useBodyLock';
 import { hapticVibrate } from '../lib/utils';
@@ -22,6 +22,8 @@ const CATEGORIES = [
   { id: 'rent', label: 'Rent', icon: Home },
   { id: 'wages', label: 'Wages', icon: Users },
   { id: 'supplies', label: 'Supplies', icon: Package },
+  { id: 'staff_loan', label: 'Staff loan', icon: HandCoins },
+  { id: 'other', label: 'Other', icon: Wallet },
 ];
 
 export default function Expenses() {
@@ -212,7 +214,7 @@ export default function Expenses() {
             {expenses.map(expense => {
               const cat = CATEGORIES.find(c => c.id === expense.category);
               const Icon = cat ? cat.icon : Package;
-              const date = expense.createdAt?.toDate ? expense.createdAt.toDate().toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Just now';
+              const date = expense.createdAt?.toDate ? expense.createdAt.toDate().toLocaleString([], {month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Just now';
 
               return (
                 <motion.div
