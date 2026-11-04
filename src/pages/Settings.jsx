@@ -22,7 +22,8 @@ import { getThemePref, setThemePref } from '../lib/theme';
 
 export default function Settings() {
   const [themePref, setThemePrefState] = useState(getThemePref());
->>>>>>> origin/main
+  const { user, shopId, shopAdminId, shopProfile, signOut, deleteAccount, changePassword, deleteShopData, reauthWithGoogle } = useAuth();
+  const isOwner = !!user?.uid && shopAdminId === user.uid;
   const [recalculating, setRecalculating] = useState(false);
   const navigate = useNavigate();
 
