@@ -236,9 +236,11 @@ export default function Settings() {
     if (!ok) return;
     setDeleting('shop');
     try {
-      await deleteShopData(pw.current);
+      toast.loading('Deleting shop data...', { id: 'del' });
+      await deleteShopData(pw.current, (m) => toast.loading(m, { id: 'del' }));
+      toast.success('Shop data deleted.', { id: 'del' });
     } catch (err) {
-      toast.error(err.message || 'Failed to delete the shop data.');
+      toast.error(err.message || 'Failed to delete the shop data.', { id: 'del' });
     } finally {
       setDeleting(null);
     }

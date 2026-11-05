@@ -428,7 +428,7 @@ export const AuthProvider = ({ children }) => {
    * Deletes the shop and everything in it (bills, products, expenses, photos, counts) but keeps the login.
    * Only when you are the only member: staff must be removed first. Afterwards you land on the shop setup screen.
    */
-  const deleteShopData = useCallback(async (password) => {
+  const deleteShopData = useCallback(async (password, onStep) => {
     if (!auth.currentUser || !shopId) return;
     await reauthForDelete(password);
 
@@ -444,7 +444,7 @@ export const AuthProvider = ({ children }) => {
 
     voluntaryExitRef.current = true;
     try {
-      await deleteShopCascade(shopId);
+      await deleteShopCascade(shopId, onStep);
     } catch (err) {
       voluntaryExitRef.current = false;
       console.error(err);

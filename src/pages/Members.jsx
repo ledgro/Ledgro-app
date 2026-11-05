@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { collection, doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot, deleteField, limit, query, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
+import { ListSkeleton } from '../components/Skeleton';
+import { useShowLoader } from '../hooks/useShowLoader';
 import { Trash2, UserPlus, LogOut, ArrowUpCircle, ShieldCheck, ShieldOff } from 'lucide-react';
 import { broadcastSessionTerminated } from '../lib/sessionBroadcast';
 import { deleteShopCascade, flushPendingWrites } from '../lib/firestoreUtils';
@@ -14,6 +16,7 @@ export default function Members() {
   const { user, shopId, shopAdminId, signOut, beginVoluntaryExit } = useAuth();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const showLoader = useShowLoader(loading);
   const [inviteCode, setInviteCode] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -222,7 +225,7 @@ export default function Members() {
         <div>
           <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 px-1">Active Members</h2>
           {loading ? (
-            <div className="flex justify-center py-8"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /></div>
+            showLoader ? <ListSkeleton rows={3} /> : null
           ) : (
             <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm divide-y divide-slate-50">
               {members.map(member => (

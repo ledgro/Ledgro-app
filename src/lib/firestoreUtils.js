@@ -48,11 +48,13 @@ export async function deleteCollectionPaged(collectionPath) {
  * Only valid when the caller is the sole admin AND sole member
  * (that is the only case firestore.rules allow it).
  */
-export async function deleteShopCascade(shopId) {
+const STEP_LABEL = { bills: 'bills', expenses: 'expenses', catalog: 'products', dailyClosures: 'cash counts', dailyStats: 'totals', transfers: 'transfers', memberProfiles: 'names', errorLogs: 'error logs', catalogImages: 'photos', staffCash: 'staff cash', billCounters: 'bill numbers', auditLogs: 'activity log' };
+
+export async function deleteShopCascade(shopId, onStep) {
   // every collection at once, not one after another
   const jobs = [];
   for (const sub of ['bills', 'expenses', 'catalog', 'dailyClosures', 'dailyStats', 'transfers', 'memberProfiles', 'errorLogs', 'catalogImages', 'staffCash', 'billCounters', 'auditLogs']) {
-    jobs.push(deleteCollectionPaged(`shops/${shopId}/${sub}`));
+    jobs.push(deleteCollectionPaged(`shops/${shopId}/${sub}`).then(() => onStep?.(`Deleted ${STEP_LABEL[sub] || sub}`)));
   }
   await Promise.all(jobs);
   await deleteDoc(doc(db, 'shops', shopId));

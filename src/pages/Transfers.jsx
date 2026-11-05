@@ -8,6 +8,8 @@ import { useAuth } from '../context/AuthContext';
 import { loadCatalog } from '../lib/catalogSync';
 import { useCatalogStore } from '../store/catalogStore';
 import BottomNav from '../components/BottomNav';
+import { ListSkeleton } from '../components/Skeleton';
+import { useShowLoader } from '../hooks/useShowLoader';
 import { formatCurrency, sanitizeText, cn } from '../lib/utils';
 import { sessionGuard } from '../lib/SessionGuard';
 
@@ -28,6 +30,7 @@ export default function Transfers() {
   const [submitting, setSubmitting] = useState(false);
   const [transfers, setTransfers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const showLoader = useShowLoader(loading);
 
   const load = useCallback(async () => {
     if (!shopId) return;
@@ -219,7 +222,7 @@ export default function Transfers() {
         <section aria-label="History">
           <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">History</h2>
           {loading ? (
-            <p className="text-sm text-slate-500">Loading...</p>
+            showLoader ? <ListSkeleton rows={4} /> : null
           ) : transfers.length === 0 ? (
             <p className="text-sm text-slate-500">No transfers yet.</p>
           ) : (

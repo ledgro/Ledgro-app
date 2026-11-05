@@ -7,6 +7,8 @@ import { useAuth } from '../context/AuthContext';
 import { useNameOf } from '../lib/memberNames';
 import { formatCurrency } from '../lib/utils';
 import BottomNav from '../components/BottomNav';
+import { ListSkeleton } from '../components/Skeleton';
+import { useShowLoader } from '../hooks/useShowLoader';
 
 const LABELS = { void: 'Voided bill', payment_change: 'Payment changed', return: 'Return', discount: 'Discount given', expense_delete: 'Expense deleted', import: 'Products imported' };
 
@@ -18,6 +20,7 @@ export default function ActivityLog() {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
   const isOwner = user?.uid === shopAdminId;
+  const showLoader = useShowLoader(rows === null && !error);
 
   useEffect(() => {
     if (!shopId || !isOwner) return;
@@ -35,7 +38,7 @@ export default function ActivityLog() {
       <main className="p-4 space-y-2">
         {!isOwner ? <p className="text-sm text-slate-500">Only the owner can see this.</p>
           : error ? <p className="text-sm text-red-600">Could not load ({error}).</p>
-          : rows === null ? <p className="text-sm text-slate-500">Loading...</p>
+          : rows === null ? (showLoader ? <ListSkeleton /> : null)
           : rows.length === 0 ? <p className="text-sm text-slate-500">Nothing recorded yet.</p>
           : rows.map((r) => (
             <div key={r.id} className="bg-white border border-slate-200 rounded-xl p-3">
