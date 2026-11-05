@@ -186,7 +186,8 @@ export default function Settings() {
     }
   };
 
-  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [deleting, setDeleting] = useState(null); // 'shop' | 'account' | null
+  const isDeletingAccount = deleting !== null;
   const [pw, setPw] = useState({ current: '', next: '' });
   const [pwBusy, setPwBusy] = useState(false);
   const passwordUser = usesPassword(user);
@@ -213,13 +214,13 @@ export default function Settings() {
     const confirmDelete = await confirm({ title: 'Delete account?', message: 'Your login and your shop data are deleted for good. This cannot be undone.', confirmText: 'Delete account', danger: true, typeToConfirm: 'DELETE' });
     if (!confirmDelete) return;
 
-    setIsDeletingAccount(true);
+    setDeleting('account');
     try {
       await deleteAccount(pw.current);
     } catch (err) {
       toast.error(err.message || "Failed to delete account.");
     } finally {
-      setIsDeletingAccount(false);
+      setDeleting(null);
     }
   };
 
@@ -232,13 +233,13 @@ export default function Settings() {
       confirmText: 'Delete shop data', danger: true, typeToConfirm: 'DELETE',
     });
     if (!ok) return;
-    setIsDeletingAccount(true);
+    setDeleting('shop');
     try {
       await deleteShopData(pw.current);
     } catch (err) {
       toast.error(err.message || 'Failed to delete the shop data.');
     } finally {
-      setIsDeletingAccount(false);
+      setDeleting(null);
     }
   };
 
@@ -460,7 +461,7 @@ export default function Settings() {
                  disabled={isDeletingAccount}
                  className="w-full border border-red-200 text-red-600 font-bold h-12 rounded-xl flex items-center justify-center gap-2 active:bg-red-50 transition-colors disabled:opacity-50"
                >
-                 <Trash2 size={18} /> Delete Shop Data (keep my login)
+                 <Trash2 size={18} /> {deleting === 'shop' ? 'Deleting shop data...' : 'Delete Shop Data (keep my login)'}
                </button>
              )}
              <button
@@ -468,7 +469,7 @@ export default function Settings() {
                disabled={isDeletingAccount}
                className="w-full border border-red-200 text-red-600 font-bold h-12 rounded-xl flex items-center justify-center gap-2 active:bg-red-50 transition-colors disabled:opacity-50"
              >
-               <Trash2 size={18} /> {isDeletingAccount ? 'Deleting...' : 'Delete Account Permanently'}
+               <Trash2 size={18} /> {deleting === 'account' ? 'Deleting...' : 'Delete Account Permanently'}
              </button>
            </div>
         </section>

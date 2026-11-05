@@ -5,6 +5,7 @@ import { db } from '../firebase';
 
 // firestore.rules only allow `list` queries with limit <= 100, so every
 export const PAGE_SIZE = 100;
+const DELETE_PAGE = 400;
 const MAX_PAGES = 200;
 
 /**
@@ -33,12 +34,12 @@ export async function fetchAllPaged(collectionPath, constraints = []) {
 export async function deleteCollectionPaged(collectionPath) {
   const ref = collection(db, collectionPath);
   for (let page = 0; page < MAX_PAGES; page++) {
-    const snap = await getDocs(query(ref, limit(PAGE_SIZE)));
+    const snap = await getDocs(query(ref, limit(DELETE_PAGE)));
     if (snap.empty) return;
     const batch = writeBatch(db);
     snap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
-    if (snap.size < PAGE_SIZE) return;
+    if (snap.size < DELETE_PAGE) return;
   }
 }
 
@@ -48,9 +49,12 @@ export async function deleteCollectionPaged(collectionPath) {
  * (that is the only case firestore.rules allow it).
  */
 export async function deleteShopCascade(shopId) {
+  // every collection at once, not one after another
+  const jobs = [];
   for (const sub of ['bills', 'expenses', 'catalog', 'dailyClosures', 'dailyStats', 'transfers', 'memberProfiles', 'errorLogs', 'catalogImages', 'staffCash', 'billCounters', 'auditLogs']) {
-    await deleteCollectionPaged(`shops/${shopId}/${sub}`);
+    jobs.push(deleteCollectionPaged(`shops/${shopId}/${sub}`));
   }
+  await Promise.all(jobs);
   await deleteDoc(doc(db, 'shops', shopId));
 }
 
