@@ -427,7 +427,7 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       voluntaryExitRef.current = false;
       console.error(err);
-      throw new Error('Could not delete the shop data. Check your internet and try again.');
+      throw new Error(`Could not delete the shop data (${err.code || err.message || 'error'}). Nothing else was changed.`);
     }
     clearLocalSession();
     await wipeOfflineData();
@@ -483,7 +483,7 @@ export const AuthProvider = ({ children }) => {
       voluntaryExitRef.current = false;
       if (err.message.includes('only Admin')) throw err;
       console.error('Error removing member from shop:', err);
-      throw new Error('Failed to remove account from shop. Please check your internet connection.');
+      throw new Error(`Failed to remove account from shop (${err.code || err.message || 'error'}).`);
     }
 
     try {
