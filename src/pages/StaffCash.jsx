@@ -14,6 +14,8 @@ import { sheetStyle } from '../hooks/useKeyboardInset';
 import { confirm } from '../lib/confirm';
 import { formatCurrency, cn } from '../lib/utils';
 import BottomNav from '../components/BottomNav';
+import { ListSkeleton } from '../components/Skeleton';
+import { useShowLoader } from '../hooks/useShowLoader';
 
 const KINDS = [
   { value: 'advance', label: 'Salary advance', hint: 'Taken now, deducted from salary later.' },
@@ -28,6 +30,7 @@ export default function StaffCash() {
   const { shopId, user, isAdmin } = useAuth();
   const nameOf = useNameOf(shopId, user?.uid);
   const [entries, setEntries] = useState(null);
+  const showLoader = useShowLoader(entries === null);
   const [open, setOpen] = useState(false);
   const [openStaff, setOpenStaff] = useState(null);
   const [f, setF] = useState({ kind: 'advance', staff: '', amount: '', via: 'cash', note: '' });
@@ -97,7 +100,7 @@ export default function StaffCash() {
           <p className="mt-1 text-xs text-slate-500">Cash taken from the drawer is taken off Expected Cash. It is not a shop expense.</p>
         </div>
 
-        {entries === null && <p className="py-10 text-center text-slate-500">Loading...</p>}
+        {entries === null && (showLoader ? <ListSkeleton rows={4} /> : null)}
         {entries && people.length === 0 && <p className="py-10 text-center text-slate-500">No entries yet. Tap Add when someone takes cash.</p>}
 
         {people.map((p) => (
