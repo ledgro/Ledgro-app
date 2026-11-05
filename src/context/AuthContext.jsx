@@ -27,6 +27,27 @@ function clearLocalSession() {
   OFFLINE_KEYS.forEach((k) => localStorage.removeItem(k));
 }
 
+// Keys that are only this phone's preferences. Everything else the app stored is shop data and goes on delete.
+const KEEP_KEYS = new Set(['ledgro-theme', 'ledgro_haptic', 'ledgro_autoReset', 'ledgro_defaultPayment', 'iosInstallPromptDismissed']);
+
+/** After deleting a shop or account: drafts, held bills, name caches, searches, local databases and runtime caches. */
+async function wipeEverythingLocal() {
+  try {
+    Object.keys(localStorage).filter((k) => /^ledgro|^lastLoginTime/i.test(k) && !KEEP_KEYS.has(k)).forEach((k) => localStorage.removeItem(k));
+    sessionStorage.clear();
+  } catch { /* storage unavailable */ }
+  try {
+    await Promise.race([
+      new Promise((resolve) => { const r = indexedDB.deleteDatabase('LedgroDB'); r.onsuccess = r.onerror = r.onblocked = () => resolve(); }),
+      new Promise((r) => setTimeout(r, 1500)),
+    ]);
+  } catch { /* ignore */ }
+  try {
+    const names = await caches.keys();
+    await Promise.all(names.filter((n) => !/precache/i.test(n)).map((n) => caches.delete(n)));
+  } catch { /* Cache API unavailable */ }
+}
+
 // Full restart onto the sign-in page. The app uses hash routes, so a plain replace('/') can end up as an
 // in-page hash change with the terminated Firestore client still alive; the timer forces a real reload then.
 function hardRestart(notice) {
@@ -431,6 +452,7 @@ export const AuthProvider = ({ children }) => {
     }
     clearLocalSession();
     await wipeOfflineData();
+    await wipeEverythingLocal();
     hardRestart();
   }, [shopId]);
 
@@ -503,6 +525,7 @@ export const AuthProvider = ({ children }) => {
 
     clearLocalSession();
     await wipeOfflineData();
+    await wipeEverythingLocal();
     hardRestart('Your account and shop data were deleted.');
   }, [shopId]);
 
