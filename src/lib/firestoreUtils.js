@@ -51,7 +51,7 @@ export async function deleteCollectionPaged(collectionPath) {
 export async function deleteShopCascade(shopId) {
   // every collection at once, not one after another
   const jobs = [];
-  for (const sub of ['bills', 'expenses', 'catalog', 'dailyClosures', 'dailyStats', 'transfers', 'memberProfiles', 'errorLogs', 'catalogImages', 'staffCash', 'billCounters']) {
+  for (const sub of ['bills', 'expenses', 'catalog', 'dailyClosures', 'dailyStats', 'transfers', 'memberProfiles', 'errorLogs', 'catalogImages', 'staffCash', 'billCounters', 'auditLogs']) {
     jobs.push(deleteCollectionPaged(`shops/${shopId}/${sub}`));
   }
   await Promise.all(jobs);

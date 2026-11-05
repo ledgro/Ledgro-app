@@ -10,6 +10,7 @@ import { db } from '../firebase';
 import { Drawer } from 'vaul';
 import BottomNav from '../components/BottomNav';
 import { motion } from 'framer-motion';
+import { logActivity } from '../lib/audit';
 import { Zap, Plus, Home, Users, Package, Trash2, HandCoins, Wallet } from 'lucide-react';
 import { Skeleton } from '../components/Skeleton';
 import { useBodyLock } from '../hooks/useBodyLock';
@@ -168,6 +169,7 @@ export default function Expenses() {
       const gone = previousExpenses.find((e) => e.id === id);
       const batch = writeBatch(db);
       batch.delete(doc(db, `shops/${shopId}/expenses`, id));
+      if (gone) logActivity(batch, shopId, user.uid, { action: 'expense_delete', amount: gone.amount, note: `${gone.category || ''} ${gone.description || ''}`.trim() });
       if (gone) writeStats(batch, shopId, [{ key: bizDayKey(toDate(gone.createdAt)), delta: negate(expenseDelta(gone)) }]);
       await batch.commit();
     } catch (err) {

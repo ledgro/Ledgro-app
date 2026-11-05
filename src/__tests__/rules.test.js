@@ -686,6 +686,23 @@ d('firestore.rules', () => {
     });
   });
 
+  describe('auditLogs', () => {
+    const col = `shops/${SHOP}/auditLogs`;
+    const entry = (uid, extra = {}) => ({ action: 'void', uid, billNo: '26-27/000001', billId: 'b1', amount: 100, note: '', createdAt: serverTimestamp(), ...extra });
+    it('member adds an entry with own uid; spoofing, unknown action and outsiders fail', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), `${col}/a1`), entry(MEMBER)));
+      await assertFails(setDoc(doc(as(MEMBER), `${col}/a2`), entry(ADMIN)));
+      await assertFails(setDoc(doc(as(MEMBER), `${col}/a3`), entry(MEMBER, { action: 'nothing' })));
+      await assertFails(setDoc(doc(as(OUTSIDER), `${col}/a4`), entry(OUTSIDER)));
+    });
+    it('entries are never edited; only the owner reads', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), `${col}/a1`), entry(MEMBER)));
+      await assertFails(updateDoc(doc(as(ADMIN), `${col}/a1`), { note: 'x' }));
+      await assertFails(getDoc(doc(as(MEMBER), `${col}/a1`)));
+      await assertSucceeds(getDoc(doc(as(ADMIN), `${col}/a1`)));
+    });
+  });
+
   describe('errorLogs', () => {
     const log = (uid, extra = {}) => ({ msg: 'boom', stack: 'at x', screen: '/pos', uid, createdAt: serverTimestamp(), ...extra });
     const col = `shops/${SHOP}/errorLogs`;
