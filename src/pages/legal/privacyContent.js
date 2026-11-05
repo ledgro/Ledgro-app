@@ -150,6 +150,7 @@ export const privacySections = [
         'nominate someone to exercise your rights if you die or cannot act',
       ] },
       { p: `You can correct shop details, products and expenses in the app, export reports from Settings or Bill History, and delete your account from Settings. For anything else, write to getledgro@gmail.com from your Google account email so we can confirm it is you.` },
+      { p: `Tax law may require your shop to keep its bills and accounts for several years (for GST this is generally six years; ask your accountant). Deleting your account or shop data removes it from Ledgro for good, so export your reports first. We do not keep a copy.` },
     ],
   },
   {
