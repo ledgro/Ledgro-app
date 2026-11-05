@@ -17,6 +17,7 @@ import { hapticVibrate } from '../lib/utils';
 import { format } from 'date-fns';
 import { checkStorageHealth } from '../lib/storageHealth';
 import ErrorLogSection from '../components/ErrorLogSection';
+import MoveData from '../components/MoveData';
 import { confirm } from '../lib/confirm';
 import { getThemePref, setThemePref } from '../lib/theme';
 
@@ -424,6 +425,7 @@ export default function Settings() {
         </section>
 
         {isOwner && <button type="button" onClick={() => navigate('/activity')} className="w-full bg-white border border-slate-200 text-slate-900 font-bold h-12 rounded-xl">Activity log (voids, discounts, returns)</button>}
+        {isOwner && <MoveData shopId={shopId} uid={user.uid} />}
         {isOwner && <ErrorLogSection shopId={shopId} uid={user.uid} />}
 
         <section className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
