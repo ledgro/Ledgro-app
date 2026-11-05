@@ -349,6 +349,24 @@ service cloud.firestore {
         allow delete: if uid == request.auth.uid || isSoleAdmin(shopId);
       }
 
+      // Activity log: members add entries, nobody edits them. Only the owner reads, and only deleting the whole shop removes them.
+      match /auditLogs/{logId} {
+        allow get: if isAdmin(shopId);
+        allow list: if isAdmin(shopId) && request.query.limit <= 100;
+        allow create: if isMember(shopId)
+          && request.resource.data.keys().hasOnly(['action', 'uid', 'billNo', 'billId', 'amount', 'note', 'createdAt'])
+          && request.resource.data.keys().hasAll(['action', 'uid', 'createdAt'])
+          && request.resource.data.action in ['void', 'payment_change', 'return', 'discount', 'expense_delete']
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && isValidString(request.resource.data.get('billNo', ''), 0, 40)
+          && isValidString(request.resource.data.get('billId', ''), 0, 128)
+          && isValidString(request.resource.data.get('note', ''), 0, 200)
+          && request.resource.data.get('amount', 0) is number;
+        allow update: if false;
+        allow delete: if isSoleAdmin(shopId);
+      }
+
       match /errorLogs/{logId} {
         allow get: if isAdmin(shopId);
         allow list: if isAdmin(shopId) && request.query.limit <= 100;

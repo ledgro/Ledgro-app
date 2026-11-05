@@ -422,6 +422,7 @@ export default function Settings() {
           </div>
         </section>
 
+        {isOwner && <button type="button" onClick={() => navigate('/activity')} className="w-full bg-white border border-slate-200 text-slate-900 font-bold h-12 rounded-xl">Activity log (voids, discounts, returns)</button>}
         {isOwner && <ErrorLogSection shopId={shopId} uid={user.uid} />}
 
         <section className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">

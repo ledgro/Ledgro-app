@@ -2,6 +2,7 @@ import { sheetStyle } from '../hooks/useKeyboardInset';
 import { toast } from 'sonner';
 import { useState, useEffect, useCallback, useMemo, useDeferredValue, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { logActivity } from '../lib/audit';
 import { collection, query, where, getDocs, getDoc, getDocFromServer, orderBy, limit, startAfter, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useInView } from 'react-intersection-observer';
@@ -221,6 +222,7 @@ export default function Ledger() {
     try {
       const batch = writeBatch(db);
       batch.update(doc(db, `shops/${shopId}/bills`, bill.id), { paymentMethod: method, payment });
+      logActivity(batch, shopId, user.uid, { action: 'payment_change', billNo: bill.billNo, billId: bill.id, amount: total, note: `${bill.paymentMethod || '?'} to ${method}` });
       const key = bizDayKey(toDate(bill.createdAt));
       const next = { ...bill, paymentMethod: method, payment };
       writeStats(batch, shopId, [{ key, delta: negate(billDelta(bill)) }, { key, delta: billDelta(next) }]);
@@ -256,6 +258,7 @@ export default function Ledger() {
         reversedAt: serverTimestamp(),
       });
 
+      logActivity(batch, shopId, user.uid, { action: 'void', billNo: originalBill.billNo, billId: originalBill.id, amount: originalBill.grandTotal });
       await addCatalogAdjustments(batch, originalBill.items, { sign: 1 });
       writeStats(batch, shopId, await voidEntries(shopId, originalBill));
       await batch.commit();
@@ -391,6 +394,7 @@ export default function Ledger() {
 
       const returnDocRef = doc(collection(db, `shops/${shopId}/bills`));
       batch.set(returnDocRef, payload);
+      logActivity(batch, shopId, user.uid, { action: 'return', billNo: payload.billNo, billId: selectedBill.id, amount: returnTotal, note: exchanging ? 'exchange' : 'refund' });
       batch.update(doc(db, `shops/${shopId}/bills/${selectedBill.id}`), { returnedAmt: increment(returnTotal) });
 
       const dayKey0 = bizDayKey(nowServer);

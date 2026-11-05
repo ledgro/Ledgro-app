@@ -1,5 +1,6 @@
 import { toast } from 'sonner';
 import { useReducer, useState, useMemo, useEffect, useRef } from 'react';
+import { logActivity } from '../lib/audit';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
 import { useCatalogLoader } from '../hooks/useCatalogLoader';
@@ -381,6 +382,7 @@ export default function POS() {
             payload.billNo = serial.billNo;
             ops.forEach(([kind, ref, data, opt]) => (kind === 'set' ? (opt ? tx.set(ref, data, opt) : tx.set(ref, data)) : tx.update(ref, data)));
             tx.set(serial.ref, serial.data);
+            if (billDiscountAmt > 0) logActivity(tx, shopId, user.uid, { action: 'discount', billNo: serial.billNo, amount: billDiscountAmt, note: `of ${billSubtotal}` });
           }),
           new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), COMMIT_TIMEOUT_MS)),
         ]);

@@ -12,6 +12,7 @@ const Ledger = lazy(() => import('./pages/Ledger'));
 const Expenses = lazy(() => import('./pages/Expenses'));
 const StaffCash = lazy(() => import('./pages/StaffCash'));
 const Members = lazy(() => import('./pages/Members'));
+const ActivityLog = lazy(() => import('./pages/ActivityLog'));
 const Products = lazy(() => import('./pages/Products'));
 const Transfers = lazy(() => import('./pages/Transfers'));
 const Settings = lazy(() => import('./pages/Settings'));
@@ -99,6 +100,7 @@ const router = createHashRouter([
       { path: '/staff-cash', element: <ProtectedRoute><StaffCash /></ProtectedRoute> },
       { path: '/products', element: <ProtectedRoute><Products /></ProtectedRoute> },
       { path: '/transfers', element: <ProtectedRoute><Transfers /></ProtectedRoute> },
+      { path: '/activity', element: <ProtectedRoute><ActivityLog /></ProtectedRoute> },
       { path: '/members', element: <ProtectedRoute><Members /></ProtectedRoute> },
       { path: '/settings', element: <ProtectedRoute><Settings /></ProtectedRoute> },
       { path: '/pnl', element: <ProtectedRoute><PLScreen /></ProtectedRoute> },
