@@ -497,7 +497,8 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       voluntaryExitRef.current = false;
       console.error(error);
-      throw new Error('Failed to delete account entirely. Please try again.');
+      if (error.code === 'auth/requires-recent-login') throw new Error('Your shop data is deleted. Sign-in expired before the last step. Tap Delete my account on the next screen to finish.');
+      throw new Error(`Failed to delete account entirely (${error.code || 'error'}). Tap Delete my account to try again.`);
     }
 
     clearLocalSession();

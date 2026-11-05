@@ -3,12 +3,27 @@ import { useAuth } from '../context/AuthContext';
 import { collection, addDoc, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
-import { isStaffEmail } from '../lib/staffLogin';
+import { isStaffEmail, usesPassword } from '../lib/staffLogin';
+import { toast } from 'sonner';
 import AddEmailForm from '../components/AddEmailForm';
 import { syncMyProfile } from '../lib/memberNames';
 
 const ShopSetup = () => {
-  const { user, setHasShop, setShopId, resendVerification, checkVerified, signOut } = useAuth();
+  const { user, setHasShop, setShopId, resendVerification, checkVerified, signOut, deleteAccount, reauthWithGoogle } = useAuth();
+  const [delOpen, setDelOpen] = useState(false);
+  const [delPw, setDelPw] = useState('');
+  const [delWord, setDelWord] = useState('');
+  const [delBusy, setDelBusy] = useState(false);
+  const runDeleteAccount = async () => {
+    if (!navigator.onLine) { toast.error('You are offline. Nothing was deleted.'); return; }
+    setDelBusy(true);
+    try {
+      await reauthWithGoogle();
+      await deleteAccount(delPw);
+    } catch (err) {
+      toast.error(err.message || 'Could not delete the account.');
+    } finally { setDelBusy(false); }
+  };
   const navigate = useNavigate();
 
   const [shopName, setShopName] = useState('');
@@ -279,6 +294,16 @@ const ShopSetup = () => {
 
         </div>
         <button type="button" onClick={signOut} className="mt-4 w-full text-center text-sm font-bold text-slate-500 py-2">Use a different account (sign out)</button>
+        {!delOpen ? (
+          <button type="button" onClick={() => setDelOpen(true)} className="w-full text-center text-sm font-bold text-red-600 py-2">Delete my account</button>
+        ) : (
+          <div className="mt-2 space-y-2 rounded-xl border border-red-200 bg-white p-3">
+            <p className="text-sm text-slate-700">Your login is deleted for good. Type DELETE to confirm.</p>
+            {user && usesPassword(user) && <input type="password" autoComplete="current-password" value={delPw} onChange={(e) => setDelPw(e.target.value)} placeholder="Your password" className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium" />}
+            <input type="text" value={delWord} onChange={(e) => setDelWord(e.target.value)} placeholder="DELETE" className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium" />
+            <button type="button" disabled={delBusy || delWord.trim().toUpperCase() !== 'DELETE'} onClick={runDeleteAccount} className="w-full h-12 rounded-xl bg-red-600 font-bold text-white disabled:opacity-40">{delBusy ? 'Deleting...' : 'Delete my account'}</button>
+          </div>
+        )}
       </div>
     </div>
   );
