@@ -356,7 +356,7 @@ service cloud.firestore {
         allow create: if isMember(shopId)
           && request.resource.data.keys().hasOnly(['action', 'uid', 'billNo', 'billId', 'amount', 'note', 'createdAt'])
           && request.resource.data.keys().hasAll(['action', 'uid', 'createdAt'])
-          && request.resource.data.action in ['void', 'payment_change', 'return', 'discount', 'expense_delete']
+          && request.resource.data.action in ['void', 'payment_change', 'return', 'discount', 'expense_delete', 'import']
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.createdAt == request.time
           && isValidString(request.resource.data.get('billNo', ''), 0, 40)

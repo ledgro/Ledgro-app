@@ -4,7 +4,7 @@ import { db } from '../firebase';
 /**
  * Adds an activity-log entry to a batch or transaction, so it is saved together with the action it records.
  * Entries can be created by any member but never edited or deleted (see firestore.rules).
- * action: 'void' | 'payment_change' | 'return' | 'discount' | 'expense_delete'
+ * action: 'void' | 'payment_change' | 'return' | 'discount' | 'expense_delete' | 'import'
  */
 export function logActivity(w, shopId, uid, { action, billNo = '', billId = '', amount = 0, note = '' }) {
   w.set(doc(collection(db, `shops/${shopId}/auditLogs`)), {

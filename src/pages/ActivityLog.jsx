@@ -8,7 +8,7 @@ import { useNameOf } from '../lib/memberNames';
 import { formatCurrency } from '../lib/utils';
 import BottomNav from '../components/BottomNav';
 
-const LABELS = { void: 'Voided bill', payment_change: 'Payment changed', return: 'Return', discount: 'Discount given', expense_delete: 'Expense deleted' };
+const LABELS = { void: 'Voided bill', payment_change: 'Payment changed', return: 'Return', discount: 'Discount given', expense_delete: 'Expense deleted', import: 'Products imported' };
 
 /** Owner only: who voided, changed, discounted or deleted what. Entries cannot be edited. */
 export default function ActivityLog() {
