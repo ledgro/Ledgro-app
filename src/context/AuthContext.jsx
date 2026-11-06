@@ -290,7 +290,8 @@ export const AuthProvider = ({ children }) => {
       } else if (error.code === 'auth/popup-blocked') {
         throw new Error('Popup blocked. Please allow popups for this site.');
       } else {
-        throw new Error('Sign-in failed. Please try again.');
+        // keep the Firebase code so the screen can show it (unauthorized-domain, network, internal-error...)
+        throw Object.assign(new Error('Google sign-in failed. Please try again.'), { code: error.code });
       }
     }
   }, []);
