@@ -60,7 +60,9 @@
 [data-theme="dark"] .bg-slate-900, [data-theme="dark"] .bg-slate-800, [data-theme="dark"] .bg-slate-700, [data-theme="dark"] .bg-gray-900, [data-theme="dark"] .bg-gray-800 { background-color: #334155; color: #fff; }
 [data-theme="dark"] .bg-slate-900:active, [data-theme="dark"] .active\:bg-slate-700:active { background-color: #475569; }
 [data-theme="dark"] .bg-black\/40, [data-theme="dark"] .bg-black\/50 { background-color: rgb(0 0 0 / 0.65); }
-[data-theme="dark"] input, [data-theme="dark"] select, [data-theme="dark"] textarea { color-scheme: dark; }
+[data-theme="dark"] input, [data-theme="dark"] select, [data-theme="dark"] textarea { color-scheme: dark; background-color: #1a2434; color: #f1f5f9; border-color: #2b3648; }
+[data-theme="dark"] input::placeholder, [data-theme="dark"] textarea::placeholder { color: #8a97ab; }
+[data-theme="dark"] input:-webkit-autofill { -webkit-text-fill-color: #f1f5f9; box-shadow: 0 0 0 1000px #1a2434 inset; }
 /* tinted status backgrounds become dark tints so light text stays readable */
 @layer utilities {
   [data-theme="dark"] :is(.bg-red-50,.bg-rose-50,.bg-amber-50,.bg-yellow-50,.bg-orange-50,.bg-emerald-50,.bg-green-50,.bg-blue-50,.bg-indigo-50,.bg-violet-50,.bg-purple-50,.bg-sky-50) { background-color: #172033; }
