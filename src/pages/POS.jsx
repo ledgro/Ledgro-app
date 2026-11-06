@@ -51,6 +51,7 @@ export default function POS() {
   const [receiptFiles, setReceiptFiles] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState(() => (localStorage.getItem('ledgro_defaultPayment') === 'upi' ? 'upi' : 'cash')); // 'cash' | 'upi' | 'split'
   const [splitCash, setSplitCash] = useState('');
+  const [finalTotal, setFinalTotal] = useState(''); // typed final bill total; anything below the total becomes a discount
   const [tendered, setTendered] = useState(''); // cash handed over, for the change line only. Never saved.
   const [isPayOpen, setIsPayOpen] = useState(false);
 
@@ -212,10 +213,11 @@ export default function POS() {
     // shown on the payment screen before confirming, so the bill and the money always agree.
     const typedPaise = (v) => Math.round((parseFloat(v) || 0) * 100);
     const paidPaise = paymentMethod === 'split'
-      ? typedPaise(splitCash) + (tendered === '' ? Math.max(0, grandTotal - typedPaise(splitCash)) : typedPaise(tendered))
+      ? typedPaise(splitCash) + (tendered === '' ? Math.max(0, payTotal - typedPaise(splitCash)) : typedPaise(tendered))
       : (tendered === '' ? 0 : typedPaise(tendered));
-    const billState = paidPaise > 0 && paidPaise < grandTotal
-      ? { ...state, globalDiscount: { type: 'flat', value: globalDiscountAmt + (grandTotal - paidPaise) } }
+    const target = paidPaise > 0 ? Math.min(payTotal, paidPaise) : payTotal;
+    const billState = target < grandTotal
+      ? { ...state, globalDiscount: { type: 'flat', value: globalDiscountAmt + (grandTotal - target) } }
       : state;
     const { grandTotal: billTotal, globalDiscountAmt: billDiscountAmt, subtotal: billSubtotal, items: billItems } = calculateBillTotals(billState);
 
@@ -403,7 +405,7 @@ export default function POS() {
       dispatch({ type: 'CLEAR_BILL' });
       setSplitCash('');
       setTendered('');
-      setLastBill({ ...payload, shopProfile, tendered: paymentMethod === 'cash' && tendered !== '' && Math.round((parseFloat(tendered) || 0) * 100) !== grandTotal ? Math.round((parseFloat(tendered) || 0) * 100) : null });
+      setLastBill({ ...payload, shopProfile, tendered: paymentMethod === 'cash' && tendered !== '' && Math.round((parseFloat(tendered) || 0) * 100) !== billTotal ? Math.round((parseFloat(tendered) || 0) * 100) : null });
       setCheckoutSuccess(true);
       setIsPayOpen(false);
       const bCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
@@ -543,16 +545,17 @@ export default function POS() {
 
   // Under-payment helper shared by cash, UPI and split: shows the gap and offers to take what was paid as full payment (the rest becomes a discount).
   // Split: the UPI box starts as what is left after the cash, and can be changed.
-  const splitUpiShown = splitCash === '' ? '' : String(Math.max(0, grandTotal - Math.round((parseFloat(splitCash) || 0) * 100)) / 100);
+  const payTotal = (() => { const f = Math.round((parseFloat(finalTotal) || 0) * 100); return finalTotal !== '' && f > 0 && f < grandTotal ? f : grandTotal; })();
+  const splitUpiShown = splitCash === '' ? '' : String(Math.max(0, payTotal - Math.round((parseFloat(splitCash) || 0) * 100)) / 100);
   const shortUi = (paid, giveBack, backWord = 'Give back') => {
-    const diff = paid - grandTotal;
+    const diff = paid - payTotal;
     if (diff >= 0) {
       return giveBack ? <p className="rounded-xl bg-green-50 px-4 py-3 text-center text-lg font-black text-green-700 tabular-nums">{backWord} {formatCurrency(diff)}</p> : null;
     }
     if (paid <= 0) return null;
     return (
       <p className="rounded-xl bg-amber-100 px-4 py-3 text-center text-sm font-black text-amber-800 tabular-nums">
-        Discount {formatCurrency(-diff)}. Bill becomes {formatCurrency(paid)}
+        Extra discount {formatCurrency(-diff)}. Bill becomes {formatCurrency(paid)}
       </p>
     );
   };
@@ -648,7 +651,7 @@ export default function POS() {
 
             <button
               type="button"
-              onClick={() => { setTendered(paymentMethod === 'split' ? '' : String(grandTotal / 100)); setIsPayOpen(true); }}
+              onClick={() => { setFinalTotal(''); setTendered(paymentMethod === 'split' ? '' : String(grandTotal / 100)); setIsPayOpen(true); }}
               disabled={isCheckingOut}
               className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-all active:scale-[0.98] shadow-sm"
             >
@@ -690,14 +693,26 @@ export default function POS() {
             <div className="mx-auto max-w-md space-y-4">
               <div className="text-center">
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Amount to collect</p>
-                <p className="text-4xl font-black text-slate-900 tabular-nums">{formatCurrency(grandTotal)}</p>
+                <div className="mt-1 flex items-center justify-center gap-1 text-4xl font-black text-slate-900">
+                  <span>₹</span>
+                  <input
+                    type="number" inputMode="decimal" aria-label="Final bill total"
+                    value={finalTotal === '' ? String(grandTotal / 100) : finalTotal}
+                    onChange={(e) => { const v = e.target.value.slice(0, 9); setFinalTotal(v === String(grandTotal / 100) ? '' : v); setTendered(paymentMethod === 'split' ? '' : v); if (paymentMethod === 'split') setSplitCash(''); }}
+                    onFocus={(e) => e.target.select()}
+                    className="w-48 bg-transparent text-center tabular-nums outline-none border-b-2 border-dashed border-slate-300 focus:border-blue-600"
+                  />
+                </div>
+                {payTotal < grandTotal
+                  ? <p className="mt-1 text-sm font-bold text-amber-700">Discount {formatCurrency(grandTotal - payTotal)} from {formatCurrency(grandTotal)}</p>
+                  : <p className="mt-1 text-xs text-slate-400">Tap the amount to type a lower final total</p>}
               </div>
               <div className="flex bg-slate-100 p-1 rounded-xl" role="group" aria-label="Payment method">
                 {['cash', 'upi', 'split'].map((method) => (
                   <button
                     key={method}
                     type="button"
-                    onClick={() => { setPaymentMethod(method); setTendered(method === 'split' ? '' : String(grandTotal / 100)); if (method !== 'split') setSplitCash(''); }}
+                    onClick={() => { setPaymentMethod(method); setTendered(method === 'split' ? '' : String(payTotal / 100)); if (method !== 'split') setSplitCash(''); }}
                     className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider rounded-lg transition-all ${paymentMethod === method ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
                   >
                     {method}
@@ -731,7 +746,7 @@ export default function POS() {
                       className="w-full pl-7 pr-3 h-12 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-900" />
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => setTendered(String(grandTotal / 100))} className="shrink-0 rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 active:scale-95 transition-transform">Exact</button>
+                    <button type="button" onClick={() => setTendered(String(payTotal / 100))} className="shrink-0 rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 active:scale-95 transition-transform">Exact</button>
                   </div>
                   {tendered !== '' && shortUi(Math.round((parseFloat(tendered) || 0) * 100), false)}
                 </div>
@@ -750,7 +765,7 @@ export default function POS() {
                   <div className="flex-1">
                     <label className="block text-xs font-bold text-slate-500 mb-1">UPI remaining</label>
                     <div className="flex h-12 items-center rounded-xl border border-slate-200 bg-slate-100 px-3 font-bold text-slate-500">
-                      {formatCurrency(Math.max(0, grandTotal - Math.round((parseFloat(splitCash) || 0) * 100)))}
+                      {formatCurrency(Math.max(0, payTotal - Math.round((parseFloat(splitCash) || 0) * 100)))}
                     </div>
                   </div>
                 </div>
@@ -772,7 +787,7 @@ export default function POS() {
                 <button
                   type="button"
                   onClick={handleCheckout}
-                  disabled={isCheckingOut || (paymentMethod === 'split' && (!splitCash || Math.round(parseFloat(splitCash) * 100) <= 0 || Math.round(parseFloat(splitCash) * 100) >= grandTotal))}
+                  disabled={isCheckingOut || (paymentMethod === 'split' && (!splitCash || Math.round(parseFloat(splitCash) * 100) <= 0 || Math.round(parseFloat(splitCash) * 100) >= payTotal))}
                   className="h-14 flex-[2] rounded-xl bg-blue-600 font-bold text-white active:bg-blue-700 disabled:opacity-50"
                 >
                   {isCheckingOut ? 'Processing...' : `Confirm ${paymentMethod.toUpperCase()}`}
