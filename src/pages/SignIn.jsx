@@ -40,8 +40,6 @@ const SignIn = () => {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
-  const [shakeKey, setShakeKey] = useState(0);
   const [lang, setLang] = useState('en');
   const [showPw, setShowPw] = useState(false);
   const [identifier, setIdentifier] = useState('');
@@ -62,12 +60,6 @@ const SignIn = () => {
 
   const runSignIn = async (authFn) => {
     if (isSigningIn) return;
-    if (!termsAccepted) {
-      setShakeKey((k) => k + 1);
-      if (navigator.vibrate) navigator.vibrate(30);
-      setError(lang === 'en' ? 'Please accept the Terms of Service and Privacy Policy to continue.' : 'തുടരാൻ ദയവായി സേവന നിബന്ധനകളും സ്വകാര്യതാ നയവും അംഗീകരിക്കുക.'); // TODO: native speaker review
-      return;
-    }
     try {
       setIsSigningIn(true);
       setError('');
@@ -215,46 +207,13 @@ const SignIn = () => {
               </div>
             </div>
 
-            <label
-              key={`terms-${shakeKey}`}
-              className={`flex items-start gap-3 cursor-pointer p-3 bg-slate-50 border rounded-xl mb-4 ${shakeKey > 0 && !termsAccepted ? 'border-red-300 animate-shake' : 'border-slate-200'}`}
-            >
-              <div className="pt-0.5">
-                <input
-                  type="checkbox"
-                  className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                  checked={termsAccepted}
-                  onChange={(e) => {
-                    setTermsAccepted(e.target.checked);
-                    if (e.target.checked) setError('');
-                  }}
-                />
-              </div>
-              <div className="text-sm font-medium text-slate-700 leading-snug">
-                {lang === 'en' ? (
-                  <>I agree to the <Link to="/terms" className="text-blue-600 underline">Terms of Service</Link> and <Link to="/privacy" className="text-blue-600 underline">Privacy Policy</Link>.</>
-                ) : (
-                  <>ഞാൻ <Link to="/terms" className="text-blue-600 underline">സേവന നിബന്ധനകളും</Link> <Link to="/privacy" className="text-blue-600 underline">സ്വകാര്യതാ നയവും</Link> വായിച്ചു സമ്മതിക്കുന്നു.</>
-                )}
-              </div>
-            </label>
-
-            <p className="text-xs text-slate-500 font-medium text-center mb-4">
-              {lang === 'en'
-                ? "We collect your basic Google profile to manage your shop. Your shop records are stored in India."
-                : "ഷോപ്പ് കൈകാര്യം ചെയ്യാൻ നിങ്ങളുടെ അടിസ്ഥാന ഗൂഗിൾ പ്രൊഫൈൽ ഞങ്ങൾ ശേഖരിക്കുന്നു. ഷോപ്പ് രേഖകൾ ഇന്ത്യയിൽ സൂക്ഷിക്കുന്നു."}
-            </p>
-
             <button
               onClick={handleSignIn}
               disabled={isSigningIn}
-              aria-disabled={!termsAccepted}
-              className={`w-full flex items-center justify-center gap-3 h-14 px-4 border border-slate-200 rounded-xl shadow-sm text-base font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all active:scale-[0.98] ${
-                isSigningIn ? 'opacity-70 cursor-not-allowed' : !termsAccepted ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50'
-              }`}
+              className={`w-full flex items-center justify-center gap-3 h-14 px-4 rounded-full text-base font-bold text-white bg-slate-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 transition-all active:scale-[0.98] ${isSigningIn ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
               {isSigningIn ? (
-                <div className="w-5 h-5 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
               ) : (
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path
@@ -277,9 +236,14 @@ const SignIn = () => {
               )}
               {isSigningIn ? (lang === 'en' ? 'Signing in...' : 'സൈൻ ഇൻ ചെയ്യുന്നു...') : (lang === 'en' ? 'Continue with Google' : 'Google വഴി തുടരുക')} {/* TODO: native speaker review */}
             </button>
+            <div className="flex items-center gap-3 py-1" aria-hidden="true">
+              <span className="h-px flex-1 bg-slate-200" />
+              <span className="text-sm font-semibold text-slate-500">{lang === 'en' ? 'or' : 'അല്ലെങ്കിൽ'}</span>
+              <span className="h-px flex-1 bg-slate-200" />
+            </div>
             {!showPw ? (
-              <button type="button" onClick={() => setShowPw(true)} className="w-full text-center text-sm font-bold text-blue-600 py-2">
-                Sign in or sign up with email or username
+              <button type="button" onClick={() => setShowPw(true)} className="w-full h-14 rounded-full border border-slate-300 bg-white text-base font-bold text-slate-800 active:scale-[0.98] transition-all">
+                {lang === 'en' ? 'Continue with email or username' : 'ഇമെയിൽ അല്ലെങ്കിൽ യൂസർനെയിം ഉപയോഗിച്ച് തുടരുക'} {/* TODO: native speaker review */}
               </button>
             ) : (
               <form onSubmit={handlePasswordSignIn} className="space-y-3 rounded-xl border border-slate-200 p-4">
@@ -302,7 +266,7 @@ const SignIn = () => {
                   placeholder={pwMode === 'signin' ? 'Password' : 'Choose a password (8+ characters)'}
                   className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <button type="submit" disabled={isSigningIn || !termsAccepted} className="w-full h-12 rounded-xl bg-blue-600 text-white font-bold disabled:opacity-50 active:scale-[0.98]">
+                <button type="submit" disabled={isSigningIn} className="w-full h-12 rounded-full bg-blue-600 text-white font-bold disabled:opacity-50 active:scale-[0.98]">
                   {isSigningIn ? 'Please wait...' : pwMode === 'signin' ? 'Sign in' : joinCode.trim() ? 'Join the shop' : 'Create account'}
                 </button>
                 <div className="flex flex-col gap-1">
@@ -316,6 +280,13 @@ const SignIn = () => {
               </form>
             )}
             {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
+            <p className="pt-2 text-center text-sm leading-relaxed text-slate-500">
+              {lang === 'en' ? (
+                <>By continuing, you agree to Ledgro&apos;s <Link to="/terms" className="font-bold text-slate-900 underline">Terms of Service</Link> and <Link to="/privacy" className="font-bold text-slate-900 underline">Privacy Policy</Link>. Your shop records are stored in India.</>
+              ) : (
+                <>തുടരുന്നതിലൂടെ നിങ്ങൾ Ledgro-യുടെ <Link to="/terms" className="font-bold text-slate-900 underline">സേവന നിബന്ധനകളും</Link> <Link to="/privacy" className="font-bold text-slate-900 underline">സ്വകാര്യതാ നയവും</Link> അംഗീകരിക്കുന്നു. ഷോപ്പ് രേഖകൾ ഇന്ത്യയിൽ സൂക്ഷിക്കുന്നു.</>
+              )} {/* TODO: native speaker review */}
+            </p>
           </div>
         )}
       </div>
