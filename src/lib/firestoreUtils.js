@@ -2,6 +2,7 @@ import {
   collection, query, orderBy, limit, startAfter, getDocs, writeBatch, doc, deleteDoc, waitForPendingWrites,
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { imageKey } from './productImage';
 
 // firestore.rules only allow `list` queries with limit <= 100, so every
 export const PAGE_SIZE = 100;
@@ -31,15 +32,15 @@ export async function fetchAllPaged(collectionPath, constraints = []) {
 }
 
 /** Delete every doc in a collection, 100 at a time (rules cap list size at 100). */
-export async function deleteCollectionPaged(collectionPath) {
+export async function deleteCollectionPaged(collectionPath, pageSize = DELETE_PAGE) {
   const ref = collection(db, collectionPath);
   for (let page = 0; page < MAX_PAGES; page++) {
-    const snap = await getDocs(query(ref, limit(DELETE_PAGE)));
+    const snap = await getDocs(query(ref, limit(pageSize)));
     if (snap.empty) return;
     const batch = writeBatch(db);
     snap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
-    if (snap.size < DELETE_PAGE) return;
+    if (snap.size < pageSize) return;
   }
 }
 
@@ -50,13 +51,40 @@ export async function deleteCollectionPaged(collectionPath) {
  */
 const STEP_LABEL = { bills: 'bills', expenses: 'expenses', catalog: 'products', dailyClosures: 'cash counts', dailyStats: 'totals', transfers: 'transfers', memberProfiles: 'names', errorLogs: 'error logs', catalogImages: 'photos', staffCash: 'staff cash', billCounters: 'bill numbers', auditLogs: 'activity log' };
 
+/**
+ * Photos are big (up to 70 KB each), so listing them to delete is slow. Their ids come from the catalog items,
+ * so delete by id without reading them, then sweep up anything left over a few at a time.
+ */
+async function deleteImagesFast(shopId) {
+  const catalog = await getDocs(collection(db, `shops/${shopId}/catalog`));
+  const keys = new Set();
+  catalog.docs.forEach((d) => {
+    const item = { id: d.id, ...d.data() };
+    if (item.hasImage === false) return;
+    keys.add(imageKey(item));
+    if (item.groupId) keys.add(item.groupId);
+  });
+  const ids = [...keys].filter(Boolean);
+  for (let i = 0; i < ids.length; i += DELETE_PAGE) {
+    const batch = writeBatch(db);
+    ids.slice(i, i + DELETE_PAGE).forEach((k) => batch.delete(doc(db, `shops/${shopId}/catalogImages`, k)));
+    await batch.commit();
+  }
+  await deleteCollectionPaged(`shops/${shopId}/catalogImages`, 25);
+}
+
 export async function deleteShopCascade(shopId, onStep) {
   // every collection at once, not one after another
   const jobs = [];
   for (const sub of ['bills', 'expenses', 'catalog', 'dailyClosures', 'dailyStats', 'transfers', 'memberProfiles', 'errorLogs', 'catalogImages', 'staffCash', 'billCounters', 'auditLogs']) {
-    jobs.push(deleteCollectionPaged(`shops/${shopId}/${sub}`).then(() => onStep?.(`Deleted ${STEP_LABEL[sub] || sub}`)));
+    // the catalog must still exist while the photo job reads it, so photos go first
+    if (sub === 'catalog') continue;
+    jobs.push((sub === 'catalogImages' ? deleteImagesFast(shopId) : deleteCollectionPaged(`shops/${shopId}/${sub}`))
+      .then(() => onStep?.(`Deleted ${STEP_LABEL[sub] || sub}`)));
   }
   await Promise.all(jobs);
+  await deleteCollectionPaged(`shops/${shopId}/catalog`);
+  onStep?.('Deleted products');
   await deleteDoc(doc(db, 'shops', shopId));
 }
 
