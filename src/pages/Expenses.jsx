@@ -11,6 +11,7 @@ import { Drawer } from 'vaul';
 import BottomNav from '../components/BottomNav';
 import { motion } from 'framer-motion';
 import { logActivity } from '../lib/audit';
+import SwipeRow from '../components/SwipeRow';
 import { Zap, Plus, Home, Users, Package, Trash2, HandCoins, Wallet } from 'lucide-react';
 import { Skeleton } from '../components/Skeleton';
 import { useBodyLock } from '../hooks/useBodyLock';
@@ -230,27 +231,17 @@ export default function Expenses() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   key={expense.id}
-                  className="relative overflow-hidden rounded-3xl"
+                  className=""
                 >
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      aria-label="Delete Expense"
-                      className="absolute inset-y-0 right-0 w-20 bg-red-600 text-white flex items-center justify-center"
-                      onClick={() => handleDeleteExpense(expense.id)}
-                    >
-                      <Trash2 size={20} strokeWidth={2.5} />
-                    </button>
-                  )}
-                  <motion.div
-                    drag={isAdmin ? 'x' : false}
-                    dragDirectionLock
-                    dragConstraints={{ left: -80, right: 0 }}
-                    dragElastic={0.05}
-                    dragSnapToOrigin={false}
+                  <SwipeRow
                     onTap={() => openEdit(expense)}
-                    className={`bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4 relative ${canEdit(expense) ? 'cursor-pointer' : ''}`}
+                    action={isAdmin ? (
+                      <button type="button" aria-label="Delete Expense" className="flex-1 bg-red-600 text-white flex flex-col items-center justify-center gap-1 text-xs font-bold" onClick={() => handleDeleteExpense(expense.id)}>
+                        <Trash2 size={20} strokeWidth={2.5} />Delete
+                      </button>
+                    ) : null}
                   >
+                  <div className={`p-4 flex items-center gap-4 border border-slate-100 rounded-3xl shadow-sm ${canEdit(expense) ? 'cursor-pointer' : ''}`}>
                   <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm shrink-0">
                     <Icon size={20} strokeWidth={2.5} />
                   </div>
@@ -266,7 +257,8 @@ export default function Expenses() {
                     <p className="font-black text-slate-900 text-lg">₹{(expense.amount / 100).toLocaleString('en-IN')}</p>
                   </div>
 
-                  </motion.div>
+                  </div>
+                  </SwipeRow>
                 </motion.div>
               );
             })}

@@ -34,7 +34,7 @@ const ProductRow = memo(function ProductRow({ item, onOpen }) {
     <button
       type="button"
       onClick={() => onOpen(item)}
-      className="flex w-full items-center justify-between border-b border-slate-100 py-3 text-left active:bg-slate-50"
+      className="mb-3 flex w-full items-center justify-between rounded-2xl border border-slate-100 bg-white p-3 text-left shadow-sm active:bg-slate-50"
     >
       <ProductThumb item={item} className="mr-3 h-12 w-12" />
       <div className="min-w-0 flex-1 pr-3">
@@ -607,7 +607,7 @@ export default function Products() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 pb-[200px] relative">
+            <div className="flex-1 overflow-y-auto p-4 pb-[300px] relative">
               <form id="product-form" onSubmit={handleSaveProduct} onChange={() => setDirty(true)} className="space-y-6">
 
                 <div className="space-y-4">
@@ -802,33 +802,33 @@ export default function Products() {
               </form>
             </div>
 
-            <div className="p-4 bg-white border-t border-slate-100 pb-safe absolute bottom-0 left-0 right-0 flex gap-2">
+            <div className="p-4 bg-white border-t border-slate-100 pb-safe absolute bottom-0 left-0 right-0 flex flex-col gap-2">
+              <button
+                type="submit"
+                form="product-form"
+                disabled={submitting || !name.trim() || !price}
+                className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+              >
+                {submitting ? 'Saving...' : (editingItem ? 'Update Product' : 'Save product')}
+              </button>
+              <button
+                type="button"
+                onClick={requestClose}
+                disabled={submitting}
+                className="h-12 w-full rounded-xl bg-slate-100 font-bold text-slate-700 active:bg-slate-200 disabled:opacity-50"
+              >
+                Discard
+              </button>
               {editingItem && (
                 <button
                   type="button"
                   onClick={handleDeleteProduct}
                   disabled={submitting}
-                  className="w-14 h-14 shrink-0 bg-red-50 text-red-600 rounded-xl flex items-center justify-center active:bg-red-100 disabled:opacity-50 transition-colors shadow-sm"
+                  className="h-12 w-full rounded-xl bg-red-50 font-bold text-red-600 active:bg-red-100 disabled:opacity-50"
                 >
-                  <Trash2 size={20} />
+                  Delete product
                 </button>
               )}
-              <button
-                type="button"
-                onClick={requestClose}
-                disabled={submitting}
-                className="h-14 shrink-0 rounded-xl bg-slate-100 px-5 font-bold text-slate-700 active:bg-slate-200 disabled:opacity-50"
-              >
-                Discard
-              </button>
-              <button
-                type="submit"
-                form="product-form"
-                disabled={submitting || !name.trim() || !price}
-                className="flex-1 bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
-              >
-                {submitting ? 'Saving...' : (editingItem ? 'Update Product' : 'Save product')}
-              </button>
             </div>
           </Drawer.Content>
         </Drawer.Portal>
