@@ -135,7 +135,8 @@ service cloud.firestore {
         allow update: if isMember(shopId)
           && request.resource.data.keys().hasOnly(['last'])
           && request.resource.data.last == resource.data.last + 1;
-        allow delete: if isAdmin(shopId);
+        // Only the whole-shop delete removes counters. Otherwise numbers could restart at 1 and repeat.
+        allow delete: if isSoleAdmin(shopId);
       }
 
       match /bills/{billId} {
@@ -210,7 +211,9 @@ service cloud.firestore {
             && (request.resource.data.paymentMethod != 'upi' || request.resource.data.payment.breakdown.cash == 0)
             && (request.resource.data.paymentMethod != 'split' || (request.resource.data.payment.breakdown.cash > 0 && request.resource.data.payment.breakdown.upi > 0))
           ) || (
-            resource.data.get('type', 'sale') == 'sale'
+            // a refund total moves only by a return: the owner any time, staff within a day of the sale
+            (isAdmin(shopId) || request.time < resource.data.createdAt + duration.value(1, 'd'))
+            && resource.data.get('type', 'sale') == 'sale'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['returnedAmt'])
             && request.resource.data.returnedAmt is number
             && request.resource.data.returnedAmt > resource.data.get('returnedAmt', 0)
