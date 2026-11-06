@@ -413,9 +413,16 @@ d('firestore.rules', () => {
       await assertFails(setDoc(ctr(MEMBER), { last: 1, extra: 1 }));
       await assertFails(setDoc(ctr('strangerUid'), { last: 1 }));
     });
-    it('only an admin can delete one', async () => {
+    it('nobody can reset a counter while the shop has staff (numbers must never repeat)', async () => {
       await assertSucceeds(setDoc(ctr(MEMBER), { last: 1 }));
       await assertFails(deleteDoc(ctr(MEMBER)));
+      await assertFails(deleteDoc(ctr(ADMIN)));
+    });
+    it('only the whole-shop delete (sole member owner) removes counters', async () => {
+      await assertSucceeds(setDoc(ctr(MEMBER), { last: 1 }));
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'shops', SHOP), { name: 'Test', ownerId: ADMIN, members: { [ADMIN]: 'admin' } });
+      });
       await assertSucceeds(deleteDoc(ctr(ADMIN)));
     });
   });
