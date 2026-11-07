@@ -177,7 +177,9 @@ export default function Members() {
     try {
       beginVoluntaryExit();
       if (isCreator) {
-        await deleteShopCascade(shopId);
+        toast.loading('Deleting shop...', { id: 'del-shop' });
+        await deleteShopCascade(shopId, (m) => toast.loading(m, { id: 'del-shop' }));
+        toast.dismiss('del-shop');
         broadcastSessionTerminated();
       } else {
         await updateDoc(doc(db, 'shops', shopId), { [`members.${user.uid}`]: deleteField() });
@@ -185,7 +187,8 @@ export default function Members() {
       await signOut({ force: true });
     } catch (err) {
       console.error(err);
-      toast.error(isCreator ? 'Failed to delete shop.' : 'Failed to leave shop.');
+      toast.dismiss('del-shop');
+      toast.error(isCreator ? `Could not delete the whole shop (${err?.code || 'error'}). Some data may be gone. Tap Delete shop again to finish.` : 'Failed to leave shop.');
     }
   };
 
