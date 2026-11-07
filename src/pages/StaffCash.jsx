@@ -8,7 +8,7 @@ import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { fetchAllPaged } from '../lib/firestoreUtils';
 import { bizDate } from '../lib/statsMath';
-import { staffBalances, cleanStaff, periodSummary, loanStatus, groupByMonth, personId } from '../lib/staffCash';
+import { staffBalances, cleanStaff, periodSummary, loanStatus, groupByMonth } from '../lib/staffCash';
 import { logActivity } from '../lib/audit';
 import { useNameOf } from '../lib/memberNames';
 import { sheetStyle } from '../hooks/useKeyboardInset';
