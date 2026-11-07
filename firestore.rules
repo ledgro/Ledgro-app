@@ -256,39 +256,47 @@ service cloud.firestore {
       match /staffCash/{entryId} {
         allow get: if isMember(shopId);
         allow list: if isMember(shopId) && request.query.limit <= 100;
+        // advance, debt, repay: money in or out of the drawer. work: a day worked (units 1 or 0.5, amount = wage earned).
+        // payout: wage paid out. close: marks that the period was settled up. work, payout and close are the owner's.
         allow create: if isMember(shopId)
-          && request.resource.data.keys().hasOnly(['staff', 'kind', 'amount', 'via', 'note', 'monthly', 'creatorId', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['staff', 'kind', 'amount', 'via', 'note', 'monthly', 'units', 'creatorId', 'createdAt'])
           && request.resource.data.keys().hasAll(['staff', 'kind', 'amount', 'creatorId', 'createdAt'])
           && isValidString(request.resource.data.staff, 1, 40)
-          && request.resource.data.kind in ['advance', 'debt', 'repay']
+          && request.resource.data.kind in ['advance', 'debt', 'repay', 'work', 'payout', 'close']
           && request.resource.data.amount is number
-          && request.resource.data.amount > 0
           && request.resource.data.amount <= 100000000
-          && request.resource.data.get('via', 'cash') in ['cash', 'salary']
-          && (request.resource.data.kind == 'repay' || request.resource.data.get('via', 'cash') == 'cash')
-          && (request.resource.data.get('via', 'cash') != 'salary' || isAdmin(shopId))
+          && (request.resource.data.kind == 'close' ? request.resource.data.amount >= 0 : request.resource.data.amount > 0)
+          && (request.resource.data.kind in ['repay', 'payout'] || !('via' in request.resource.data))
+          && (request.resource.data.kind != 'repay' || request.resource.data.get('via', 'cash') in ['cash', 'salary', 'waive'])
+          && (request.resource.data.kind != 'payout' || request.resource.data.get('via', 'x') in ['cash', 'upi'])
+          && (!(request.resource.data.get('via', 'cash') in ['salary', 'waive']) || isAdmin(shopId))
+          && (!(request.resource.data.kind in ['work', 'payout', 'close']) || isAdmin(shopId))
+          && (request.resource.data.kind != 'work' || request.resource.data.get('units', 0) in [0.5, 1])
+          && (request.resource.data.kind == 'work' || !('units' in request.resource.data))
           && isValidString(request.resource.data.get('note', ''), 0, 200)
-          && (!('monthly' in request.resource.data) || (request.resource.data.kind != 'repay' && request.resource.data.monthly is number && request.resource.data.monthly >= 0 && request.resource.data.monthly <= 100000000))
+          && (!('monthly' in request.resource.data) || (request.resource.data.kind in ['advance', 'debt'] && request.resource.data.monthly is number && request.resource.data.monthly >= 0 && request.resource.data.monthly <= 100000000))
           && request.resource.data.creatorId == request.auth.uid
           && request.resource.data.createdAt == request.time;
         // the owner can correct an entry's amount, note or monthly deduction; who, when and what kind stay as recorded
         allow update: if isAdmin(shopId)
+          && resource.data.kind != 'close'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amount', 'note', 'monthly'])
           && request.resource.data.amount is number && request.resource.data.amount > 0 && request.resource.data.amount <= 100000000
           && isValidString(request.resource.data.get('note', ''), 0, 200)
-          && (!('monthly' in request.resource.data) || (resource.data.kind != 'repay' && request.resource.data.monthly is number && request.resource.data.monthly >= 0 && request.resource.data.monthly <= 100000000));
+          && (!('monthly' in request.resource.data) || (resource.data.kind in ['advance', 'debt'] && request.resource.data.monthly is number && request.resource.data.monthly >= 0 && request.resource.data.monthly <= 100000000));
         allow delete: if isAdmin(shopId);
       }
 
-      // Monthly salary per person. Only the owner sees or sets it.
+      // Daily wage and how often each person is paid. Only the owner sees or sets it.
       match /staffPeople/{personId} {
         allow get: if isAdmin(shopId);
         allow list: if isAdmin(shopId) && request.query.limit <= 100;
         allow create, update: if isAdmin(shopId)
-          && request.resource.data.keys().hasOnly(['staff', 'salary', 'updatedAt'])
-          && request.resource.data.keys().hasAll(['staff', 'salary'])
+          && request.resource.data.keys().hasOnly(['staff', 'wage', 'cycle', 'updatedAt'])
+          && request.resource.data.keys().hasAll(['staff', 'wage', 'cycle'])
           && isValidString(request.resource.data.staff, 1, 40)
-          && request.resource.data.salary is number && request.resource.data.salary >= 0 && request.resource.data.salary <= 1000000000;
+          && request.resource.data.wage is number && request.resource.data.wage >= 0 && request.resource.data.wage <= 100000000
+          && request.resource.data.cycle in ['day', 'week', 'month'];
         allow delete: if isSoleAdmin(shopId);
       }
 
@@ -378,7 +386,7 @@ service cloud.firestore {
         allow create: if isMember(shopId)
           && request.resource.data.keys().hasOnly(['action', 'uid', 'billNo', 'billId', 'amount', 'note', 'createdAt'])
           && request.resource.data.keys().hasAll(['action', 'uid', 'createdAt'])
-          && request.resource.data.action in ['void', 'payment_change', 'return', 'discount', 'expense_delete', 'import', 'staff_edit', 'staff_delete']
+          && request.resource.data.action in ['void', 'payment_change', 'return', 'discount', 'expense_delete', 'import', 'staff_edit', 'staff_delete', 'staff_settle', 'staff_loan_close']
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.createdAt == request.time
           && isValidString(request.resource.data.get('billNo', ''), 0, 40)

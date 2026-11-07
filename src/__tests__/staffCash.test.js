@@ -17,32 +17,53 @@ describe('staff cash', () => {
   });
 });
 
-import { monthSummary, groupByMonth, personId } from '../lib/staffCash';
+import { periodSummary, loanStatus, groupByMonth, personId } from '../lib/staffCash';
 
-describe('staff ledger month view', () => {
-  const at = (y, m, d) => new Date(y, m, d, 12);
-  const monthStart = new Date(2026, 10, 1);
-  const entries = [
-    { kind: 'advance', amount: 500000, monthly: 200000, createdAt: at(2026, 9, 20) },
-    { kind: 'repay', via: 'salary', amount: 200000, createdAt: at(2026, 10, 2) },
-    { kind: 'repay', via: 'cash', amount: 50000, createdAt: at(2026, 10, 3) },
-    { kind: 'repay', via: 'salary', amount: 100000, createdAt: at(2026, 9, 2) },
+describe('staff wages', () => {
+  const at = (d, h = 12) => new Date(2026, 10, d, h);
+  const base = [
+    { id: 'l1', kind: 'advance', amount: 500000, createdAt: at(1) },
+    { kind: 'work', units: 1, amount: 60000, createdAt: at(2) },
+    { kind: 'work', units: 0.5, amount: 30000, createdAt: at(3) },
+    { kind: 'payout', via: 'cash', amount: 40000, createdAt: at(3) },
+    { kind: 'repay', via: 'salary', amount: 20000, createdAt: at(4) },
   ];
-  it('cuts only this month\'s salary deductions from the pay', () => {
-    const s = monthSummary(entries, 1500000, monthStart);
-    expect(s.cut).toBe(200000);
-    expect(s.pay).toBe(1300000);
+  it('sums days, earned, paid, cut and what is due', () => {
+    const s = periodSummary(base);
+    expect(s.days).toBe(1.5);
+    expect(s.earned).toBe(90000);
+    expect(s.paid).toBe(40000);
+    expect(s.cut).toBe(20000);
+    expect(s.due).toBe(30000);
+    expect(s.owed).toBe(480000);
   });
-  it('balance owed counts every repayment, planned deduction never exceeds it', () => {
-    const s = monthSummary(entries, 1500000, monthStart);
-    expect(s.owed).toBe(150000);
-    expect(s.planned).toBe(150000);
+  it('starts a new period after a settle up', () => {
+    const closed = [...base, { kind: 'close', amount: 90000, createdAt: at(5) }, { kind: 'work', units: 1, amount: 60000, createdAt: at(6) }];
+    const s = periodSummary(closed);
+    expect(s.days).toBe(1);
+    expect(s.earned).toBe(60000);
+    expect(s.due).toBe(60000);
   });
-  it('pay never goes below zero', () => {
-    expect(monthSummary([{ kind: 'repay', via: 'salary', amount: 900000, createdAt: at(2026, 10, 5) }], 500000, monthStart).pay).toBe(0);
+  it('a loan written off with waive stops counting as owed', () => {
+    const e = [...base, { kind: 'repay', via: 'waive', amount: 480000, createdAt: at(7) }];
+    expect(periodSummary(e).owed).toBe(0);
+    expect(loanStatus(e).get('l1').closed).toBe(true);
+  });
+  it('clears loans oldest first', () => {
+    const e = [
+      { id: 'a', kind: 'debt', amount: 1000, createdAt: at(1) },
+      { id: 'b', kind: 'debt', amount: 1000, createdAt: at(2) },
+      { kind: 'repay', via: 'cash', amount: 1500, createdAt: at(3) },
+    ];
+    const s = loanStatus(e);
+    expect(s.get('a').closed).toBe(true);
+    expect(s.get('b').left).toBe(500);
+  });
+  it('cash wages leave the drawer, UPI and salary cuts do not', () => {
+    expect(staffCashNet([{ kind: 'payout', via: 'cash', amount: 500 }, { kind: 'payout', via: 'upi', amount: 700 }, { kind: 'repay', via: 'waive', amount: 100 }])).toBe(500);
   });
   it('groups newest first by month', () => {
-    const g = groupByMonth(entries);
+    const g = groupByMonth([{ createdAt: new Date(2026, 9, 2) }, { createdAt: new Date(2026, 10, 3) }, { createdAt: new Date(2026, 10, 4) }]);
     expect(g).toHaveLength(2);
     expect(g[0].items).toHaveLength(2);
   });
