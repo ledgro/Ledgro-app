@@ -74,18 +74,30 @@ async function deleteImagesFast(shopId) {
   await deleteCollectionPaged(`shops/${shopId}/catalogImages`, 25);
 }
 
+/** Rejects if a step makes no progress for `ms`, so a stuck delete shows which step instead of spinning forever. */
+function watchdog(label, promise, ms = 90000) {
+  let timer;
+  const stuck = new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error(`${label} is taking too long`), { code: `stuck-${label}` })), ms); });
+  return Promise.race([promise, stuck]).finally(() => clearTimeout(timer));
+}
+
 export async function deleteShopCascade(shopId, onStep) {
-  // every collection at once, not one after another
+  // every collection at once, not one after another. Safe to run again: it carries on with whatever is left.
   const jobs = [];
-  for (const sub of ['bills', 'expenses', 'catalog', 'dailyClosures', 'dailyStats', 'transfers', 'memberProfiles', 'errorLogs', 'catalogImages', 'staffCash', 'billCounters', 'auditLogs', 'staffPeople']) {
-    // the catalog must still exist while the photo job reads it, so photos go first
-    if (sub === 'catalog') continue;
-    jobs.push((sub === 'catalogImages' ? deleteImagesFast(shopId) : deleteCollectionPaged(`shops/${shopId}/${sub}`))
+  for (const sub of ['bills', 'expenses', 'dailyClosures', 'dailyStats', 'transfers', 'memberProfiles', 'errorLogs', 'staffCash', 'billCounters', 'auditLogs', 'staffPeople']) {
+    jobs.push(watchdog(STEP_LABEL[sub] || sub, deleteCollectionPaged(`shops/${shopId}/${sub}`))
       .then(() => onStep?.(`Deleted ${STEP_LABEL[sub] || sub}`)));
   }
+  // the catalog must still exist while the photo job reads it, so photos go first, then products
+  jobs.push((async () => {
+    onStep?.('Deleting photos...');
+    await watchdog('photos', deleteImagesFast(shopId));
+    onStep?.('Deleted photos');
+    onStep?.('Deleting products...');
+    await watchdog('products', deleteCollectionPaged(`shops/${shopId}/catalog`));
+    onStep?.('Deleted products');
+  })());
   await Promise.all(jobs);
-  await deleteCollectionPaged(`shops/${shopId}/catalog`);
-  onStep?.('Deleted products');
   await deleteDoc(doc(db, 'shops', shopId));
 }
 
