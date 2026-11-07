@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Drawer } from 'vaul';
 import { toast } from 'sonner';
-import { ChevronLeft, ChevronDown, Plus, Trash2, Pencil } from 'lucide-react';
+import { ChevronLeft, ChevronDown, Plus, Pencil } from 'lucide-react';
 import { collection, doc, getDocs, limit, query, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
@@ -258,12 +258,12 @@ export default function StaffCash() {
                         <button type="button" disabled={sum.todayMarked} onClick={() => markDay(p, 1)} className="h-11 flex-1 rounded-xl bg-green-600 text-sm font-bold text-white disabled:opacity-40">{sum.todayMarked ? 'Marked today' : 'Present'}</button>
                         {!sum.todayMarked && <button type="button" onClick={() => markDay(p, 0.5)} className="h-11 flex-1 rounded-xl bg-amber-100 text-sm font-bold text-amber-800">Half day</button>}
                       </div>
-                      <div className="rounded-xl bg-slate-50 p-4 text-center">
+                      {(sum.days > 0 || sum.earned > 0) && <div className="rounded-xl bg-slate-50 p-4 text-center">
                         <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Due to {p.name}</p>
                         <p className="text-3xl font-black tabular-nums text-slate-900">{formatCurrency(Math.max(0, sum.due - cutNow))}</p>
                         <p className="mt-1 text-xs text-slate-500">{sum.days} day(s) · earned {formatCurrency(sum.earned)}{sum.paid > 0 ? ` · paid ${formatCurrency(sum.paid)}` : ''}{cutNow > 0 ? ` · loan cut ${formatCurrency(cutNow)}` : ''}</p>
-                      </div>
-                      <button type="button" disabled={sum.days === 0 && sum.earned === 0} onClick={() => openSettle(p)} className="h-12 w-full rounded-xl bg-slate-900 font-bold text-white disabled:opacity-40">Pay and close</button>
+                      </div>}
+                      {(sum.days > 0 || sum.earned > 0) && <button type="button" onClick={() => openSettle(p)} className="h-12 w-full rounded-xl bg-slate-900 font-bold text-white">Pay and close</button>}
                     </div>
                   );
                 })()}
@@ -281,17 +281,15 @@ export default function StaffCash() {
                         const closed = e.kind !== 'close' && ((since && at <= since && e.kind !== 'advance' && e.kind !== 'debt') || loan?.closed);
                         const left = loan && !loan.closed ? loan.left : 0;
                         return (
-                          <div key={e.id} className="flex items-center gap-2 px-4 py-3">
+                          <div key={e.id} className="flex items-center gap-2 px-4 py-2">
                             <div className="min-w-0 flex-1">
                               <p className={cn('text-sm font-semibold', closed ? 'text-slate-400 line-through' : 'text-slate-900')}>
-                                {closed && <span className="mr-1 inline-block rounded bg-green-50 px-1.5 py-0.5 text-[0.65rem] font-bold uppercase text-green-700 no-underline">Closed</span>}
-                                {KIND_LABEL[e.kind]}{e.kind === 'repay' ? (e.via === 'salary' ? ' (from salary)' : e.via === 'waive' ? ' (loan closed)' : ' (cash)') : ''}{e.kind === 'payout' ? ` (${e.via === 'upi' ? 'UPI' : 'cash'})` : ''}{e.kind === 'work' ? (e.units === 0.5 ? ' half day' : ' full day') : ''}{e.kind === 'close' ? '' : ` · ${formatCurrency(e.amount)}`}
+                                                                {KIND_LABEL[e.kind]}{e.kind === 'repay' ? (e.via === 'salary' ? ' (from salary)' : e.via === 'waive' ? ' (loan closed)' : ' (cash)') : ''}{e.kind === 'payout' ? ` (${e.via === 'upi' ? 'UPI' : 'cash'})` : ''}{e.kind === 'work' ? (e.units === 0.5 ? ' half day' : ' full day') : ''}{e.kind === 'close' ? '' : ` · ${formatCurrency(e.amount)}`}
                               </p>
                               <p className="text-xs text-slate-500">{at.toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · by {nameOf(e.creatorId)}{e.monthly ? ` · ${formatCurrency(e.monthly)}/month` : ''}{e.note ? ` · ${e.note}` : ''}</p>
                               {isAdmin && left > 0 && <button type="button" onClick={() => closeLoan(p, e, left)} className="mt-1 text-xs font-bold text-blue-600">Close loan ({formatCurrency(left)} left)</button>}
                             </div>
-                            {isAdmin && e.kind !== 'close' && <button type="button" aria-label="Edit entry" onClick={() => openEdit(e)} className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700"><Pencil size={16} /></button>}
-                            {isAdmin && <button type="button" aria-label="Delete entry" onClick={() => remove(e)} className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-red-600"><Trash2 size={16} /></button>}
+                            {isAdmin && <button type="button" aria-label="Edit or delete entry" onClick={() => (e.kind === 'close' ? remove(e) : openEdit(e))} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 active:bg-slate-100"><Pencil size={15} /></button>}
                           </div>
                         );
                       })}
@@ -361,6 +359,7 @@ export default function StaffCash() {
             </div>
             <div className="absolute bottom-0 left-0 right-0 border-t border-slate-100 bg-white p-4 pb-safe">
               <button type="button" disabled={saving} onClick={save} className="h-14 w-full rounded-xl bg-blue-600 font-bold text-white active:bg-blue-700 disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
+              {editing && <button type="button" disabled={saving} onClick={async () => { const e = editing; setOpen(false); setEditing(null); await remove(e); }} className="mt-2 h-10 w-full rounded-xl bg-red-50 text-sm font-bold text-red-600 disabled:opacity-50">Delete entry</button>}
             </div>
           </Drawer.Content>
         </Drawer.Portal>
