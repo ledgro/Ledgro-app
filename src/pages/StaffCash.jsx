@@ -37,7 +37,6 @@ export default function StaffCash() {
   const [f, setF] = useState({ kind: 'advance', staff: '', amount: '', via: 'cash', note: '', monthly: '' });
   const [editing, setEditing] = useState(null); // entry being corrected (owner)
   const [showHist, setShowHist] = useState({}); // person key -> history expanded
-  const [settle, setSettle] = useState(null); // { p, sum, cut, via }
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -101,36 +100,16 @@ export default function StaffCash() {
     } finally { setSaving(false); }
   };
 
-  const openSettle = (p) => {
-    const sum = periodSummary(p.entries);
-    setSettle({ p, owed: Math.max(0, sum.owed), wage: '', cut: '', via: 'cash' });
-  };
-
-  const doSettle = async () => {
-    if (saving || !settle) return;
-    if (!navigator.onLine) { toast.error('You are offline. Nothing was saved.'); return; }
-    const { p } = settle;
-    const wage = Math.round((parseFloat(settle.wage) || 0) * 100);
-    const cut = Math.min(Math.round((parseFloat(settle.cut) || 0) * 100), wage, settle.owed);
-    const net = wage - cut;
-    if (wage <= 0 && cut <= 0) { toast.error('Enter the wage.'); return; }
-    setSaving(true);
+  const closeAll = async (p) => {
+    if (!(await confirm({ title: `Close ${p.name}'s balance?`, message: `${p.name} still owes ${formatCurrency(p.owed)}. Closing writes it off: nothing is owed and no cash comes back. Use Repayment if they paid it back.`, confirmText: 'Close', danger: true }))) return;
     try {
       const batch = writeBatch(db);
-      const col = collection(db, `shops/${shopId}/staffCash`);
-      const base = { staff: p.name, creatorId: user.uid, createdAt: serverTimestamp() };
-      if (cut > 0) batch.set(doc(col), { ...base, kind: 'repay', via: 'salary', amount: cut, note: 'Cut from wage' });
-      if (net > 0) batch.set(doc(col), { ...base, kind: 'payout', via: settle.via, amount: net, note: '' });
-      batch.set(doc(col), { ...base, kind: 'close', amount: wage, note: '' });
-      logActivity(batch, shopId, user.uid, { action: 'staff_settle', amount: net, note: `${p.name}: wage ${formatCurrency(wage)}, cut ${formatCurrency(cut)}` });
+      batch.set(doc(collection(db, `shops/${shopId}/staffCash`)), { staff: p.name, kind: 'repay', via: 'waive', amount: p.owed, note: 'Balance closed', creatorId: user.uid, createdAt: serverTimestamp() });
+      logActivity(batch, shopId, user.uid, { action: 'staff_loan_close', amount: p.owed, note: `${p.name}: whole balance` });
       await batch.commit();
-      toast.success('Done');
-      setSettle(null);
+      toast.success('Closed');
       await load();
-    } catch (err) {
-      console.error(err);
-      toast.error(`Could not save (${err?.code || 'error'}).`);
-    } finally { setSaving(false); }
+    } catch (err) { toast.error(`Could not close (${err?.code || 'error'}).`); }
   };
 
   const closeLoan = async (p, e, left) => {
@@ -193,9 +172,9 @@ export default function StaffCash() {
             </button>
             {openStaff === p.key && (
               <div className="border-t border-slate-100">
-                {isAdmin && (
+                {isAdmin && p.owed > 0 && (
                   <div className="p-4">
-                    <button type="button" onClick={() => openSettle(p)} className="h-12 w-full rounded-xl bg-slate-900 font-bold text-white">Pay wage and close</button>
+                    <button type="button" onClick={() => closeAll(p)} className="h-12 w-full rounded-xl bg-slate-900 font-bold text-white">Close {formatCurrency(p.owed)} balance</button>
                   </div>
                 )}
                 <button type="button" onClick={() => setShowHist((h) => ({ ...h, [p.key]: !h[p.key] }))} className="flex w-full items-center justify-between border-t border-slate-100 px-4 py-3 text-sm font-bold text-slate-600">
@@ -291,47 +270,6 @@ export default function StaffCash() {
             <div className="absolute bottom-0 left-0 right-0 border-t border-slate-100 bg-white p-4 pb-safe">
               <button type="button" disabled={saving} onClick={save} className="h-14 w-full rounded-xl bg-blue-600 font-bold text-white active:bg-blue-700 disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
               {editing && <button type="button" disabled={saving} onClick={async () => { const e = editing; setOpen(false); setEditing(null); await remove(e); }} className="mt-2 h-10 w-full rounded-xl bg-red-50 text-sm font-bold text-red-600 disabled:opacity-50">Delete entry</button>}
-            </div>
-          </Drawer.Content>
-        </Drawer.Portal>
-      </Drawer.Root>
-
-      <Drawer.Root handleOnly repositionInputs={false} open={!!settle} onOpenChange={(o) => !saving && !o && setSettle(null)}>
-        <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
-          <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[20px] mt-24 max-h-[85vh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <Drawer.Title className="font-bold text-slate-900 text-xl">Pay wage {settle?.p.name}</Drawer.Title>
-              <button type="button" aria-label="Close" onClick={() => !saving && setSettle(null)} className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full text-slate-500">✕</button>
-            </div>
-            <Drawer.Description className="sr-only">Pay the wage for this period and cut any loan</Drawer.Description>
-            {settle && (() => {
-              const wage = Math.round((parseFloat(settle.wage) || 0) * 100);
-              const cut = Math.min(Math.round((parseFloat(settle.cut) || 0) * 100), wage, settle.owed);
-              const money = (k, label) => (
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">{label}</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-500">₹</span>
-                    <input className={cn(field, 'pl-8 font-bold')} type="number" inputMode="decimal" value={settle[k]} onChange={(e) => setSettle((x) => ({ ...x, [k]: e.target.value.slice(0, 9) }))} />
-                  </div>
-                </div>
-              );
-              return (
-                <div className="flex-1 overflow-y-auto p-4 pb-32 space-y-4">
-                  {money('wage', 'Wage')}
-                  {settle.owed > 0 && money('cut', `Cut for loan (owes ${formatCurrency(settle.owed)})`)}
-                  <p className="flex justify-between text-base"><span className="font-bold">Pay now</span><b>{formatCurrency(wage - cut)}</b></p>
-                  <div className="flex rounded-xl bg-slate-100 p-1" role="group" aria-label="Paid by">
-                    {[['cash', 'Cash from drawer'], ['upi', 'UPI']].map(([v, l]) => (
-                      <button key={v} type="button" onClick={() => setSettle((x) => ({ ...x, via: v }))} className={cn('flex-1 rounded-lg py-2.5 text-xs font-bold', settle.via === v ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500')}>{l}</button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-            <div className="absolute bottom-0 left-0 right-0 border-t border-slate-100 bg-white p-4 pb-safe">
-              <button type="button" disabled={saving} onClick={doSettle} className="h-14 w-full rounded-xl bg-slate-900 font-bold text-white disabled:opacity-50">{saving ? 'Saving...' : 'Confirm and close'}</button>
             </div>
           </Drawer.Content>
         </Drawer.Portal>
