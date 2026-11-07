@@ -35,3 +35,35 @@ export function staffBalances(entries, monthStart = null) {
     .map((p) => ({ ...p, owed: p.advance + p.debt - p.repaid }))
     .sort((a, b) => b.owed - a.owed || a.name.localeCompare(b.name));
 }
+
+/** Document id for a person's salary record: the name in lower case, letters and digits only. */
+export const personId = (name) => cleanStaff(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'staff';
+
+const atOf = (e) => (e.createdAt?.toDate ? e.createdAt.toDate() : e.createdAt instanceof Date ? e.createdAt : null);
+
+/** This month for one person: salary, what was cut from salary, what they still owe, the monthly deduction planned, and the pay. */
+export function monthSummary(entries, salary, monthStart) {
+  let cut = 0; let planned = 0;
+  (entries || []).forEach((e) => {
+    const at = atOf(e);
+    if (e.kind === 'repay' && (e.via || 'cash') === 'salary' && at && at >= monthStart) cut += Number(e.amount) || 0;
+  });
+  const owed = (entries || []).reduce((n, e) => n + (e.kind === 'repay' ? -(Number(e.amount) || 0) : (Number(e.amount) || 0)), 0);
+  (entries || []).forEach((e) => { if ((e.kind === 'advance' || e.kind === 'debt') && Number(e.monthly) > 0) planned += Number(e.monthly); });
+  planned = Math.min(planned, Math.max(0, owed));
+  const salaryPaise = Number(salary) || 0;
+  return { salary: salaryPaise, cut, owed, planned, pay: Math.max(0, salaryPaise - cut) };
+}
+
+/** Entries newest first, grouped by month: [{ label, items }]. */
+export function groupByMonth(entries) {
+  const sorted = [...(entries || [])].sort((a, b) => (atOf(b)?.getTime() || 0) - (atOf(a)?.getTime() || 0));
+  const groups = [];
+  sorted.forEach((e) => {
+    const d = atOf(e) || new Date();
+    const label = d.toLocaleString([], { month: 'long', year: 'numeric' });
+    if (!groups.length || groups[groups.length - 1].label !== label) groups.push({ label, items: [] });
+    groups[groups.length - 1].items.push(e);
+  });
+  return groups;
+}

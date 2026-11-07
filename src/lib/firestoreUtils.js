@@ -49,7 +49,7 @@ export async function deleteCollectionPaged(collectionPath, pageSize = DELETE_PA
  * Only valid when the caller is the sole admin AND sole member
  * (that is the only case firestore.rules allow it).
  */
-const STEP_LABEL = { bills: 'bills', expenses: 'expenses', catalog: 'products', dailyClosures: 'cash counts', dailyStats: 'totals', transfers: 'transfers', memberProfiles: 'names', errorLogs: 'error logs', catalogImages: 'photos', staffCash: 'staff cash', billCounters: 'bill numbers', auditLogs: 'activity log' };
+const STEP_LABEL = { bills: 'bills', expenses: 'expenses', catalog: 'products', dailyClosures: 'cash counts', dailyStats: 'totals', transfers: 'transfers', memberProfiles: 'names', errorLogs: 'error logs', catalogImages: 'photos', staffCash: 'staff cash', billCounters: 'bill numbers', auditLogs: 'activity log', staffPeople: 'salaries' };
 
 /**
  * Photos are big (up to 70 KB each), so listing them to delete is slow. Their ids come from the catalog items,
@@ -76,7 +76,7 @@ async function deleteImagesFast(shopId) {
 export async function deleteShopCascade(shopId, onStep) {
   // every collection at once, not one after another
   const jobs = [];
-  for (const sub of ['bills', 'expenses', 'catalog', 'dailyClosures', 'dailyStats', 'transfers', 'memberProfiles', 'errorLogs', 'catalogImages', 'staffCash', 'billCounters', 'auditLogs']) {
+  for (const sub of ['bills', 'expenses', 'catalog', 'dailyClosures', 'dailyStats', 'transfers', 'memberProfiles', 'errorLogs', 'catalogImages', 'staffCash', 'billCounters', 'auditLogs', 'staffPeople']) {
     // the catalog must still exist while the photo job reads it, so photos go first
     if (sub === 'catalog') continue;
     jobs.push((sub === 'catalogImages' ? deleteImagesFast(shopId) : deleteCollectionPaged(`shops/${shopId}/${sub}`))

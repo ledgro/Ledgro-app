@@ -16,3 +16,38 @@ describe('staff cash', () => {
     expect(out[0].thisMonth).toBe(2000);
   });
 });
+
+import { monthSummary, groupByMonth, personId } from '../lib/staffCash';
+
+describe('staff ledger month view', () => {
+  const at = (y, m, d) => new Date(y, m, d, 12);
+  const monthStart = new Date(2026, 10, 1);
+  const entries = [
+    { kind: 'advance', amount: 500000, monthly: 200000, createdAt: at(2026, 9, 20) },
+    { kind: 'repay', via: 'salary', amount: 200000, createdAt: at(2026, 10, 2) },
+    { kind: 'repay', via: 'cash', amount: 50000, createdAt: at(2026, 10, 3) },
+    { kind: 'repay', via: 'salary', amount: 100000, createdAt: at(2026, 9, 2) },
+  ];
+  it('cuts only this month\'s salary deductions from the pay', () => {
+    const s = monthSummary(entries, 1500000, monthStart);
+    expect(s.cut).toBe(200000);
+    expect(s.pay).toBe(1300000);
+  });
+  it('balance owed counts every repayment, planned deduction never exceeds it', () => {
+    const s = monthSummary(entries, 1500000, monthStart);
+    expect(s.owed).toBe(150000);
+    expect(s.planned).toBe(150000);
+  });
+  it('pay never goes below zero', () => {
+    expect(monthSummary([{ kind: 'repay', via: 'salary', amount: 900000, createdAt: at(2026, 10, 5) }], 500000, monthStart).pay).toBe(0);
+  });
+  it('groups newest first by month', () => {
+    const g = groupByMonth(entries);
+    expect(g).toHaveLength(2);
+    expect(g[0].items).toHaveLength(2);
+  });
+  it('makes a safe id from a name', () => {
+    expect(personId('  Ramesh  K. ')).toBe('ramesh-k');
+    expect(personId('!!!')).toBe('staff');
+  });
+});
