@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Drawer } from 'vaul';
 import { toast } from 'sonner';
 import { ChevronLeft, ChevronDown, Plus, Pencil } from 'lucide-react';
-import { collection, doc, getDocs, limit, query, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { fetchAllPaged } from '../lib/firestoreUtils';
@@ -24,7 +24,6 @@ const KINDS = [
   { value: 'repay', label: 'Repayment', hint: 'Money paid back.' },
 ];
 const KIND_LABEL = { advance: 'Advance', debt: 'Debt', repay: 'Repaid', work: 'Worked', payout: 'Wage paid', close: 'Settled up' };
-const CYCLES = [['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']];
 const field = 'w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900';
 
 export default function StaffCash() {
@@ -37,8 +36,6 @@ export default function StaffCash() {
   const [openStaff, setOpenStaff] = useState(null);
   const [f, setF] = useState({ kind: 'advance', staff: '', amount: '', via: 'cash', note: '', monthly: '' });
   const [editing, setEditing] = useState(null); // entry being corrected (owner)
-  const [pay, setPay] = useState({}); // personId -> { wage (paise a day), cycle } (owner only)
-  const [wageDraft, setWageDraft] = useState({});
   const [showHist, setShowHist] = useState({}); // person key -> history expanded
   const [settle, setSettle] = useState(null); // { p, sum, cut, via }
   const [saving, setSaving] = useState(false);
@@ -48,10 +45,6 @@ export default function StaffCash() {
     try {
       const docs = await fetchAllPaged(`shops/${shopId}/staffCash`);
       setEntries(docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) })));
-      if (isAdmin) {
-        const sal = await getDocs(query(collection(db, `shops/${shopId}/staffPeople`), limit(100)));
-        setPay(Object.fromEntries(sal.docs.map((d) => [d.id, { wage: d.data().wage || 0, cycle: d.data().cycle || 'day' }])));
-      }
     } catch (err) {
       console.error(err);
       toast.error('Could not load staff cash. Check connection.');
@@ -108,57 +101,35 @@ export default function StaffCash() {
     } finally { setSaving(false); }
   };
 
-  const saveWage = async (p) => {
-    const cur = pay[personId(p.name)] || { wage: 0, cycle: 'day' };
-    const d = wageDraft[p.key] || {};
-    const rupees = d.wage !== undefined ? parseFloat(d.wage) : cur.wage / 100;
-    if (!Number.isFinite(rupees) || rupees < 0) { toast.error('Enter a valid daily wage.'); return; }
-    try {
-      await setDoc(doc(db, `shops/${shopId}/staffPeople`, personId(p.name)), { staff: p.name, wage: Math.round(rupees * 100), cycle: d.cycle || cur.cycle, updatedAt: serverTimestamp() });
-      toast.success('Saved');
-      setWageDraft((x) => { const n = { ...x }; delete n[p.key]; return n; });
-      await load();
-    } catch (err) { toast.error(`Could not save (${err?.code || 'error'}).`); }
-  };
-
-  const markDay = async (p, units) => {
-    const wage = pay[personId(p.name)]?.wage || 0;
-    if (!wage) { toast.error('Set the daily wage first.'); return; }
-    if (!navigator.onLine) { toast.error('You are offline. Nothing was saved.'); return; }
-    try {
-      await setDoc(doc(collection(db, `shops/${shopId}/staffCash`)), { staff: p.name, kind: 'work', units, amount: Math.round(wage * units), note: '', creatorId: user.uid, createdAt: serverTimestamp() });
-      toast.success(units === 1 ? 'Marked present' : 'Marked half day');
-      await load();
-    } catch (err) { toast.error(`Could not save (${err?.code || 'error'}).`); }
-  };
-
   const openSettle = (p) => {
     const sum = periodSummary(p.entries);
-    setSettle({ p, sum, cut: String(Math.min(Math.max(0, sum.owed), sum.due) / 100), via: 'cash' });
+    setSettle({ p, owed: Math.max(0, sum.owed), wage: '', cut: '', via: 'cash' });
   };
 
   const doSettle = async () => {
     if (saving || !settle) return;
     if (!navigator.onLine) { toast.error('You are offline. Nothing was saved.'); return; }
-    const { p, sum } = settle;
-    const cut = Math.min(Math.round((parseFloat(settle.cut) || 0) * 100), sum.due, Math.max(0, sum.owed));
-    const net = sum.due - cut;
+    const { p } = settle;
+    const wage = Math.round((parseFloat(settle.wage) || 0) * 100);
+    const cut = Math.min(Math.round((parseFloat(settle.cut) || 0) * 100), wage, settle.owed);
+    const net = wage - cut;
+    if (wage <= 0 && cut <= 0) { toast.error('Enter the wage.'); return; }
     setSaving(true);
     try {
       const batch = writeBatch(db);
       const col = collection(db, `shops/${shopId}/staffCash`);
       const base = { staff: p.name, creatorId: user.uid, createdAt: serverTimestamp() };
-      if (cut > 0) batch.set(doc(col), { ...base, kind: 'repay', via: 'salary', amount: cut, note: 'Cut at settle up' });
+      if (cut > 0) batch.set(doc(col), { ...base, kind: 'repay', via: 'salary', amount: cut, note: 'Cut from wage' });
       if (net > 0) batch.set(doc(col), { ...base, kind: 'payout', via: settle.via, amount: net, note: '' });
-      batch.set(doc(col), { ...base, kind: 'close', amount: sum.earned, note: `${sum.days} day(s)` });
-      logActivity(batch, shopId, user.uid, { action: 'staff_settle', amount: net, note: `${p.name}: ${sum.days} day(s), cut ${formatCurrency(cut)}` });
+      batch.set(doc(col), { ...base, kind: 'close', amount: wage, note: '' });
+      logActivity(batch, shopId, user.uid, { action: 'staff_settle', amount: net, note: `${p.name}: wage ${formatCurrency(wage)}, cut ${formatCurrency(cut)}` });
       await batch.commit();
-      toast.success('Settled up');
+      toast.success('Done');
       setSettle(null);
       await load();
     } catch (err) {
       console.error(err);
-      toast.error(`Could not settle (${err?.code || 'error'}).`);
+      toast.error(`Could not save (${err?.code || 'error'}).`);
     } finally { setSaving(false); }
   };
 
@@ -222,51 +193,11 @@ export default function StaffCash() {
             </button>
             {openStaff === p.key && (
               <div className="border-t border-slate-100">
-                {isAdmin && (() => {
-                  const cur = pay[personId(p.name)] || { wage: 0, cycle: 'day' };
-                  const d = wageDraft[p.key];
-                  const sum = periodSummary(p.entries);
-                  const cycleLabel = CYCLES.find(([v]) => v === cur.cycle)?.[1] || 'Daily';
-                  const cutNow = Math.min(Math.max(0, sum.owed), sum.due);
-                  return (
-                    <div className="space-y-3 p-4">
-                      {d ? (
-                        <div className="space-y-2 rounded-xl bg-slate-50 p-3">
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-500">₹</span>
-                            <input className={cn(field, 'pl-7 h-11 font-bold')} type="number" inputMode="decimal" placeholder="Wage per day" value={d.wage ?? ''}
-                              onChange={(e) => setWageDraft((x) => ({ ...x, [p.key]: { ...x[p.key], wage: e.target.value.slice(0, 9) } }))} />
-                          </div>
-                          <div className="flex rounded-xl bg-slate-200 p-1" role="group" aria-label="Paid">
-                            {CYCLES.map(([v, l]) => (
-                              <button key={v} type="button" onClick={() => setWageDraft((x) => ({ ...x, [p.key]: { ...x[p.key], cycle: v } }))}
-                                className={cn('flex-1 rounded-lg py-2 text-xs font-bold', (d.cycle || cur.cycle) === v ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500')}>{l}</button>
-                            ))}
-                          </div>
-                          <div className="flex gap-2">
-                            <button type="button" onClick={() => setWageDraft((x) => { const n = { ...x }; delete n[p.key]; return n; })} className="h-10 flex-1 rounded-xl bg-slate-200 text-sm font-bold text-slate-700">Cancel</button>
-                            <button type="button" onClick={() => saveWage(p)} className="h-10 flex-1 rounded-xl bg-blue-600 text-sm font-bold text-white">Save</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="flex items-center justify-between text-sm text-slate-600">
-                          <span>{cur.wage ? `${formatCurrency(cur.wage)} a day · ${cycleLabel}` : 'No wage set'}</span>
-                          <button type="button" onClick={() => setWageDraft((x) => ({ ...x, [p.key]: { wage: cur.wage ? String(cur.wage / 100) : '', cycle: cur.cycle } }))} className="font-bold text-blue-600">{cur.wage ? 'Change' : 'Set wage'}</button>
-                        </p>
-                      )}
-                      <div className="flex gap-2">
-                        <button type="button" disabled={sum.todayMarked} onClick={() => markDay(p, 1)} className="h-11 flex-1 rounded-xl bg-green-600 text-sm font-bold text-white disabled:opacity-40">{sum.todayMarked ? 'Marked today' : 'Present'}</button>
-                        {!sum.todayMarked && <button type="button" onClick={() => markDay(p, 0.5)} className="h-11 flex-1 rounded-xl bg-amber-100 text-sm font-bold text-amber-800">Half day</button>}
-                      </div>
-                      {(sum.days > 0 || sum.earned > 0) && <div className="rounded-xl bg-slate-50 p-4 text-center">
-                        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Due to {p.name}</p>
-                        <p className="text-3xl font-black tabular-nums text-slate-900">{formatCurrency(Math.max(0, sum.due - cutNow))}</p>
-                        <p className="mt-1 text-xs text-slate-500">{sum.days} day(s) · earned {formatCurrency(sum.earned)}{sum.paid > 0 ? ` · paid ${formatCurrency(sum.paid)}` : ''}{cutNow > 0 ? ` · loan cut ${formatCurrency(cutNow)}` : ''}</p>
-                      </div>}
-                      {(sum.days > 0 || sum.earned > 0) && <button type="button" onClick={() => openSettle(p)} className="h-12 w-full rounded-xl bg-slate-900 font-bold text-white">Pay and close</button>}
-                    </div>
-                  );
-                })()}
+                {isAdmin && (
+                  <div className="p-4">
+                    <button type="button" onClick={() => openSettle(p)} className="h-12 w-full rounded-xl bg-slate-900 font-bold text-white">Pay wage and close</button>
+                  </div>
+                )}
                 <button type="button" onClick={() => setShowHist((h) => ({ ...h, [p.key]: !h[p.key] }))} className="flex w-full items-center justify-between border-t border-slate-100 px-4 py-3 text-sm font-bold text-slate-600">
                   <span>History ({p.entries.length})</span>
                   <ChevronDown size={16} className={cn('transition-transform', showHist[p.key] && 'rotate-180')} />
@@ -370,37 +301,32 @@ export default function StaffCash() {
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
           <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[20px] mt-24 max-h-[85vh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none overflow-hidden">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <Drawer.Title className="font-bold text-slate-900 text-xl">Pay and close {settle?.p.name}</Drawer.Title>
+              <Drawer.Title className="font-bold text-slate-900 text-xl">Pay wage {settle?.p.name}</Drawer.Title>
               <button type="button" aria-label="Close" onClick={() => !saving && setSettle(null)} className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full text-slate-500">✕</button>
             </div>
             <Drawer.Description className="sr-only">Pay the wage for this period and cut any loan</Drawer.Description>
             {settle && (() => {
-              const { sum } = settle;
-              const cut = Math.min(Math.round((parseFloat(settle.cut) || 0) * 100), sum.due, Math.max(0, sum.owed));
+              const wage = Math.round((parseFloat(settle.wage) || 0) * 100);
+              const cut = Math.min(Math.round((parseFloat(settle.cut) || 0) * 100), wage, settle.owed);
+              const money = (k, label) => (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">{label}</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-500">₹</span>
+                    <input className={cn(field, 'pl-8 font-bold')} type="number" inputMode="decimal" value={settle[k]} onChange={(e) => setSettle((x) => ({ ...x, [k]: e.target.value.slice(0, 9) }))} />
+                  </div>
+                </div>
+              );
               return (
                 <div className="flex-1 overflow-y-auto p-4 pb-32 space-y-4">
-                  <div className="rounded-xl border border-slate-200 p-3 text-sm text-slate-700 space-y-1">
-                    <p className="flex justify-between"><span>{sum.days} day(s) worked</span><b>{formatCurrency(sum.earned)}</b></p>
-                    {sum.paid > 0 && <p className="flex justify-between"><span>Already paid</span><b>- {formatCurrency(sum.paid)}</b></p>}
-                    {sum.cut > 0 && <p className="flex justify-between"><span>Already cut</span><b>- {formatCurrency(sum.cut)}</b></p>}
-                    <p className="flex justify-between"><span>Cut for loan now</span><b>- {formatCurrency(cut)}</b></p>
-                    <p className="flex justify-between border-t border-slate-100 pt-1 text-base"><span className="font-bold">Pay now</span><b>{formatCurrency(sum.due - cut)}</b></p>
-                  </div>
-                  {sum.owed > 0 && (
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Cut for loan (owes {formatCurrency(sum.owed)})</label>
-                      <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-500">₹</span>
-                        <input className={cn(field, 'pl-8 font-bold')} type="number" inputMode="decimal" value={settle.cut} onChange={(e) => setSettle((x) => ({ ...x, cut: e.target.value.slice(0, 9) }))} />
-                      </div>
-                    </div>
-                  )}
+                  {money('wage', 'Wage')}
+                  {settle.owed > 0 && money('cut', `Cut for loan (owes ${formatCurrency(settle.owed)})`)}
+                  <p className="flex justify-between text-base"><span className="font-bold">Pay now</span><b>{formatCurrency(wage - cut)}</b></p>
                   <div className="flex rounded-xl bg-slate-100 p-1" role="group" aria-label="Paid by">
                     {[['cash', 'Cash from drawer'], ['upi', 'UPI']].map(([v, l]) => (
                       <button key={v} type="button" onClick={() => setSettle((x) => ({ ...x, via: v }))} className={cn('flex-1 rounded-lg py-2.5 text-xs font-bold', settle.via === v ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500')}>{l}</button>
                     ))}
                   </div>
-                  <p className="text-xs font-semibold text-slate-500">After this, the days above show as Closed and a new period starts. Any loan left carries over.</p>
                 </div>
               );
             })()}
