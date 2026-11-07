@@ -10,7 +10,7 @@ import BottomNav from '../components/BottomNav';
 import { ListSkeleton } from '../components/Skeleton';
 import { useShowLoader } from '../hooks/useShowLoader';
 
-const LABELS = { void: 'Voided bill', payment_change: 'Payment changed', return: 'Return', discount: 'Discount given', expense_delete: 'Expense deleted', import: 'Products imported' };
+const LABELS = { void: 'Voided bill', payment_change: 'Payment changed', return: 'Return', discount: 'Discount given', expense_delete: 'Expense deleted', import: 'Products imported', staff_edit: 'Staff entry edited', staff_delete: 'Staff entry deleted' };
 
 /** Owner only: who voided, changed, discounted or deleted what. Entries cannot be edited. */
 export default function ActivityLog() {

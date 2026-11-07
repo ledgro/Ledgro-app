@@ -24,7 +24,6 @@ const CATEGORIES = [
   { id: 'rent', label: 'Rent', icon: Home },
   { id: 'wages', label: 'Wages', icon: Users },
   { id: 'supplies', label: 'Supplies', icon: Package },
-  { id: 'staff_loan', label: 'Staff loan', icon: HandCoins },
   { id: 'other', label: 'Other', icon: Wallet },
 ];
 
@@ -223,7 +222,7 @@ export default function Expenses() {
 
             {expenses.map(expense => {
               const cat = CATEGORIES.find(c => c.id === expense.category);
-              const Icon = cat ? cat.icon : Package;
+              const Icon = cat ? cat.icon : expense.category === 'staff_loan' ? HandCoins : Package;
               const date = expense.createdAt?.toDate ? expense.createdAt.toDate().toLocaleString([], {month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Just now';
 
               return (
