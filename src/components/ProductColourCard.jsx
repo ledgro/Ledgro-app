@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
 import ProductThumb from './ProductThumb';
 import { compressImage, saveImage, removeImage, imageKey } from '../lib/productImage';
-import { sizeLabelOf, colourSwatch } from '../lib/variants';
+import { sizeLabelOf } from '../lib/variants';
 import { confirm } from '../lib/confirm';
 import { formatCurrency, cn } from '../lib/utils';
 
@@ -87,7 +87,7 @@ function ProductColourCard({ entry, onEdit }) {
           <h3 className="truncate text-base font-bold text-slate-900">{name}</h3>
           {colour && (
             <p className="mt-0.5 flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <span aria-hidden="true" className="h-4 w-4 rounded-full border border-slate-300" style={{ background: colourSwatch(colour) }} />{colour}
+              {colour}
             </p>
           )}
           <p className="mt-1 text-sm font-extrabold text-blue-600">{min === max ? formatCurrency(min) : `${formatCurrency(min)} - ${formatCurrency(max)}`}</p>

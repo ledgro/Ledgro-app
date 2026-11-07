@@ -8,6 +8,14 @@
   src: url("/fonts/bruno-ace-latin.woff2") format("woff2");
 }
 
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2-variations");
+}
+
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
@@ -17,11 +25,11 @@
   --radius-card: 12px;
   --radius-sheet: 24px;
   --shadow-subtle: 0 0 #0000;
-  --shadow-sm: 0 0 #0000;
+  --shadow-sm: 0 1px 3px rgb(15 23 42 / 0.10), 0 1px 2px rgb(15 23 42 / 0.06);
   --radius-xl: 0.5rem;
   --radius-2xl: 0.625rem;
   --radius-3xl: 0.875rem;
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
   --font-bruno: "Bruno Ace", sans-serif;
 }
 
