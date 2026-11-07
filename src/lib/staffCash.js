@@ -10,6 +10,7 @@ export function staffCashNet(entries) {
     const a = Number(e.amount) || 0;
     if (e.kind === 'advance' || e.kind === 'debt') return sum + a;
     if (e.kind === 'repay' && (e.via || 'cash') === 'cash') return sum - a;
+    if (e.kind === 'payout' && e.via === 'cash') return sum + a; // a wage paid from the drawer
     return sum;
   }, 0);
 }
@@ -41,18 +42,53 @@ export const personId = (name) => cleanStaff(name).toLowerCase().replace(/[^a-z0
 
 const atOf = (e) => (e.createdAt?.toDate ? e.createdAt.toDate() : e.createdAt instanceof Date ? e.createdAt : null);
 
-/** This month for one person: salary, what was cut from salary, what they still owe, the monthly deduction planned, and the pay. */
-export function monthSummary(entries, salary, monthStart) {
-  let cut = 0; let planned = 0;
+/** Loans are cleared oldest first as money comes back (cash, or cut from salary). Returns id -> { closed, left }. */
+export function loanStatus(entries) {
+  const loans = (entries || []).filter((e) => e.kind === 'advance' || e.kind === 'debt')
+    .sort((a, b) => (atOf(a)?.getTime() || 0) - (atOf(b)?.getTime() || 0));
+  let back = (entries || []).filter((e) => e.kind === 'repay').reduce((n, e) => n + (Number(e.amount) || 0), 0);
+  const out = new Map();
+  loans.forEach((l) => {
+    const amt = Number(l.amount) || 0;
+    const used = Math.min(back, amt);
+    back -= used;
+    out.set(l.id, { closed: used >= amt, left: amt - used });
+  });
+  return out;
+}
+
+/** Time of the last settle-up for a person, or null. */
+export function lastClose(entries) {
+  let t = null;
+  (entries || []).forEach((e) => { if (e.kind === 'close') { const at = atOf(e); if (at && (!t || at > t)) t = at; } });
+  return t;
+}
+
+/** Since the last settle-up: days worked, wage earned, wage paid, cut for loans, and what is still due. */
+export function periodSummary(entries) {
+  const since = lastClose(entries);
+  let days = 0; let earned = 0; let paid = 0; let cut = 0; let todayMarked = false;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
   (entries || []).forEach((e) => {
     const at = atOf(e);
-    if (e.kind === 'repay' && (e.via || 'cash') === 'salary' && at && at >= monthStart) cut += Number(e.amount) || 0;
+    if (e.kind === 'work' && at && at >= today && !(since && at <= since)) todayMarked = true;
+    if (since && at && at <= since) return;
+    if (e.kind === 'work') { days += Number(e.units) || 0; earned += Number(e.amount) || 0; }
+    else if (e.kind === 'payout') paid += Number(e.amount) || 0;
+    else if (e.kind === 'repay' && (e.via || 'cash') === 'salary') cut += Number(e.amount) || 0;
   });
-  const owed = (entries || []).reduce((n, e) => n + (e.kind === 'repay' ? -(Number(e.amount) || 0) : (Number(e.amount) || 0)), 0);
-  (entries || []).forEach((e) => { if ((e.kind === 'advance' || e.kind === 'debt') && Number(e.monthly) > 0) planned += Number(e.monthly); });
-  planned = Math.min(planned, Math.max(0, owed));
-  const salaryPaise = Number(salary) || 0;
-  return { salary: salaryPaise, cut, owed, planned, pay: Math.max(0, salaryPaise - cut) };
+  const owed = loanTotals(entries);
+  return { days, earned, paid, cut, due: Math.max(0, earned - paid - cut), owed, since, todayMarked };
+}
+
+/** What the person still owes the shop for loans and advances. */
+export function loanTotals(entries) {
+  return (entries || []).reduce((n, e) => {
+    const a = Number(e.amount) || 0;
+    if (e.kind === 'advance' || e.kind === 'debt') return n + a;
+    if (e.kind === 'repay') return n - a;
+    return n;
+  }, 0);
 }
 
 /** Entries newest first, grouped by month: [{ label, items }]. */

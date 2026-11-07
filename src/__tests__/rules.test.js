@@ -449,6 +449,36 @@ d('firestore.rules', () => {
       await assertSucceeds(setDoc(ref(ADMIN, 's2'), entry(ADMIN, { kind: 'repay', via: 'salary' })));
       await assertSucceeds(setDoc(ref(MEMBER, 's3'), entry(MEMBER, { kind: 'repay', via: 'cash' })));
     });
+    it('wages: only an admin marks a day, pays out or settles up', async () => {
+      await assertSucceeds(setDoc(ref(ADMIN, 'w1'), entry(ADMIN, { kind: 'work', units: 1 })));
+      await assertSucceeds(setDoc(ref(ADMIN, 'w2'), entry(ADMIN, { kind: 'work', units: 0.5 })));
+      await assertSucceeds(setDoc(ref(ADMIN, 'p1'), entry(ADMIN, { kind: 'payout', via: 'upi' })));
+      await assertSucceeds(setDoc(ref(ADMIN, 'p2'), entry(ADMIN, { kind: 'payout', via: 'cash' })));
+      await assertSucceeds(setDoc(ref(ADMIN, 'c1'), entry(ADMIN, { kind: 'close', amount: 0 })));
+      await assertFails(setDoc(ref(MEMBER, 'w3'), entry(MEMBER, { kind: 'work', units: 1 })));
+      await assertFails(setDoc(ref(MEMBER, 'p3'), entry(MEMBER, { kind: 'payout', via: 'cash' })));
+      await assertFails(setDoc(ref(MEMBER, 'c2'), entry(MEMBER, { kind: 'close' })));
+    });
+    it('wages: rejects bad units, bad payout method, units on a loan, waive by a member', async () => {
+      await assertFails(setDoc(ref(ADMIN, 'x'), entry(ADMIN, { kind: 'work', units: 3 })));
+      await assertFails(setDoc(ref(ADMIN, 'x'), entry(ADMIN, { kind: 'work' })));
+      await assertFails(setDoc(ref(ADMIN, 'x'), entry(ADMIN, { kind: 'payout', via: 'card' })));
+      await assertFails(setDoc(ref(ADMIN, 'x'), entry(ADMIN, { kind: 'payout' })));
+      await assertFails(setDoc(ref(ADMIN, 'x'), entry(ADMIN, { kind: 'advance', units: 1 })));
+      await assertSucceeds(setDoc(ref(ADMIN, 'k1'), entry(ADMIN, { kind: 'repay', via: 'waive' })));
+      await assertFails(setDoc(ref(MEMBER, 'k2'), entry(MEMBER, { kind: 'repay', via: 'waive' })));
+    });
+    it('a settle-up marker cannot be edited', async () => {
+      await assertSucceeds(setDoc(ref(ADMIN, 'c3'), entry(ADMIN, { kind: 'close', amount: 100 })));
+      await assertFails(updateDoc(ref(ADMIN, 'c3'), { amount: 1 }));
+    });
+    it('wage settings are the owner only', async () => {
+      const pr = (uid) => doc(as(uid), `shops/${SHOP}/staffPeople/ravi`);
+      await assertSucceeds(setDoc(pr(ADMIN), { staff: 'Ravi', wage: 60000, cycle: 'week', updatedAt: serverTimestamp() }));
+      await assertFails(setDoc(pr(ADMIN), { staff: 'Ravi', wage: 60000, cycle: 'year', updatedAt: serverTimestamp() }));
+      await assertFails(setDoc(pr(MEMBER), { staff: 'Ravi', wage: 60000, cycle: 'day', updatedAt: serverTimestamp() }));
+      await assertFails(getDoc(pr(MEMBER)));
+    });
     it('outsiders cannot read or write; entries cannot be edited; only an admin deletes', async () => {
       await assertSucceeds(setDoc(ref(MEMBER, 'd'), entry(MEMBER)));
       await assertFails(getDoc(ref('strangerUid', 'd')));
