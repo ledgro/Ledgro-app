@@ -8,9 +8,8 @@ import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { fetchAllPaged } from '../lib/firestoreUtils';
 import { bizDate } from '../lib/statsMath';
-import { staffBalances, cleanStaff, periodSummary, loanStatus, groupByMonth, personId } from '../lib/staffCash';
+import { staffBalances, cleanStaff, periodSummary, loanStatus, personId } from '../lib/staffCash';
 import { logActivity } from '../lib/audit';
-import { useNameOf } from '../lib/memberNames';
 import { sheetStyle } from '../hooks/useKeyboardInset';
 import { confirm } from '../lib/confirm';
 import { formatCurrency, cn } from '../lib/utils';
@@ -30,7 +29,6 @@ const field = 'w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 
 export default function StaffCash() {
   const navigate = useNavigate();
   const { shopId, user, isAdmin } = useAuth();
-  const nameOf = useNameOf(shopId, user?.uid);
   const [entries, setEntries] = useState(null);
   const showLoader = useShowLoader(entries === null);
   const [open, setOpen] = useState(false);
@@ -39,7 +37,8 @@ export default function StaffCash() {
   const [editing, setEditing] = useState(null); // entry being corrected (owner)
   const [pay, setPay] = useState({}); // personId -> { wage (paise a day), cycle } (owner only)
   const [wageDraft, setWageDraft] = useState({});
-  const [showHist, setShowHist] = useState({}); // person key -> history expanded
+  const [showHist, setShowHist] = useState({});
+  const [showClosed, setShowClosed] = useState({}); // person key -> history expanded
   const [settle, setSettle] = useState(null); // { p, sum, cut, via }
   const [saving, setSaving] = useState(false);
 
@@ -255,8 +254,8 @@ export default function StaffCash() {
                         </p>
                       )}
                       <div className="flex gap-2">
-                        <button type="button" disabled={sum.todayMarked} onClick={() => markDay(p, 1)} className="h-11 flex-1 rounded-xl bg-green-600 text-sm font-bold text-white disabled:opacity-40">{sum.todayMarked ? 'Marked today' : 'Present'}</button>
-                        {!sum.todayMarked && <button type="button" onClick={() => markDay(p, 0.5)} className="h-11 flex-1 rounded-xl bg-amber-100 text-sm font-bold text-amber-800">Half day</button>}
+                        <button type="button" disabled={sum.todayMarked} onClick={() => markDay(p, 1)} className="h-11 flex-1 rounded-xl bg-green-600 text-sm font-bold text-white disabled:opacity-40">{sum.todayMarked ? 'Today counted' : 'Worked today'}</button>
+                        {!sum.todayMarked && <button type="button" onClick={() => markDay(p, 0.5)} className="h-11 flex-1 rounded-xl bg-amber-100 text-sm font-bold text-amber-800">Half day worked</button>}
                       </div>
                       {(sum.days > 0 || sum.earned > 0) && <div className="rounded-xl bg-slate-50 p-4 text-center">
                         <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Due to {p.name}</p>
@@ -268,34 +267,38 @@ export default function StaffCash() {
                   );
                 })()}
                 <button type="button" onClick={() => setShowHist((h) => ({ ...h, [p.key]: !h[p.key] }))} className="flex w-full items-center justify-between border-t border-slate-100 px-4 py-3 text-sm font-bold text-slate-600">
-                  <span>History ({p.entries.length})</span>
+                  <span>History</span>
                   <ChevronDown size={16} className={cn('transition-transform', showHist[p.key] && 'rotate-180')} />
                 </button>
-                {showHist[p.key] && (() => { const since = periodSummary(p.entries).since; const loans = loanStatus(p.entries); return groupByMonth(p.entries).map((g) => (
-                  <div key={g.label}>
-                    <p className="bg-slate-50 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">{g.label}</p>
-                    <div className="divide-y divide-slate-50">
-                      {g.items.map((e) => {
+                {showHist[p.key] && (() => {
+                  const since = periodSummary(p.entries).since;
+                  const loans = loanStatus(p.entries);
+                  const all = [...p.entries].sort((x, y) => (y.createdAt?.toDate?.().getTime() || 0) - (x.createdAt?.toDate?.().getTime() || 0));
+                  const isOld = (e) => { const at = e.createdAt?.toDate ? e.createdAt.toDate() : null; return e.kind === 'close' || (since && at && at <= since) || loans.get(e.id)?.closed; };
+                  const list = all.filter((e) => showClosed[p.key] || !isOld(e));
+                  const hidden = all.length - list.length;
+                  return (
+                    <div className="divide-y divide-slate-50 border-t border-slate-100">
+                      {list.length === 0 && <p className="px-4 py-3 text-xs text-slate-500">Nothing open.</p>}
+                      {list.map((e) => {
                         const at = e.createdAt?.toDate ? e.createdAt.toDate() : new Date();
-                        const loan = loans.get(e.id);
-                        const closed = e.kind !== 'close' && ((since && at <= since && e.kind !== 'advance' && e.kind !== 'debt') || loan?.closed);
-                        const left = loan && !loan.closed ? loan.left : 0;
+                        const left = loans.get(e.id) && !loans.get(e.id).closed ? loans.get(e.id).left : 0;
+                        const old = isOld(e);
+                        const label = e.kind === 'work' ? (e.units === 0.5 ? 'Half day' : 'Day') : e.kind === 'repay' ? (e.via === 'salary' ? 'Cut from wage' : e.via === 'waive' ? 'Loan closed' : 'Paid back') : e.kind === 'payout' ? 'Wage paid' : e.kind === 'close' ? 'Closed' : KIND_LABEL[e.kind];
                         return (
-                          <div key={e.id} className="flex items-center gap-2 px-4 py-2">
-                            <div className="min-w-0 flex-1">
-                              <p className={cn('text-sm font-semibold', closed ? 'text-slate-400 line-through' : 'text-slate-900')}>
-                                                                {KIND_LABEL[e.kind]}{e.kind === 'repay' ? (e.via === 'salary' ? ' (from salary)' : e.via === 'waive' ? ' (loan closed)' : ' (cash)') : ''}{e.kind === 'payout' ? ` (${e.via === 'upi' ? 'UPI' : 'cash'})` : ''}{e.kind === 'work' ? (e.units === 0.5 ? ' half day' : ' full day') : ''}{e.kind === 'close' ? '' : ` · ${formatCurrency(e.amount)}`}
-                              </p>
-                              <p className="text-xs text-slate-500">{at.toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · by {nameOf(e.creatorId)}{e.monthly ? ` · ${formatCurrency(e.monthly)}/month` : ''}{e.note ? ` · ${e.note}` : ''}</p>
-                              {isAdmin && left > 0 && <button type="button" onClick={() => closeLoan(p, e, left)} className="mt-1 text-xs font-bold text-blue-600">Close loan ({formatCurrency(left)} left)</button>}
-                            </div>
-                            {isAdmin && <button type="button" aria-label="Edit or delete entry" onClick={() => (e.kind === 'close' ? remove(e) : openEdit(e))} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 active:bg-slate-100"><Pencil size={15} /></button>}
+                          <div key={e.id} className="flex items-center gap-2 px-4 py-1.5">
+                            <p className={cn('min-w-0 flex-1 truncate text-sm', old ? 'text-slate-400 line-through' : 'text-slate-800')}>
+                              <span className="text-slate-400 no-underline">{at.toLocaleDateString([], { day: 'numeric', month: 'short' })}</span> {label}{e.kind === 'close' ? '' : ` ${formatCurrency(e.amount)}`}
+                              {isAdmin && left > 0 && <button type="button" onClick={() => closeLoan(p, e, left)} className="ml-2 text-xs font-bold text-blue-600 no-underline">Close loan</button>}
+                            </p>
+                            {isAdmin && <button type="button" aria-label="Edit or delete entry" onClick={() => (e.kind === 'close' ? remove(e) : openEdit(e))} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 active:bg-slate-100"><Pencil size={14} /></button>}
                           </div>
                         );
                       })}
+                      {hidden > 0 && <button type="button" onClick={() => setShowClosed((c) => ({ ...c, [p.key]: true }))} className="w-full px-4 py-2 text-left text-xs font-bold text-slate-500">Show {hidden} closed</button>}
                     </div>
-                  </div>
-                )); })()}
+                  );
+                })()}
               </div>
             )}
           </section>
