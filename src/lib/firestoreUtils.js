@@ -6,7 +6,7 @@ import { imageKey } from './productImage';
 
 // firestore.rules only allow `list` queries with limit <= 100, so every
 export const PAGE_SIZE = 100;
-const DELETE_PAGE = 400;
+const DELETE_PAGE = 100; // reads are capped at 100 by firestore.rules; going higher is permission-denied
 const MAX_PAGES = 200;
 
 /**
@@ -33,6 +33,7 @@ export async function fetchAllPaged(collectionPath, constraints = []) {
 
 /** Delete every doc in a collection, 100 at a time (rules cap list size at 100). */
 export async function deleteCollectionPaged(collectionPath, pageSize = DELETE_PAGE) {
+  if (pageSize > PAGE_SIZE) pageSize = PAGE_SIZE;
   const ref = collection(db, collectionPath);
   for (let page = 0; page < MAX_PAGES; page++) {
     const snap = await getDocs(query(ref, limit(pageSize)));
