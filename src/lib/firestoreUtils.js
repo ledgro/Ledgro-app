@@ -76,14 +76,30 @@ async function deleteImagesFast(shopId, tick) {
   await deleteCollectionPaged(`shops/${shopId}/catalogImages`, 25, tick);
 }
 
-/** Runs a step; rejects only if it makes no progress for `ms` (each page it finishes resets the clock). */
-function step(label, run, ms = 60000) {
+/** One attempt at a step; rejects only if it makes no progress for `ms` (each page it finishes resets the clock). */
+function attempt(label, run, ms) {
   let timer;
   let fail;
   const stuck = new Promise((_, reject) => { fail = reject; });
   const arm = () => { clearTimeout(timer); timer = setTimeout(() => fail(Object.assign(new Error(`${label} is taking too long`), { code: `stuck-${label}` })), ms); };
   arm();
   return Promise.race([run(arm), stuck]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * Runs a step and, if it fails or stalls, tries again by itself (up to 4 times, a little longer apart each time).
+ * Each try only deletes what is still left, so repeating is safe. Permission errors are not retried: they never fix themselves.
+ */
+async function step(label, run, ms = 60000, tries = 4) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try { return await attempt(label, run, ms); } catch (err) {
+      last = err;
+      if (err?.code === 'permission-denied') throw err;
+      await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+    }
+  }
+  throw last;
 }
 
 export async function deleteShopCascade(shopId, onStep) {
