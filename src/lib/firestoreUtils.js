@@ -32,7 +32,7 @@ export async function fetchAllPaged(collectionPath, constraints = []) {
 }
 
 /** Delete every doc in a collection, 100 at a time (rules cap list size at 100). */
-export async function deleteCollectionPaged(collectionPath, pageSize = DELETE_PAGE) {
+export async function deleteCollectionPaged(collectionPath, pageSize = DELETE_PAGE, onPage) {
   if (pageSize > PAGE_SIZE) pageSize = PAGE_SIZE;
   const ref = collection(db, collectionPath);
   for (let page = 0; page < MAX_PAGES; page++) {
@@ -41,6 +41,7 @@ export async function deleteCollectionPaged(collectionPath, pageSize = DELETE_PA
     const batch = writeBatch(db);
     snap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
+    onPage?.();
     if (snap.size < pageSize) return;
   }
 }
@@ -56,7 +57,7 @@ const STEP_LABEL = { bills: 'bills', expenses: 'expenses', catalog: 'products', 
  * Photos are big (up to 70 KB each), so listing them to delete is slow. Their ids come from the catalog items,
  * so delete by id without reading them, then sweep up anything left over a few at a time.
  */
-async function deleteImagesFast(shopId) {
+async function deleteImagesFast(shopId, tick) {
   const catalog = await getDocs(collection(db, `shops/${shopId}/catalog`));
   const keys = new Set();
   catalog.docs.forEach((d) => {
@@ -70,33 +71,30 @@ async function deleteImagesFast(shopId) {
     const batch = writeBatch(db);
     ids.slice(i, i + DELETE_PAGE).forEach((k) => batch.delete(doc(db, `shops/${shopId}/catalogImages`, k)));
     await batch.commit();
+    tick?.();
   }
-  await deleteCollectionPaged(`shops/${shopId}/catalogImages`, 25);
+  await deleteCollectionPaged(`shops/${shopId}/catalogImages`, 25, tick);
 }
 
-/** Rejects if a step makes no progress for `ms`, so a stuck delete shows which step instead of spinning forever. */
-function watchdog(label, promise, ms = 90000) {
+/** Runs a step; rejects only if it makes no progress for `ms` (each page it finishes resets the clock). */
+function step(label, run, ms = 60000) {
   let timer;
-  const stuck = new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error(`${label} is taking too long`), { code: `stuck-${label}` })), ms); });
-  return Promise.race([promise, stuck]).finally(() => clearTimeout(timer));
+  let fail;
+  const stuck = new Promise((_, reject) => { fail = reject; });
+  const arm = () => { clearTimeout(timer); timer = setTimeout(() => fail(Object.assign(new Error(`${label} is taking too long`), { code: `stuck-${label}` })), ms); };
+  arm();
+  return Promise.race([run(arm), stuck]).finally(() => clearTimeout(timer));
 }
 
 export async function deleteShopCascade(shopId, onStep) {
-  // every collection at once, not one after another. Safe to run again: it carries on with whatever is left.
+  // everything at once, products and photos as separate jobs. Safe to run again: it carries on with what is left.
+  const done = (sub) => () => onStep?.(`Deleted ${STEP_LABEL[sub] || sub}`);
   const jobs = [];
-  for (const sub of ['bills', 'expenses', 'dailyClosures', 'dailyStats', 'transfers', 'memberProfiles', 'errorLogs', 'staffCash', 'billCounters', 'auditLogs', 'staffPeople']) {
-    jobs.push(watchdog(STEP_LABEL[sub] || sub, deleteCollectionPaged(`shops/${shopId}/${sub}`))
-      .then(() => onStep?.(`Deleted ${STEP_LABEL[sub] || sub}`)));
+  for (const sub of ['bills', 'expenses', 'catalog', 'dailyClosures', 'dailyStats', 'transfers', 'memberProfiles', 'errorLogs', 'staffCash', 'billCounters', 'auditLogs', 'staffPeople']) {
+    jobs.push(step(STEP_LABEL[sub] || sub, (tick) => deleteCollectionPaged(`shops/${shopId}/${sub}`, DELETE_PAGE, tick)).then(done(sub)));
   }
-  // the catalog must still exist while the photo job reads it, so photos go first, then products
-  jobs.push((async () => {
-    onStep?.('Deleting photos...');
-    await watchdog('photos', deleteImagesFast(shopId));
-    onStep?.('Deleted photos');
-    onStep?.('Deleting products...');
-    await watchdog('products', deleteCollectionPaged(`shops/${shopId}/catalog`));
-    onStep?.('Deleted products');
-  })());
+  // photos are found from the catalog when it is still there; the sweep afterwards catches any the catalog no longer lists
+  jobs.push(step('photos', (tick) => deleteImagesFast(shopId, tick)).then(done('catalogImages')));
   await Promise.all(jobs);
   await deleteDoc(doc(db, 'shops', shopId));
 }

@@ -10,9 +10,7 @@ describe('deleteShopCascade', () => {
     const src = readFileSync('src/lib/firestoreUtils.js', 'utf8');
     const listed = (src.match(/for \(const sub of \[([^\]]+)\]/)?.[1] || '').match(/'(\w+)'/g)?.map((s) => s.slice(1, -1)) || [];
     expect(inRules.length).toBeGreaterThan(5);
-    // products and photos are deleted by their own chained job (photos first, then products)
-    expect(src).toContain('deleteImagesFast(shopId)');
-    expect(src).toContain('/catalog`');
-    expect([...listed, 'catalog', 'catalogImages'].sort()).toEqual([...inRules].sort());
+    expect(src).toContain('deleteImagesFast(shopId, tick)');
+    expect([...listed, 'catalogImages'].sort()).toEqual([...inRules].sort());
   });
 });
