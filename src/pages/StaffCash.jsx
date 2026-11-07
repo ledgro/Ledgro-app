@@ -39,6 +39,7 @@ export default function StaffCash() {
   const [editing, setEditing] = useState(null); // entry being corrected (owner)
   const [pay, setPay] = useState({}); // personId -> { wage (paise a day), cycle } (owner only)
   const [wageDraft, setWageDraft] = useState({});
+  const [showHist, setShowHist] = useState({}); // person key -> history expanded
   const [settle, setSettle] = useState(null); // { p, sum, cut, via }
   const [saving, setSaving] = useState(false);
 
@@ -223,46 +224,54 @@ export default function StaffCash() {
               <div className="border-t border-slate-100">
                 {isAdmin && (() => {
                   const cur = pay[personId(p.name)] || { wage: 0, cycle: 'day' };
-                  const d = wageDraft[p.key] || {};
+                  const d = wageDraft[p.key];
                   const sum = periodSummary(p.entries);
+                  const cycleLabel = CYCLES.find(([v]) => v === cur.cycle)?.[1] || 'Daily';
+                  const cutNow = Math.min(Math.max(0, sum.owed), sum.due);
                   return (
-                    <div className="space-y-3 bg-slate-50 p-4">
-                      <div className="flex items-end gap-2">
-                        <div className="flex-1">
-                          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Wage per day</label>
+                    <div className="space-y-3 p-4">
+                      {d ? (
+                        <div className="space-y-2 rounded-xl bg-slate-50 p-3">
                           <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-500">₹</span>
-                            <input className={cn(field, 'pl-7 h-11 font-bold')} type="number" inputMode="decimal"
-                              value={d.wage ?? (cur.wage ? String(cur.wage / 100) : '')}
+                            <input className={cn(field, 'pl-7 h-11 font-bold')} type="number" inputMode="decimal" placeholder="Wage per day" value={d.wage ?? ''}
                               onChange={(e) => setWageDraft((x) => ({ ...x, [p.key]: { ...x[p.key], wage: e.target.value.slice(0, 9) } }))} />
                           </div>
+                          <div className="flex rounded-xl bg-slate-200 p-1" role="group" aria-label="Paid">
+                            {CYCLES.map(([v, l]) => (
+                              <button key={v} type="button" onClick={() => setWageDraft((x) => ({ ...x, [p.key]: { ...x[p.key], cycle: v } }))}
+                                className={cn('flex-1 rounded-lg py-2 text-xs font-bold', (d.cycle || cur.cycle) === v ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500')}>{l}</button>
+                            ))}
+                          </div>
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => setWageDraft((x) => { const n = { ...x }; delete n[p.key]; return n; })} className="h-10 flex-1 rounded-xl bg-slate-200 text-sm font-bold text-slate-700">Cancel</button>
+                            <button type="button" onClick={() => saveWage(p)} className="h-10 flex-1 rounded-xl bg-blue-600 text-sm font-bold text-white">Save</button>
+                          </div>
                         </div>
-                        <div className="flex rounded-xl bg-slate-200 p-1" role="group" aria-label="Paid">
-                          {CYCLES.map(([v, l]) => (
-                            <button key={v} type="button" onClick={() => setWageDraft((x) => ({ ...x, [p.key]: { ...x[p.key], cycle: v } }))}
-                              className={cn('rounded-lg px-2.5 py-2 text-xs font-bold', (d.cycle || cur.cycle) === v ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500')}>{l}</button>
-                          ))}
-                        </div>
-                        {wageDraft[p.key] && <button type="button" onClick={() => saveWage(p)} className="h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white">Save</button>}
-                      </div>
+                      ) : (
+                        <p className="flex items-center justify-between text-sm text-slate-600">
+                          <span>{cur.wage ? `${formatCurrency(cur.wage)} a day · ${cycleLabel}` : 'No wage set'}</span>
+                          <button type="button" onClick={() => setWageDraft((x) => ({ ...x, [p.key]: { wage: cur.wage ? String(cur.wage / 100) : '', cycle: cur.cycle } }))} className="font-bold text-blue-600">{cur.wage ? 'Change' : 'Set wage'}</button>
+                        </p>
+                      )}
                       <div className="flex gap-2">
-                        <button type="button" disabled={sum.todayMarked} onClick={() => markDay(p, 1)} className="h-11 flex-1 rounded-xl bg-green-600 text-sm font-bold text-white disabled:opacity-40">Present today</button>
-                        <button type="button" disabled={sum.todayMarked} onClick={() => markDay(p, 0.5)} className="h-11 flex-1 rounded-xl bg-amber-500 text-sm font-bold text-white disabled:opacity-40">Half day</button>
+                        <button type="button" disabled={sum.todayMarked} onClick={() => markDay(p, 1)} className="h-11 flex-1 rounded-xl bg-green-600 text-sm font-bold text-white disabled:opacity-40">{sum.todayMarked ? 'Marked today' : 'Present'}</button>
+                        {!sum.todayMarked && <button type="button" onClick={() => markDay(p, 0.5)} className="h-11 flex-1 rounded-xl bg-amber-100 text-sm font-bold text-amber-800">Half day</button>}
                       </div>
-                      {sum.todayMarked && <p className="text-xs font-semibold text-slate-500">Today is already marked. To change it, edit or delete the entry below.</p>}
-                      <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 space-y-1">
-                        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Since last settle up{sum.since ? ` (${sum.since.toLocaleDateString([], { day: 'numeric', month: 'short' })})` : ''}</p>
-                        <p className="flex justify-between"><span>Days worked</span><b>{sum.days}</b></p>
-                        <p className="flex justify-between"><span>Earned</span><b>{formatCurrency(sum.earned)}</b></p>
-                        <p className="flex justify-between"><span>Already paid</span><b>- {formatCurrency(sum.paid)}</b></p>
-                        <p className="flex justify-between"><span>Loan cut</span><b>- {formatCurrency(sum.cut)}</b></p>
-                        <p className="flex justify-between border-t border-slate-100 pt-1 text-base"><span className="font-bold">Due to {p.name}</span><b>{formatCurrency(sum.due)}</b></p>
+                      <div className="rounded-xl bg-slate-50 p-4 text-center">
+                        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Due to {p.name}</p>
+                        <p className="text-3xl font-black tabular-nums text-slate-900">{formatCurrency(Math.max(0, sum.due - cutNow))}</p>
+                        <p className="mt-1 text-xs text-slate-500">{sum.days} day(s) · earned {formatCurrency(sum.earned)}{sum.paid > 0 ? ` · paid ${formatCurrency(sum.paid)}` : ''}{cutNow > 0 ? ` · loan cut ${formatCurrency(cutNow)}` : ''}</p>
                       </div>
-                      <button type="button" disabled={sum.days === 0 && sum.earned === 0} onClick={() => openSettle(p)} className="h-12 w-full rounded-xl bg-slate-900 font-bold text-white disabled:opacity-40">Settle up</button>
+                      <button type="button" disabled={sum.days === 0 && sum.earned === 0} onClick={() => openSettle(p)} className="h-12 w-full rounded-xl bg-slate-900 font-bold text-white disabled:opacity-40">Pay and close</button>
                     </div>
                   );
                 })()}
-                {(() => { const since = periodSummary(p.entries).since; const loans = loanStatus(p.entries); return groupByMonth(p.entries).map((g) => (
+                <button type="button" onClick={() => setShowHist((h) => ({ ...h, [p.key]: !h[p.key] }))} className="flex w-full items-center justify-between border-t border-slate-100 px-4 py-3 text-sm font-bold text-slate-600">
+                  <span>History ({p.entries.length})</span>
+                  <ChevronDown size={16} className={cn('transition-transform', showHist[p.key] && 'rotate-180')} />
+                </button>
+                {showHist[p.key] && (() => { const since = periodSummary(p.entries).since; const loans = loanStatus(p.entries); return groupByMonth(p.entries).map((g) => (
                   <div key={g.label}>
                     <p className="bg-slate-50 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">{g.label}</p>
                     <div className="divide-y divide-slate-50">
@@ -362,7 +371,7 @@ export default function StaffCash() {
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
           <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[20px] mt-24 max-h-[85vh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none overflow-hidden">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <Drawer.Title className="font-bold text-slate-900 text-xl">Settle up {settle?.p.name}</Drawer.Title>
+              <Drawer.Title className="font-bold text-slate-900 text-xl">Pay and close {settle?.p.name}</Drawer.Title>
               <button type="button" aria-label="Close" onClick={() => !saving && setSettle(null)} className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full text-slate-500">✕</button>
             </div>
             <Drawer.Description className="sr-only">Pay the wage for this period and cut any loan</Drawer.Description>
@@ -397,7 +406,7 @@ export default function StaffCash() {
               );
             })()}
             <div className="absolute bottom-0 left-0 right-0 border-t border-slate-100 bg-white p-4 pb-safe">
-              <button type="button" disabled={saving} onClick={doSettle} className="h-14 w-full rounded-xl bg-slate-900 font-bold text-white disabled:opacity-50">{saving ? 'Saving...' : 'Confirm settle up'}</button>
+              <button type="button" disabled={saving} onClick={doSettle} className="h-14 w-full rounded-xl bg-slate-900 font-bold text-white disabled:opacity-50">{saving ? 'Saving...' : 'Confirm and close'}</button>
             </div>
           </Drawer.Content>
         </Drawer.Portal>
