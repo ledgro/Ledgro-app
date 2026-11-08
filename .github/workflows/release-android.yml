@@ -74,8 +74,8 @@ jobs:
           BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           set -eu
-          npx --yes @bubblewrap/cli@1.27.0 update --manifest=. --skipVersionUpgrade
-          npx --yes @bubblewrap/cli@1.27.0 build --manifest=. --skipPwaValidation
+          npx --yes @bubblewrap/cli@1.27.0 update --skipVersionUpgrade
+          npx --yes @bubblewrap/cli@1.27.0 build --skipPwaValidation
           mv app-release-signed.apk "ledgro-${APP_VERSION}.apk"
 
       - name: Remove signing key
