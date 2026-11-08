@@ -47,16 +47,18 @@ jobs:
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/ledgro.keystore"
           chmod 600 "$RUNNER_TEMP/ledgro.keystore"
 
-      - name: Android SDK for Bubblewrap (own copy, licences accepted)
+      - name: Android SDK for Bubblewrap (standard layout, own copy)
         run: |
           set -eu
           SDK="$HOME/android-sdk"
-          mkdir -p "$SDK"
-          cp -r "$ANDROID_HOME/cmdline-tools/latest/." "$SDK/"
-          yes | "$SDK/bin/sdkmanager" --sdk_root="$SDK" --licenses > /dev/null || true
-          yes | "$SDK/bin/sdkmanager" --sdk_root="$SDK" "platforms;android-36" || true
-          "$SDK/bin/sdkmanager" --sdk_root="$SDK" --list_installed
-          ls "$SDK/platforms"
+          mkdir -p "$SDK/cmdline-tools/latest"
+          cp -r "$ANDROID_HOME/cmdline-tools/latest/." "$SDK/cmdline-tools/latest/"
+          # Bubblewrap only checks for a bin folder at the SDK root; Gradle wants the standard layout
+          ln -s cmdline-tools/latest/bin "$SDK/bin"
+          SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --sdk_root="$SDK" --licenses > /dev/null || true
+          yes | "$SDKM" --sdk_root="$SDK" "platforms;android-36" "platform-tools" > /dev/null || true
+          "$SDKM" --sdk_root="$SDK" --list_installed
           mkdir -p "$HOME/.bubblewrap"
           printf '{"jdkPath":"%s","androidSdkPath":"%s"}' "$JAVA_HOME" "$SDK" > "$HOME/.bubblewrap/config.json"
 
