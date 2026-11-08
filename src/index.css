@@ -167,3 +167,8 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-shake { animation: none; }
 }
+
+/* While the on-screen keyboard is open, sheet footers keep only their main button */
+html[data-kb="1"] .kb-hide { display: none; }
+html[data-kb="1"] .kb-slim { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+html[data-kb="1"] .kb-slim button { height: 2.75rem; }

@@ -20,6 +20,8 @@ export function useKeyboardInset() {
         const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
         root.style.setProperty('--kb', `${kb}px`);
         root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+        // lets sheets shrink their footer to one slim row while typing (see .kb-hide in index.css)
+        if (kb > 120) root.setAttribute('data-kb', '1'); else root.removeAttribute('data-kb');
       });
     };
     update();
@@ -31,6 +33,7 @@ export function useKeyboardInset() {
       vv.removeEventListener('scroll', update);
       root.style.removeProperty('--kb');
       root.style.removeProperty('--vvh');
+      root.removeAttribute('data-kb');
     };
   }, []);
 }
