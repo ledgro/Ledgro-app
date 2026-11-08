@@ -87,6 +87,15 @@ jobs:
           npx --yes @bubblewrap/cli@1.27.0 build --skipPwaValidation
           mv app-release-signed.apk "ledgro-${APP_VERSION}.apk"
 
+      - name: Check the APK is signed with the key listed in assetlinks.json
+        run: |
+          set -eu
+          GOT=$(keytool -printcert -jarfile "ledgro-${APP_VERSION}.apk" | grep 'SHA256:' | head -1 | sed 's/.*SHA256: //')
+          WANT=$(node -e 'console.log(JSON.parse(require("fs").readFileSync("public/.well-known/assetlinks.json","utf8"))[0].target.sha256_cert_fingerprints.join(" "))')
+          echo "APK key: $GOT"
+          case " $WANT " in *" $GOT "*) echo "Matches assetlinks.json";; *) echo "MISMATCH: assetlinks.json has: $WANT"; exit 1;; esac
+          echo "APK key $GOT matches assetlinks.json" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Remove signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/ledgro.keystore"
