@@ -33,5 +33,5 @@
   "isMetaQuest": false,
   "orientation": "portrait",
   "fullScopeUrl": "https://ledgro-app.pages.dev/",
-  "minSdkVersion": 21
+  "minSdkVersion": 26
 }
