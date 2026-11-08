@@ -75,6 +75,8 @@ jobs:
           BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           set -eu
+          # the runner also sets ANDROID_SDK_ROOT to its own SDK; Gradle refuses two different paths
+          export ANDROID_SDK_ROOT="$HOME/android-sdk"
           npx --yes @bubblewrap/cli@1.27.0 update --skipVersionUpgrade
           npx --yes @bubblewrap/cli@1.27.0 build --skipPwaValidation
           mv app-release-signed.apk "ledgro-${APP_VERSION}.apk"
