@@ -47,14 +47,15 @@ jobs:
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/ledgro.keystore"
           chmod 600 "$RUNNER_TEMP/ledgro.keystore"
 
-      - name: Point Bubblewrap at the JDK and Android SDK on this runner
+      - name: Android SDK for Bubblewrap (own copy, licences accepted)
         run: |
           set -eu
+          SDK="$HOME/android-sdk"
+          mkdir -p "$SDK"
+          cp -r "$ANDROID_HOME/cmdline-tools/latest/." "$SDK/"
+          yes | "$SDK/bin/sdkmanager" --sdk_root="$SDK" --licenses > /dev/null || true
           mkdir -p "$HOME/.bubblewrap"
-          printf '{"jdkPath":"%s","androidSdkPath":"%s"}' "$JAVA_HOME" "$ANDROID_HOME" > "$HOME/.bubblewrap/config.json"
-
-      - name: Accept Android SDK licences
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          printf '{"jdkPath":"%s","androidSdkPath":"%s"}' "$JAVA_HOME" "$SDK" > "$HOME/.bubblewrap/config.json"
 
       - name: Version from the tag (or the run number for a manual run)
         run: |
