@@ -24,3 +24,9 @@ dist-ssr
 *.sw?
 .env
 .env
+
+# Android signing keys must never be committed
+*.keystore
+*.jks
+*.keystore.base64.txt
+ledgro-credentials.txt
