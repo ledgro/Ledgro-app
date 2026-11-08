@@ -54,6 +54,7 @@ jobs:
           mkdir -p "$SDK"
           cp -r "$ANDROID_HOME/cmdline-tools/latest/." "$SDK/"
           yes | "$SDK/bin/sdkmanager" --sdk_root="$SDK" --licenses > /dev/null || true
+          "$SDK/bin/sdkmanager" --sdk_root="$SDK" "platforms;android-36" > /dev/null
           mkdir -p "$HOME/.bubblewrap"
           printf '{"jdkPath":"%s","androidSdkPath":"%s"}' "$JAVA_HOME" "$SDK" > "$HOME/.bubblewrap/config.json"
 
