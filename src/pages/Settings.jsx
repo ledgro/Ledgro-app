@@ -339,7 +339,7 @@ export default function Settings() {
             <div className="flex items-center justify-between">
               <div>
                 <span className="font-semibold text-slate-900 block text-sm">Default Payment</span>
-                <span className="text-xs text-slate-500">Auto-selected in POS</span>
+                <span className="text-xs text-slate-500">Auto-selected on the Sell screen</span>
               </div>
               <select value={defaultPayment} onChange={(e) => setDefaultPayment(e.target.value)} className="h-10 px-3 border border-slate-200 rounded-lg text-sm font-semibold bg-slate-50 focus:outline-none">
                 <option value="cash">Cash</option>
@@ -362,7 +362,7 @@ export default function Settings() {
             <label className="flex items-center justify-between cursor-pointer">
               <div>
                 <span className="font-semibold text-slate-900 block text-sm">Auto-Reset Bill</span>
-                <span className="text-xs text-slate-500">Clear POS after saving</span>
+                <span className="text-xs text-slate-500">Clear the bill after saving</span>
               </div>
               <div className="relative inline-block w-12 h-6 rounded-full">
                  <input type="checkbox" className="peer sr-only" checked={autoReset} onChange={(e) => setAutoReset(e.target.checked)} />

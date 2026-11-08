@@ -23,7 +23,7 @@ export default defineConfig({
       },
       manifest: {
         id: '/',
-        name: 'Ledgro POS',
+        name: 'Ledgro',
         description: 'Billing, ledger and expenses.',
         categories: ['business', 'finance', 'productivity'],
         short_name: 'Ledgro',
