@@ -1,7 +1,7 @@
 {
   "packageId": "com.ledgro.app",
   "host": "ledgro-app.pages.dev",
-  "name": "Ledgro POS",
+  "name": "Ledgro",
   "launcherName": "Ledgro",
   "display": "standalone",
   "themeColor": "#F8FAFC",

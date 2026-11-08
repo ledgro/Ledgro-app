@@ -789,7 +789,7 @@ export default function Products() {
                    <label className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer">
                      <div>
                        <span className="font-bold text-slate-900 block">Available for Sale</span>
-                       <span className="text-xs text-slate-500">Uncheck to hide from POS</span>
+                       <span className="text-xs text-slate-500">Uncheck to hide from Sell</span>
                      </div>
                      <div className="relative inline-block w-12 h-6 rounded-full">
                        <input type="checkbox" className="peer sr-only" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
