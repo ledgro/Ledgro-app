@@ -55,6 +55,7 @@ jobs:
           cp -r "$ANDROID_HOME/cmdline-tools/latest/." "$SDK/cmdline-tools/latest/"
           # Bubblewrap only checks for a bin folder at the SDK root; Gradle wants the standard layout
           ln -s cmdline-tools/latest/bin "$SDK/bin"
+          ln -s cmdline-tools/latest/lib "$SDK/lib"   # the sdkmanager script loads its jars from ../lib
           SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKM" --sdk_root="$SDK" --licenses > /dev/null || true
           yes | "$SDKM" --sdk_root="$SDK" "platforms;android-36" "platform-tools" > /dev/null || true
