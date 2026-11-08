@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.ledgro.app",
+      "sha256_cert_fingerprints": [
+        "81:D6:38:36:A5:C8:3D:0F:E4:D9:2B:49:6E:8E:F1:21:B5:17:CE:27:9E:1A:19:16:D5:D9:6E:A6:0A:33:4D:D2"
+      ]
+    }
+  }
+]
