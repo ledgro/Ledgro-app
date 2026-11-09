@@ -114,7 +114,7 @@ export default function PLScreen() {
     setIsExporting(true);
     try {
       const blob = await buildReport('pdf', {
-        title: `${shopName || 'Shop'} - Profit & Loss`,
+        title: `${shopName || 'Shop'} - Statistics`,
         subtitle: rangeLabel,
         columns: [{ label: 'Item', w: 5 }, { label: 'Amount', w: 2, align: 'right' }, { label: '% of sales', w: 1, align: 'right' }],
         rows: [
@@ -130,7 +130,7 @@ export default function PLScreen() {
           ['NET PROFIT', rs(net), margin == null ? '-' : `${margin.toFixed(1)}%`],
         ],
       });
-      await saveFile(blob, `Profit-Loss-${dayKey(new Date())}.pdf`, 'Profit & Loss');
+      await saveFile(blob, `Statistics-${dayKey(new Date())}.pdf`, 'Statistics');
     } catch (err) {
       console.error(err);
       toast.error('Could not create the PDF.');
@@ -152,7 +152,7 @@ export default function PLScreen() {
            <Link to="/dashboard" className="p-1 -ml-1 text-slate-500 hover:text-slate-900 rounded-full hover:bg-slate-100 transition-colors">
               <ChevronLeft size={24} />
            </Link>
-           <h1 className="text-xl font-bold text-slate-900">Profit & Loss Report</h1>
+           <h1 className="text-xl font-bold text-slate-900">Statistics</h1>
         </div>
         <button onClick={handleExportPDF} disabled={loading || isExporting} className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-blue-600 bg-blue-50 rounded-full disabled:opacity-50"><Download size={16} /> PDF</button>
       </header>

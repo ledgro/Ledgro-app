@@ -137,7 +137,15 @@ async function start() {
     createRoot(document.getElementById('root')).render(
       <StrictMode>
         <App />
-        <Toaster position="top-center" />
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            className: 'ledgro-toast',
+            loading: { iconTheme: { primary: '#2563eb', secondary: '#94a3b8' } },
+            success: { iconTheme: { primary: '#10b981', secondary: '#ffffff' } },
+            error: { iconTheme: { primary: '#ef4444', secondary: '#ffffff' } },
+          }}
+        />
       </StrictMode>,
     );
     installErrorOverlay();

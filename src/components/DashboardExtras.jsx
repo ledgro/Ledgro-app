@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
-import { FilePlus2, Receipt, PackagePlus, AlertCircle, ChevronRight, Wallet } from 'lucide-react';
+import { FilePlus2, Package, Receipt, PackagePlus, AlertCircle, ChevronRight, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { db } from '../firebase';
 import { useCatalogStore } from '../store/catalogStore';
 import { useCatalogLoader } from '../hooks/useCatalogLoader';
@@ -10,23 +10,23 @@ import { formatCurrency } from '../lib/utils';
 const toDate = (ts) => (ts?.toDate ? ts.toDate() : ts instanceof Date ? ts : null);
 
 const ACTIONS = [
-  { to: '/pos', label: 'New bill', Icon: FilePlus2, tone: 'bg-blue-600 text-white' },
-  { to: '/expenses', label: 'Expense', Icon: Receipt, tone: 'bg-white text-slate-800 border border-slate-200' },
-  { to: '/transfers', label: 'Stock in', Icon: PackagePlus, tone: 'bg-white text-slate-800 border border-slate-200' },
+  { to: '/pos', label: 'New bill', Icon: FilePlus2 },
+  { to: '/products', label: 'Products', Icon: Package },
+  { to: '/expenses', label: 'Expenses', Icon: Receipt },
+  { to: '/transfers', label: 'Stock in', Icon: PackagePlus },
 ];
 
 export function QuickActions() {
   return (
-    <div className="grid grid-cols-3 gap-3" role="group" aria-label="Quick actions">
-      {ACTIONS.map(({ to, label, Icon, tone }) => (
-        <Link key={to} to={to} className={`flex h-20 flex-col items-center justify-center gap-1.5 rounded-2xl text-sm font-bold shadow-sm active:scale-95 transition-transform ${tone}`}>
-          <Icon size={22} aria-hidden="true" />
-          {label}
+    <div className="grid grid-cols-4 gap-2" role="group" aria-label="Quick actions">
+      {ACTIONS.map(({ to, label, Icon }) => (
+        <Link key={to} to={to} className="flex flex-col items-center gap-2 active:scale-95 transition-transform">
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-white text-blue-600 shadow-sm">
+            <Icon size={24} aria-hidden="true" />
+          </span>
+          <span className="text-xs font-bold text-slate-700">{label}</span>
         </Link>
       ))}
-      <Link to="/staff-cash" className="col-span-3 flex h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white text-sm font-bold text-slate-700 shadow-sm active:scale-95 transition-transform">
-        <Wallet size={18} aria-hidden="true" /> Staff cash: advances and debts
-      </Link>
     </div>
   );
 }
@@ -64,42 +64,55 @@ export function LowStock({ shopId }) {
   );
 }
 
-export function RecentBills({ shopId, mask }) {
-  const [bills, setBills] = useState(null);
+export function LatestActivity({ shopId, mask }) {
+  const [rows, setRows] = useState(null);
   useEffect(() => {
     if (!shopId) return undefined;
     let cancelled = false;
-    getDocs(query(collection(db, `shops/${shopId}/bills`), orderBy('createdAt', 'desc'), limit(10)))
-      .then((snap) => {
+    const q = (name) => getDocs(query(collection(db, `shops/${shopId}/${name}`), orderBy('createdAt', 'desc'), limit(15)));
+    Promise.all([q('bills'), q('expenses')])
+      .then(([bs, es]) => {
         if (cancelled) return;
-        const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        const reversed = new Set(all.filter((b) => b.type === 'reversal' && b.originalBillId).map((b) => b.originalBillId));
-        setBills(all.filter((b) => b.type !== 'reversal' && !reversed.has(b.id)).slice(0, 3));
+        const bills = bs.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const reversed = new Set(bills.filter((b) => b.type === 'reversal' && b.originalBillId).map((b) => b.originalBillId));
+        const list = [
+          ...bills.filter((b) => b.type !== 'reversal' && !reversed.has(b.id)).map((b) => ({
+            id: `b${b.id}`, at: toDate(b.createdAt), amount: b.grandTotal || 0, out: b.type === 'return',
+            title: b.type === 'return' ? 'Return' : `Bill${b.billNumber ? ` #${b.billNumber}` : ''}`, sub: (b.paymentMethod || '').toUpperCase(),
+          })),
+          ...es.docs.map((d) => { const e = d.data(); return { id: `e${d.id}`, at: toDate(e.createdAt), amount: e.amount || 0, out: true, title: e.description || e.category || 'Expense', sub: e.category || '' }; }),
+        ];
+        list.sort((a, b) => (b.at?.getTime() || 0) - (a.at?.getTime() || 0));
+        setRows(list.slice(0, 10));
       })
-      .catch(() => { if (!cancelled) setBills([]); });
+      .catch(() => { if (!cancelled) setRows([]); });
     return () => { cancelled = true; };
   }, [shopId]);
 
-  if (!bills || bills.length === 0) return null;
+  if (!rows || rows.length === 0) return null;
   return (
-    <section aria-label="Recent bills" className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+    <section aria-label="Latest transactions">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Recent bills</h3>
-        <Link to="/ledger" className="flex items-center text-xs font-semibold text-blue-600">History <ChevronRight size={14} aria-hidden="true" /></Link>
+        <h3 className="text-base font-black text-slate-900">Latest transactions</h3>
+        <Link to="/ledger" className="flex items-center text-xs font-semibold text-blue-600">View all <ChevronRight size={14} aria-hidden="true" /></Link>
       </div>
-      <ul className="divide-y divide-slate-100">
-        {bills.map((b) => {
-          const d = toDate(b.createdAt);
-          return (
-            <li key={b.id} className="flex items-center justify-between py-2 text-sm">
-              <span className="text-slate-500">
-                {d ? d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : ''}
-                <span className="ml-2 text-xs uppercase text-slate-500">{b.paymentMethod || ''}</span>
+      <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-100 bg-white shadow-sm">
+        {rows.map((r) => (
+          <li key={r.id} className="flex items-center gap-3 px-4 py-3">
+            <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${r.out ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+              {r.out ? <ArrowUpRight size={18} aria-hidden="true" /> : <ArrowDownLeft size={18} aria-hidden="true" />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-bold text-slate-900">{r.title}</span>
+              <span className="block truncate text-xs text-slate-500">
+                {r.at ? r.at.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : ''}{r.sub ? ` · ${r.sub}` : ''}
               </span>
-              <span className={`font-bold ${b.type === 'return' ? 'text-red-600' : 'text-slate-900'}`}>{mask(formatCurrency(b.grandTotal))}</span>
-            </li>
-          );
-        })}
+            </span>
+            <span className={`flex-shrink-0 text-sm font-black tabular-nums ${r.out ? 'text-red-600' : 'text-emerald-600'}`}>
+              {r.out ? '-' : '+'}{mask(formatCurrency(r.amount))}
+            </span>
+          </li>
+        ))}
       </ul>
     </section>
   );

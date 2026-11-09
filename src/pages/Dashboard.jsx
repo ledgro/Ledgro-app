@@ -15,7 +15,7 @@ import { formatCurrency, cn } from '../lib/utils';
 import { Skeleton } from '../components/Skeleton';
 import { Drawer } from 'vaul';
 import { computeDailyAggregations } from '../lib/aggregations';
-import { QuickActions, LowStock, RecentBills } from '../components/DashboardExtras';
+import { QuickActions, LowStock, LatestActivity } from '../components/DashboardExtras';
 
 
 export default function Dashboard() {
@@ -235,20 +235,31 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-               <div className="mb-4">
-                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Today's Net Earnings</p>
-                 <div className="flex items-end gap-3">
-                   <h2 className={cn("text-4xl font-black", stats.netEarnings >= 0 ? "text-green-600" : "text-red-500")}>
-                     {mask(formatCurrency(stats.netEarnings))}
-                   </h2>
-                   {stats.vsYesterday !== 0 && (
-                     <span className={cn("text-xs font-medium text-slate-500 mb-1", hidden && "blur-sm select-none")}>
-                       {stats.vsYesterday > 0 ? '↑' : '↓'} {Math.abs(stats.vsYesterday).toFixed(0)}% vs yesterday
-                     </span>
-                   )}
-                 </div>
-               </div>
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0a1840] via-[#0f2a6b] to-[#1d4ed8] p-6 text-white shadow-lg">
+              <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-400/30 blur-3xl" />
+              <div className="relative">
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-100/80">Today's net earnings</p>
+                <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
+                  <h2 className={cn('text-4xl font-black tabular-nums', stats.netEarnings >= 0 ? 'text-white' : 'text-rose-300')}>
+                    {mask(formatCurrency(stats.netEarnings))}
+                  </h2>
+                  {stats.vsYesterday !== 0 && (
+                    <span className={cn('mb-1 rounded-full bg-white/15 px-2 py-0.5 text-xs font-bold', hidden && 'blur-sm select-none')}>
+                      {stats.vsYesterday > 0 ? '↑' : '↓'} {Math.abs(stats.vsYesterday).toFixed(0)}% vs yesterday
+                    </span>
+                  )}
+                </div>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur-sm">
+                    <p className="text-[0.7rem] font-bold uppercase tracking-wider text-blue-100/80">Cash</p>
+                    <p className="text-lg font-black tabular-nums">{mask(formatCurrency(stats.cashSplit))}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur-sm">
+                    <p className="text-[0.7rem] font-bold uppercase tracking-wider text-blue-100/80">UPI</p>
+                    <p className="text-lg font-black tabular-nums">{mask(formatCurrency(stats.upiSplit))}</p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <QuickActions />
@@ -264,17 +275,8 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-px bg-slate-100 border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-              <div className="bg-white p-4 text-center">
-                <p className="text-lg font-black text-green-600">Cash {mask(formatCurrency(stats.cashSplit))}</p>
-              </div>
-              <div className="bg-white p-4 text-center">
-                <p className="text-lg font-black text-blue-600">UPI {mask(formatCurrency(stats.upiSplit))}</p>
-              </div>
-            </div>
-
             <LowStock shopId={shopId} />
-            <RecentBills shopId={shopId} mask={mask} />
+            <LatestActivity shopId={shopId} mask={mask} />
 
           </>
         )}
