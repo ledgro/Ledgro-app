@@ -10,7 +10,8 @@ import { serverTimestamp, doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import CashNotes from '../components/CashNotes';
-import { Cloud, CloudOff, RefreshCcw, Eye, EyeOff } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Cloud, CloudOff, RefreshCcw, Eye, EyeOff, Search as SearchIcon } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { Skeleton } from '../components/Skeleton';
 import { Drawer } from 'vaul';
@@ -19,7 +20,7 @@ import { QuickActions, LowStock, LatestActivity } from '../components/DashboardE
 
 
 export default function Dashboard() {
-  const { user, shopId, isAdmin } = useAuth();
+  const { user, shopId, shopName, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState({ online: navigator.onLine, pending: false, lastSynced: 'Just now' });
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
@@ -195,26 +196,28 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
+    <div className="page-bg h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
 
-      <div className="bg-slate-100 py-1.5 px-4 flex justify-between items-center text-xs font-bold text-slate-500 sticky top-0 z-30">
-         <div className="flex items-center gap-1.5">
-           {syncStatus.online ? <Cloud size={14} className="text-blue-500" /> : <CloudOff size={14} className="text-amber-500" />}
-           {syncStatus.online ? `Online` : <span className="text-amber-600">Offline: reconnect to bill or save</span>}
-         </div>
-         <div className="flex items-center gap-4">
-           <button
-             type="button"
-             aria-label={hidden ? 'Show amounts' : 'Hide amounts'}
-             aria-pressed={!hidden}
-             onClick={() => setHidden((h) => !h)}
-             className="p-2 -m-2 text-slate-500 active:scale-90 transition-transform"
-           >
-             {hidden ? <EyeOff size={18} /> : <Eye size={18} />}
-           </button>
-           <button aria-label="Refresh Dashboard" onClick={() => fetchDashboardData()} className="p-2 -m-2 active:rotate-180 transition-transform"><RefreshCcw size={14} /></button>
-         </div>
-      </div>
+      <header className="sticky top-0 z-30 flex items-center justify-between px-4 pb-2 pt-4 backdrop-blur-md">
+        <div className="flex min-w-0 items-center gap-3">
+          <span aria-hidden="true" className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-lg font-black text-white">
+            {(user?.displayName || shopName || 'L').trim().charAt(0).toUpperCase()}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-base font-bold text-slate-900">Hello, {(user?.displayName || shopName || 'there').trim().split(' ')[0]}</p>
+            <p className="flex items-center gap-1 text-xs font-semibold text-slate-500">
+              {syncStatus.online ? <><Cloud size={12} className="text-blue-500" /> Online</> : <><CloudOff size={12} className="text-amber-500" /> <span className="text-amber-600">Offline: reconnect to bill or save</span></>}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button type="button" aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={!hidden} onClick={() => setHidden((h) => !h)} className="glass-btn active:scale-90 transition-transform">
+            {hidden ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+          <button type="button" aria-label="Refresh Dashboard" onClick={() => fetchDashboardData()} className="glass-btn active:scale-90 transition-transform"><RefreshCcw size={16} /></button>
+          <Link to="/search" aria-label="Search" className="glass-btn active:scale-90 transition-transform"><SearchIcon size={18} /></Link>
+        </div>
+      </header>
 
       <main className="p-4 space-y-4">
 

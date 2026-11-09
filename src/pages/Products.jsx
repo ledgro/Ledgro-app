@@ -83,7 +83,7 @@ export default function Products() {
 
   const isAdmin = user?.uid === shopAdminId;
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(() => new URLSearchParams(window.location.hash.split('?')[1] || '').get('q') || '');
   const [showInactive, setShowInactive] = useState(false);
   const [sortBy, setSortBy] = useState('recently_added');
   const [filter, setFilter] = useState('__all__');
