@@ -15,7 +15,7 @@ import { formatCurrency, cn } from '../lib/utils';
 import { Skeleton } from '../components/Skeleton';
 import { Drawer } from 'vaul';
 import { computeDailyAggregations } from '../lib/aggregations';
-import { QuickActions, LowStock, RecentBills } from '../components/DashboardExtras';
+import { QuickActions, LowStock, LatestActivity } from '../components/DashboardExtras';
 
 
 export default function Dashboard() {
@@ -276,7 +276,7 @@ export default function Dashboard() {
             </div>
 
             <LowStock shopId={shopId} />
-            <RecentBills shopId={shopId} mask={mask} />
+            <LatestActivity shopId={shopId} mask={mask} />
 
           </>
         )}

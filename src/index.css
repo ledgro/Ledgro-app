@@ -37,6 +37,9 @@
   padding-bottom: calc(6rem + env(safe-area-inset-bottom));
 }
 
+.floating-nav { background: rgb(255 255 255 / 0.94); border: 1px solid rgb(226 232 240); box-shadow: 0 10px 30px rgb(15 23 42 / 0.12); backdrop-filter: blur(12px); }
+[data-theme="dark"] .floating-nav { background: rgb(17 26 43 / 0.94); border-color: #2b3648; box-shadow: 0 10px 30px rgb(0 0 0 / 0.5); }
+
 @utility pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -172,3 +175,6 @@
 html[data-kb="1"] .kb-hide { display: none; }
 html[data-kb="1"] .kb-slim { padding-top: 0.5rem; padding-bottom: 0.5rem; }
 html[data-kb="1"] .kb-slim button { height: 2.75rem; }
+
+/* Toasts follow the theme so the loading spinner stays visible in dark mode. */
+[data-theme="dark"] .ledgro-toast { background: #1e293b; color: #f1f5f9; border: 1px solid #2b3648; }

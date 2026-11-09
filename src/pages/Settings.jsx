@@ -11,7 +11,8 @@ import ExportMenu from '../components/ExportMenu';
 import BottomNav from '../components/BottomNav';
 import { usesPassword, displayId, isStaffEmail } from '../lib/staffLogin';
 import AddEmailForm from '../components/AddEmailForm';
-import { Store, Settings2, Database, User, LogOut, ChevronLeft, Save, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Package, Receipt, ArrowLeftRight, Wallet, Users, History, ChevronRight, Store, Settings2, Database, User, LogOut, ChevronLeft, Save, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { hapticVibrate } from '../lib/utils';
 import { format } from 'date-fns';
@@ -289,6 +290,23 @@ export default function Settings() {
       </header>
 
       <main className="p-4 space-y-6">
+        <section aria-label="Shop tools" className="bg-white rounded-3xl shadow-sm border border-slate-100 divide-y divide-slate-100 overflow-hidden">
+          {[
+            ['/products', 'Products', Package],
+            ['/expenses', 'Expenses', Receipt],
+            ['/transfers', 'Stock transfers', ArrowLeftRight],
+            ['/staff-cash', 'Staff cash', Wallet],
+            ['/members', 'Members', Users],
+            ...(isOwner ? [['/activity', 'Activity log', History]] : []),
+          ].map(([to, label, Icon]) => (
+            <Link key={to} to={to} className="flex items-center gap-3 px-5 h-14 font-bold text-slate-900 active:bg-slate-50">
+              <Icon size={20} className="text-blue-600" aria-hidden="true" />
+              <span className="flex-1">{label}</span>
+              <ChevronRight size={18} className="text-slate-400" aria-hidden="true" />
+            </Link>
+          ))}
+        </section>
+
         <section className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
           <h2 className="font-bold text-slate-900 mb-3">Appearance</h2>
           <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Theme">
@@ -426,7 +444,6 @@ export default function Settings() {
           </div>
         </section>
 
-        {isOwner && <button type="button" onClick={() => navigate('/activity')} className="w-full bg-white border border-slate-200 text-slate-900 font-bold h-12 rounded-xl">Activity log (voids, discounts, returns)</button>}
         {isOwner && <MoveData shopId={shopId} uid={user.uid} />}
         {isOwner && <ErrorLogSection shopId={shopId} uid={user.uid} />}
 

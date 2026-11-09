@@ -1,7 +1,7 @@
 import { createHashRouter, RouterProvider, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { lazy, Suspense, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, MotionConfig } from 'framer-motion';
 
 const SignIn = lazy(() => import('./pages/SignIn'));
 const ShopSetup = lazy(() => import('./pages/ShopSetup'));
@@ -66,7 +66,7 @@ const AnimatedLayout = () => {
       key={location.pathname}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.12, ease: 'easeOut' }}
+      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
       style={{ position: 'absolute', width: '100%', height: '100%' }}
     >
       <Suspense fallback={<SplashScreen />}>
@@ -118,7 +118,7 @@ export default function App() {
       <AuthProvider>
         <OfflineBanner />
         <ConfirmHost />
-        <RouterProvider router={router} />
+        <MotionConfig reducedMotion="user"><RouterProvider router={router} /></MotionConfig>
       </AuthProvider>
     </ErrorBoundary>
   );
