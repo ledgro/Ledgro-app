@@ -16,6 +16,7 @@ const ActivityLog = lazy(() => import('./pages/ActivityLog'));
 const Products = lazy(() => import('./pages/Products'));
 const Transfers = lazy(() => import('./pages/Transfers'));
 const Settings = lazy(() => import('./pages/Settings'));
+const Search = lazy(() => import('./pages/Search'));
 const PLScreen = lazy(() => import('./pages/PLScreen'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
@@ -103,6 +104,7 @@ const router = createHashRouter([
       { path: '/activity', element: <ProtectedRoute><ActivityLog /></ProtectedRoute> },
       { path: '/members', element: <ProtectedRoute><Members /></ProtectedRoute> },
       { path: '/settings', element: <ProtectedRoute><Settings /></ProtectedRoute> },
+      { path: '/search', element: <ProtectedRoute><Search /></ProtectedRoute> },
       { path: '/pnl', element: <ProtectedRoute><PLScreen /></ProtectedRoute> },
       { path: '/privacy', element: <PrivacyPolicy /> },
       { path: '/terms', element: <TermsOfService /> },

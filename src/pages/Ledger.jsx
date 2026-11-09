@@ -58,7 +58,7 @@ export default function Ledger() {
   const [selectedBill, setSelectedBill] = useState(null);
   const [processingReturn, setProcessingReturn] = useState(false);
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(() => new URLSearchParams(window.location.hash.split('?')[1] || '').get('q') || '');
   const [activeFilter, setActiveFilter] = useState('');
   const [showVoided, setShowVoided] = useState(false);
   const deferredQuery = useDeferredValue(searchQuery);
@@ -544,7 +544,7 @@ export default function Ledger() {
   };
 
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
+    <div className="page-bg h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
       <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 pt-3 pb-2 shadow-subtle flex flex-col gap-3">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold text-slate-900">Bill History</h1>

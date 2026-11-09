@@ -21,7 +21,7 @@ export function QuickActions() {
     <div className="grid grid-cols-4 gap-2" role="group" aria-label="Quick actions">
       {ACTIONS.map(({ to, label, Icon }) => (
         <Link key={to} to={to} className="flex flex-col items-center gap-2 active:scale-95 transition-transform">
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-white text-blue-600 shadow-sm">
+          <span className="glass-card flex h-16 w-16 items-center justify-center rounded-2xl text-blue-600">
             <Icon size={24} aria-hidden="true" />
           </span>
           <span className="text-xs font-bold text-slate-700">{label}</span>
@@ -78,7 +78,7 @@ export function LatestActivity({ shopId, mask }) {
         const list = [
           ...bills.filter((b) => b.type !== 'reversal' && !reversed.has(b.id)).map((b) => ({
             id: `b${b.id}`, at: toDate(b.createdAt), amount: b.grandTotal || 0, out: b.type === 'return',
-            title: b.type === 'return' ? 'Return' : `Bill${b.billNumber ? ` #${b.billNumber}` : ''}`, sub: (b.paymentMethod || '').toUpperCase(),
+            title: b.type === 'return' ? 'Return' : `Bill${b.billNo ? ` ${b.billNo}` : ''}`, sub: (b.paymentMethod || '').toUpperCase(),
           })),
           ...es.docs.map((d) => { const e = d.data(); return { id: `e${d.id}`, at: toDate(e.createdAt), amount: e.amount || 0, out: true, title: e.description || e.category || 'Expense', sub: e.category || '' }; }),
         ];
@@ -89,16 +89,17 @@ export function LatestActivity({ shopId, mask }) {
     return () => { cancelled = true; };
   }, [shopId]);
 
-  if (!rows || rows.length === 0) return null;
+  if (!rows) return null;
   return (
     <section aria-label="Latest transactions">
       <div className="mb-2 flex items-center justify-between">
         <h3 className="text-base font-black text-slate-900">Latest transactions</h3>
         <Link to="/ledger" className="flex items-center text-xs font-semibold text-blue-600">View all <ChevronRight size={14} aria-hidden="true" /></Link>
       </div>
-      <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-100 bg-white shadow-sm">
+      {rows.length === 0 && <p className="glass-card rounded-2xl px-4 py-6 text-center text-sm text-slate-500">No bills or expenses yet. Tap + to make your first bill.</p>}
+      <ul className="space-y-2">
         {rows.map((r) => (
-          <li key={r.id} className="flex items-center gap-3 px-4 py-3">
+          <li key={r.id} className="glass-card flex items-center gap-3 rounded-2xl px-4 py-3">
             <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${r.out ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
               {r.out ? <ArrowUpRight size={18} aria-hidden="true" /> : <ArrowDownLeft size={18} aria-hidden="true" />}
             </span>
