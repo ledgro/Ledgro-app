@@ -169,7 +169,7 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose })
             </div>
           </div>
 
-          <div className="absolute bottom-0 left-0 right-0 border-t border-slate-100 bg-white p-4 pb-safe">
+          <div className="kb-hide absolute bottom-0 left-0 right-0 border-t border-slate-100 bg-white p-4 pb-safe">
             <button type="button" disabled={busy} onClick={save} className="h-14 w-full rounded-xl bg-blue-600 font-bold text-white active:bg-blue-700 disabled:opacity-50">{busy ? 'Saving...' : 'Save'}</button>
           </div>
         </Drawer.Content>
