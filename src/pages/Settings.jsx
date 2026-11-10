@@ -144,9 +144,10 @@ export default function Settings() {
       if (rows.length === 0) { toast.info('Nothing to export yet.'); return; }
 
       const blob = await buildReport(fmt, {
-        title: 'Ledgro - Full Data Export',
-        subtitle: `Generated ${new Date().toLocaleString()}`,
-        summary: [`Net sales: ${rs(sales)}   Expenses: ${rs(spent)}   Net: ${rs(sales - spent)}`],
+        title: 'Full Data Export',
+        subtitle: 'All bills and expenses',
+        kpis: [{ label: 'Net sales', value: rs(sales) }, { label: 'Expenses', value: rs(spent) }, { label: 'Left over', value: rs(sales - spent), tone: sales - spent >= 0 ? 'good' : 'bad' }],
+        notes: ['Amounts in red are money going out (expenses and returns).'],
         columns: [
           { label: 'Date', w: 1.5, max: 18 }, { label: 'Entry', w: 3.5, max: 60 }, { label: 'Status', w: 1, max: 12 },
           { label: 'Pay', w: 0.8, max: 8 }, { label: 'Amount', w: 1.2, align: 'right', max: 18 },
