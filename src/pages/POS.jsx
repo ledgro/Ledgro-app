@@ -561,8 +561,8 @@ export default function POS() {
   };
 
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-white flex flex-col">
-      <header className="sticky top-0 z-30 border-b border-gray-100 bg-white px-4 pb-3 pt-3">
+    <div className="page-bg h-[100dvh] overflow-y-auto bg-white flex flex-col">
+      <header className="glass-header sticky top-0 z-30 px-4 pb-3 pt-3">
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900">{editBill ? 'Correct & Edit Bill' : 'New Bill'}</h1>
           <div className="flex items-center gap-1">

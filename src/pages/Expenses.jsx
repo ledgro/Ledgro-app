@@ -185,7 +185,7 @@ export default function Expenses() {
 
   return (
     <div className="h-[100dvh] overflow-y-auto bg-gray-50 page-bg flex flex-col overflow-x-hidden">
-      <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex justify-between items-center shadow-subtle">
+      <header className="sticky top-0 z-30 glass-header px-4 py-3 flex justify-between items-center">
         <h1 className="text-xl font-bold text-gray-900">Expenses</h1>
         {tab === 'expenses' && <button
           aria-label="New Expense"

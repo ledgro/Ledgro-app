@@ -139,7 +139,7 @@ export default function StaffCash({ embedded = false }) {
 
   return (
     <div className={embedded ? '' : 'page-bg h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav'}>
-      {!embedded && <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 py-4 flex items-center gap-3 shadow-subtle">
+      {!embedded && <header className="sticky top-0 z-30 glass-header px-4 py-4 flex items-center gap-3">
         <button type="button" aria-label="Back" onClick={() => navigate(-1)} className="p-1 -ml-1 text-slate-500 active:bg-slate-100 rounded-full"><ChevronLeft size={24} /></button>
         <h1 className="flex-1 text-xl font-bold text-slate-900">Staff cash</h1>
         <button type="button" onClick={openAdd} className="flex items-center gap-1 rounded-full bg-blue-600 px-4 py-2 text-sm font-bold text-white active:scale-95"><Plus size={16} /> Add</button>

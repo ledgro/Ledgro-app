@@ -202,3 +202,15 @@ html[data-kb="1"] .kb-slim button { height: 2.75rem; }
 /* Toasts: frosted pill, follows the theme. */
 :root { --toast-bg: rgb(255 255 255 / 0.92); --toast-fg: #0f172a; --toast-bd: rgb(226 232 240); --toast-shadow: 0 12px 32px rgb(15 23 42 / 0.14); }
 [data-theme="dark"] { --toast-bg: rgb(20 30 50 / 0.92); --toast-fg: #f1f5f9; --toast-bd: rgb(255 255 255 / 0.1); --toast-shadow: 0 12px 32px rgb(0 0 0 / 0.5); }
+
+/* Shared screen chrome: frosted sticky header, pill inputs, list entrance. */
+.glass-header { background: rgb(248 250 252 / 0.78); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+[data-theme="dark"] .glass-header { background: rgb(5 10 22 / 0.7); }
+.glass-input { background: #fff; border: 1px solid rgb(226 232 240); }
+[data-theme="dark"] .glass-input { background: rgb(255 255 255 / 0.06); border-color: rgb(255 255 255 / 0.1); }
+.rise-list > * { animation: rise 0.55s var(--ease-ios) both; }
+.rise-list > *:nth-child(1) { animation-delay: 0ms; } .rise-list > *:nth-child(2) { animation-delay: 40ms; } .rise-list > *:nth-child(3) { animation-delay: 80ms; }
+.rise-list > *:nth-child(4) { animation-delay: 120ms; } .rise-list > *:nth-child(5) { animation-delay: 160ms; } .rise-list > *:nth-child(6) { animation-delay: 200ms; }
+.rise-list > *:nth-child(n+7) { animation-delay: 240ms; }
+@keyframes rise { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .rise-list > * { animation: none; } }
