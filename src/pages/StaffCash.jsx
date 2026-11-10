@@ -25,7 +25,7 @@ const KINDS = [
 const KIND_LABEL = { advance: 'Advance', debt: 'Debt', repay: 'Repaid', work: 'Worked', payout: 'Wage paid', close: 'Settled up' };
 const field = 'w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900';
 
-export default function StaffCash() {
+export default function StaffCash({ embedded = false }) {
   const navigate = useNavigate();
   const { shopId, user, isAdmin } = useAuth();
   const [entries, setEntries] = useState(null);
@@ -138,14 +138,15 @@ export default function StaffCash() {
   const kind = KINDS.find((k) => k.value === f.kind);
 
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 py-4 flex items-center gap-3 shadow-subtle">
+    <div className={embedded ? '' : 'page-bg h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav'}>
+      {!embedded && <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 py-4 flex items-center gap-3 shadow-subtle">
         <button type="button" aria-label="Back" onClick={() => navigate(-1)} className="p-1 -ml-1 text-slate-500 active:bg-slate-100 rounded-full"><ChevronLeft size={24} /></button>
         <h1 className="flex-1 text-xl font-bold text-slate-900">Staff cash</h1>
         <button type="button" onClick={openAdd} className="flex items-center gap-1 rounded-full bg-blue-600 px-4 py-2 text-sm font-bold text-white active:scale-95"><Plus size={16} /> Add</button>
-      </header>
+      </header>}
 
-      <main className="p-4 space-y-4">
+      <main className={embedded ? 'space-y-4' : 'p-4 space-y-4'}>
+        {embedded && <button type="button" onClick={openAdd} className="press flex w-full items-center justify-center gap-1 rounded-2xl bg-blue-600 h-12 text-sm font-bold text-white"><Plus size={16} /> Add staff cash</button>}
         <div className="rounded-2xl bg-white p-5 shadow-sm border border-slate-100">
           <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total still owed to the shop</p>
           <p className="text-3xl font-black text-slate-900 tabular-nums">{formatCurrency(totalOwed)}</p>
@@ -278,7 +279,7 @@ export default function StaffCash() {
         </Drawer.Portal>
       </Drawer.Root>
 
-      <BottomNav />
+      {!embedded && <BottomNav />}
     </div>
   );
 }

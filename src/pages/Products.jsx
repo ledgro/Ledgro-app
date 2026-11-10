@@ -532,7 +532,7 @@ export default function Products() {
         </div>
         <div className="relative mb-3">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
-          <input
+          <input maxLength={60}
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}

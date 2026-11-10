@@ -1,6 +1,8 @@
 import { sheetStyle } from '../hooks/useKeyboardInset';
 import { toast } from 'sonner';
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import StaffCash from './StaffCash';
 import { useAuth } from '../context/AuthContext';
 import { collection, query, orderBy, getDocs, serverTimestamp, writeBatch, doc, limit } from 'firebase/firestore';
 import { writeStats } from '../lib/dayStats';
@@ -28,6 +30,8 @@ const CATEGORIES = [
 ];
 
 export default function Expenses() {
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') === 'staff' ? 'staff' : 'expenses';
   const { user, shopId, shopAdminId } = useAuth();
   const nameOf = useNameOf(shopId, user?.uid);
   const isAdmin = user?.uid === shopAdminId;
@@ -180,19 +184,26 @@ export default function Expenses() {
   };
 
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-gray-50 flex flex-col overflow-x-hidden">
+    <div className="h-[100dvh] overflow-y-auto bg-gray-50 page-bg flex flex-col overflow-x-hidden">
       <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex justify-between items-center shadow-subtle">
         <h1 className="text-xl font-bold text-gray-900">Expenses</h1>
-        <button
+        {tab === 'expenses' && <button
           aria-label="New Expense"
           onClick={() => setIsOpen(true)}
           className="bg-gray-900 hover:bg-gray-800 active:scale-95 transition-all text-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 shadow-sm"
         >
           <Plus size={16} /> New
-        </button>
+        </button>}
       </header>
 
-      <main className="p-4 flex-1 pb-nav">
+      <div role="tablist" aria-label="Expense type" className="grid grid-cols-2 gap-2 px-4 pt-3">
+        {[['expenses', 'Shop expenses'], ['staff', 'Staff cash']].map(([k, l]) => (
+          <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setParams(k === 'staff' ? { tab: 'staff' } : {}, { replace: true })}
+            className={`press h-11 rounded-full text-sm font-bold ${tab === k ? 'bg-blue-600 text-white shadow-md' : 'glass-btn-flat text-slate-600'}`}>{l}</button>
+        ))}
+      </div>
+
+      {tab === 'staff' ? <main className="p-4 flex-1 pb-nav"><StaffCash embedded /></main> : <main className="p-4 flex-1 pb-nav">
         {loading ? (
           <div className="space-y-4">
             <Skeleton className="h-20 rounded-2xl" />
@@ -263,7 +274,7 @@ export default function Expenses() {
             })}
           </div>
         )}
-      </main>
+      </main>}
 
       <Drawer.Root handleOnly repositionInputs={false} open={isOpen} onOpenChange={(open) => {
          setIsOpen(open);

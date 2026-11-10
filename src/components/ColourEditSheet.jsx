@@ -162,7 +162,7 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose })
               {sizeAxis && (
                 <div className="pt-2">
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Add sizes</label>
-                  <input className={field} value={f.newSizes} onChange={set('newSizes')} placeholder="e.g. 39, 40, 41" />
+                  <input maxLength={80} className={field} value={f.newSizes} onChange={set('newSizes')} placeholder="e.g. 39, 40, 41" />
                   {adding.length > 0 && <p className="mt-1 text-xs font-semibold text-slate-500">Will add {adding.join(', ')} to {entry.colour || 'this product'}. Set their stock after saving.</p>}
                 </div>
               )}

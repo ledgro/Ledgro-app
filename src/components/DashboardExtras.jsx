@@ -20,7 +20,7 @@ export function QuickActions() {
   return (
     <div className="grid grid-cols-4 gap-2" role="group" aria-label="Quick actions">
       {ACTIONS.map(({ to, label, Icon }) => (
-        <Link key={to} to={to} className="flex flex-col items-center gap-2 active:scale-95 transition-transform">
+        <Link key={to} to={to} className="press flex flex-col items-center gap-2">
           <span className="glass-card flex h-16 w-16 items-center justify-center rounded-2xl text-blue-600">
             <Icon size={24} aria-hidden="true" />
           </span>

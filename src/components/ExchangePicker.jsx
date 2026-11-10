@@ -31,7 +31,7 @@ export default function ExchangePicker({ lines, setLines, oldUnitPrice }) {
   return (
     <div className="space-y-3">
       <p className="text-sm font-bold text-slate-700">Give instead (optional)</p>
-      <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} className={box} aria-label="Search replacement item" />
+      <input maxLength={60} type="text" value={query} onChange={(e) => setQuery(e.target.value)} className={box} aria-label="Search replacement item" />
       {results.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
           {results.map((p) => (

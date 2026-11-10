@@ -33,7 +33,7 @@ export default function ConfirmHost() {
           {typeToConfirm && (
             <div className="mt-4">
               <label htmlFor="confirm-typed" className="block text-sm font-bold text-slate-700">Type {typeToConfirm} to confirm</label>
-              <input id="confirm-typed" type="text" autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
+              <input maxLength={40} id="confirm-typed" type="text" autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
                 value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={typeToConfirm}
                 className="mt-2 h-12 w-full rounded-xl border border-slate-200 px-4 font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-red-500" />
             </div>

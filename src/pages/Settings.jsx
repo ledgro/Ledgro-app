@@ -12,7 +12,7 @@ import BottomNav from '../components/BottomNav';
 import { usesPassword, displayId, isStaffEmail } from '../lib/staffLogin';
 import AddEmailForm from '../components/AddEmailForm';
 import { Link } from 'react-router-dom';
-import { Package, Receipt, ArrowLeftRight, Wallet, Users, History, ChevronRight, Store, Settings2, Database, User, LogOut, ChevronLeft, Save, Trash2 } from 'lucide-react';
+import { Package, Receipt, ArrowLeftRight, Users, History, ChevronRight, Store, Settings2, Database, User, LogOut, ChevronLeft, Save, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { hapticVibrate } from '../lib/utils';
 import { format } from 'date-fns';
@@ -290,12 +290,24 @@ export default function Settings() {
       </header>
 
       <main className="p-4 space-y-6">
+        <section aria-label="Your name" className="bg-white rounded-3xl shadow-sm border border-slate-100 px-5 py-4">
+          <label htmlFor="your-name" className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Your name (shown on Home)</label>
+          <input
+            id="your-name"
+            type="text"
+            maxLength={30}
+            defaultValue={(() => { try { return localStorage.getItem('ledgro_name') || ''; } catch { return ''; } })()}
+            onBlur={(e) => { try { localStorage.setItem('ledgro_name', e.target.value.trim()); } catch { /* storage blocked */ } }}
+            placeholder="Your first name"
+            className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium"
+          />
+        </section>
+
         <section aria-label="Shop tools" className="bg-white rounded-3xl shadow-sm border border-slate-100 divide-y divide-slate-100 overflow-hidden">
           {[
             ['/products', 'Products', Package],
             ['/expenses', 'Expenses', Receipt],
             ['/transfers', 'Stock transfers', ArrowLeftRight],
-            ['/staff-cash', 'Staff cash', Wallet],
             ['/members', 'Members', Users],
             ...(isOwner ? [['/activity', 'Activity log', History]] : []),
           ].map(([to, label, Icon]) => (

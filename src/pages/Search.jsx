@@ -88,7 +88,7 @@ export default function Search() {
         <button type="button" aria-label="Back" onClick={() => navigate(-1)} className="glass-btn"><ChevronLeft size={20} /></button>
         <div className="relative flex-1">
           <SearchIcon size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
-          <input
+          <input maxLength={60}
             ref={inputRef}
             value={term}
             onChange={(e) => setTerm(e.target.value)}
