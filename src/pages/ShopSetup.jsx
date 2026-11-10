@@ -300,7 +300,7 @@ const ShopSetup = () => {
           <div className="mt-2 space-y-2 rounded-xl border border-red-200 bg-white p-3">
             <p className="text-sm text-slate-700">Your login is deleted for good. Type DELETE to confirm.</p>
             {user && usesPassword(user) && <input type="password" autoComplete="current-password" value={delPw} onChange={(e) => setDelPw(e.target.value)} placeholder="Your password" className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium" />}
-            <input type="text" value={delWord} onChange={(e) => setDelWord(e.target.value)} placeholder="DELETE" className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium" />
+            <input maxLength={20} type="text" value={delWord} onChange={(e) => setDelWord(e.target.value)} placeholder="DELETE" className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium" />
             <button type="button" disabled={delBusy || delWord.trim().toUpperCase() !== 'DELETE'} onClick={runDeleteAccount} className="w-full h-12 rounded-xl bg-red-600 font-bold text-white disabled:opacity-40">{delBusy ? 'Deleting...' : 'Delete my account'}</button>
           </div>
         )}

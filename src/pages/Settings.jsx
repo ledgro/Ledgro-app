@@ -12,7 +12,7 @@ import BottomNav from '../components/BottomNav';
 import { usesPassword, displayId, isStaffEmail } from '../lib/staffLogin';
 import AddEmailForm from '../components/AddEmailForm';
 import { Link } from 'react-router-dom';
-import { Package, Receipt, ArrowLeftRight, Wallet, Users, History, ChevronRight, Store, Settings2, Database, User, LogOut, ChevronLeft, Save, Trash2 } from 'lucide-react';
+import { Package, Receipt, ArrowLeftRight, Users, History, ChevronRight, Store, Settings2, Database, User, LogOut, ChevronLeft, Save, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { hapticVibrate } from '../lib/utils';
 import { format } from 'date-fns';
@@ -308,7 +308,6 @@ export default function Settings() {
             ['/products', 'Products', Package],
             ['/expenses', 'Expenses', Receipt],
             ['/transfers', 'Stock transfers', ArrowLeftRight],
-            ['/staff-cash', 'Staff cash', Wallet],
             ['/members', 'Members', Users],
             ...(isOwner ? [['/activity', 'Activity log', History]] : []),
           ].map(([to, label, Icon]) => (

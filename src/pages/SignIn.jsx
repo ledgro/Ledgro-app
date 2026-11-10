@@ -254,7 +254,7 @@ const SignIn = () => {
                     className="w-full h-12 px-4 border border-slate-200 rounded-xl font-mono font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 )}
-                <input
+                <input maxLength={100}
                   type="text" autoCapitalize="none" autoCorrect="off" autoComplete="username" spellCheck={false}
                   value={identifier} onChange={(e) => setIdentifier(e.target.value)}
                   placeholder={pwMode === 'signin' ? 'Username or email' : joinCode.trim() ? 'Choose a username' : 'Email'}

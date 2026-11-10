@@ -10,7 +10,6 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const POS = lazy(() => import('./pages/POS'));
 const Ledger = lazy(() => import('./pages/Ledger'));
 const Expenses = lazy(() => import('./pages/Expenses'));
-const StaffCash = lazy(() => import('./pages/StaffCash'));
 const Members = lazy(() => import('./pages/Members'));
 const ActivityLog = lazy(() => import('./pages/ActivityLog'));
 const Products = lazy(() => import('./pages/Products'));
@@ -98,7 +97,7 @@ const router = createHashRouter([
       { path: '/pos', element: <ProtectedRoute><POS /></ProtectedRoute> },
       { path: '/ledger', element: <ProtectedRoute><Ledger /></ProtectedRoute> },
       { path: '/expenses', element: <ProtectedRoute><Expenses /></ProtectedRoute> },
-      { path: '/staff-cash', element: <ProtectedRoute><StaffCash /></ProtectedRoute> },
+      { path: '/staff-cash', element: <Navigate to="/expenses?tab=staff" replace /> },
       { path: '/products', element: <ProtectedRoute><Products /></ProtectedRoute> },
       { path: '/transfers', element: <ProtectedRoute><Transfers /></ProtectedRoute> },
       { path: '/activity', element: <ProtectedRoute><ActivityLog /></ProtectedRoute> },

@@ -127,7 +127,7 @@ export default function CartItem({ item, dispatch, onOpenDiscount }) {
             <Minus size={18} />
           </button>
 
-          <input
+          <input maxLength={100}
             type="text"
             inputMode="decimal"
             value={localQty}
