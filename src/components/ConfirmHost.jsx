@@ -27,20 +27,21 @@ export default function ConfirmHost() {
     <Drawer.Root handleOnly repositionInputs={false} open={open} onOpenChange={(o) => { if (!o) answer(false); }} onAnimationEnd={(o) => { if (!o) setReq(null); }}>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-[100] bg-black/50" />
-        <Drawer.Content style={sheetStyle} aria-describedby={undefined} className="fixed bottom-0 left-0 right-0 z-[101] mx-auto w-full max-w-md rounded-t-2xl bg-white p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] focus:outline-none">
-          <Drawer.Title className="text-lg font-bold text-slate-900">{title || 'Please confirm'}</Drawer.Title>
-          <p className="mt-1 text-sm text-slate-600 whitespace-pre-line">{message}</p>
+        <Drawer.Content style={sheetStyle} aria-describedby={undefined} className="fixed bottom-0 left-0 right-0 z-[101] mx-auto w-full max-w-md rounded-t-[28px] bg-white p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] focus:outline-none">
+          <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-slate-200" aria-hidden="true" />
+          <Drawer.Title className="text-center text-lg font-bold text-slate-900">{title || 'Please confirm'}</Drawer.Title>
+          <p className="mx-auto mt-2 max-w-xs text-center text-sm text-slate-500 whitespace-pre-line">{message}</p>
           {typeToConfirm && (
             <div className="mt-4">
-              <label htmlFor="confirm-typed" className="block text-sm font-bold text-slate-700">Type {typeToConfirm} to confirm</label>
+              <label htmlFor="confirm-typed" className="block text-center text-sm font-bold text-slate-700">Type {typeToConfirm} to confirm</label>
               <input maxLength={40} id="confirm-typed" type="text" autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
                 value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={typeToConfirm}
-                className="mt-2 h-12 w-full rounded-xl border border-slate-200 px-4 font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-red-500" />
+                className="mt-2 h-12 w-full rounded-2xl border border-slate-200 px-4 text-center font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-red-500" />
             </div>
           )}
-          <div className="mt-5 flex gap-3">
-            <button type="button" onClick={() => answer(false)} className="h-12 flex-1 rounded-xl bg-slate-100 font-bold text-slate-700 active:scale-95 transition-transform">{cancelText}</button>
-            <button type="button" disabled={!typedOk} onClick={() => answer(true)} className={cn('h-12 flex-1 rounded-xl font-bold text-white active:scale-95 transition-transform disabled:opacity-40', danger ? 'bg-red-600' : 'bg-blue-600')}>{confirmText}</button>
+          <div className="mt-6 space-y-2">
+            <button type="button" disabled={!typedOk} onClick={() => answer(true)} className={cn('press h-14 w-full rounded-2xl font-bold text-white disabled:opacity-40', danger ? 'bg-red-600' : 'bg-blue-600')}>{confirmText}</button>
+            <button type="button" onClick={() => answer(false)} className="press glass-btn-flat h-14 w-full rounded-2xl font-bold">{cancelText}</button>
           </div>
         </Drawer.Content>
       </Drawer.Portal>
