@@ -9,6 +9,7 @@ import BottomNav from '../components/BottomNav';
 import { Download, ChevronLeft } from 'lucide-react';
 import { formatCurrency, cn, sanitizeText } from '../lib/utils';
 import { motion } from 'framer-motion';
+import { Donut, Legend, Trend, PALETTE } from '../components/charts';
 import { Skeleton } from '../components/Skeleton';
 
 import { addDays, subDays, startOfWeek, endOfWeek, subWeeks, startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
@@ -92,6 +93,14 @@ export default function PLScreen() {
   const upi = cur.upi + cur.splitUpi;
   const loading = days == null;
 
+  const top = cats.slice(0, 4);
+  const rest = cats.slice(4).reduce((n, [, v]) => n + v, 0);
+  const catSegs = [...top.map(([k, v], i) => ({ label: sanitizeText(k).replace(/_/g, ' '), value: v, color: PALETTE[i] })), ...(rest > 0 ? [{ label: 'Other', value: rest, color: PALETTE[4] }] : [])];
+  const shareOf = (v) => (exp > 0 ? `${Math.round((v / exp) * 100)}%` : '-');
+  const paySegs = [{ label: 'Cash', value: cash, color: '#34d399' }, { label: 'UPI', value: upi, color: '#60a5fa' }];
+  const payTotal = cash + upi;
+  const payShare = (v) => (payTotal > 0 ? `${Math.round((v / payTotal) * 100)}%` : '-');
+
   const handleExportPDF = async () => {
     setIsExporting(true);
     try {
@@ -160,6 +169,28 @@ export default function PLScreen() {
 
         {!loading && (
           <>
+
+            <section aria-label="Breakdown" className="glass-card grid grid-cols-2 gap-4 rounded-3xl p-5">
+              <div>
+                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">Expenses</p>
+                <div className="flex justify-center"><Donut size={132} segments={catSegs} center={catSegs[0] ? shareOf(catSegs[0].value) : '-'} sub={catSegs[0]?.label} label="Expenses by category" /></div>
+                <Legend rows={catSegs.length ? catSegs.map((x) => ({ label: x.label, color: x.color, pct: shareOf(x.value) })) : [{ label: 'No expenses', color: '#94a3b8', pct: '-' }]} />
+              </div>
+              <div>
+                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">Payments</p>
+                <div className="flex justify-center"><Donut size={132} segments={paySegs} center={payShare(cash)} sub="cash" label="Cash and UPI split" /></div>
+                <Legend rows={paySegs.map((x) => ({ label: x.label, color: x.color, pct: payShare(x.value) }))} />
+              </div>
+            </section>
+
+            <section aria-label="Profit trend" className="glass-card rounded-3xl p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Net profit trend</p>
+                <span className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-black text-white tabular-nums">{formatCurrency(net)}</span>
+              </div>
+              <Trend values={totals.map((t) => t.rev - t.exp)} labels={buckets.map((b) => b.label)} active={idx} />
+            </section>
+
             <section className="glass-card rounded-3xl p-5">
               <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Net profit</p>
               <p className={cn('mt-1 text-3xl font-black tabular-nums', net >= 0 ? 'text-emerald-500' : 'text-red-500')}>{formatCurrency(net)}</p>

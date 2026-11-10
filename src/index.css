@@ -195,6 +195,9 @@ html[data-kb="1"] .kb-slim button { height: 2.75rem; }
 .nav-pill { background: rgb(37 99 235 / 0.12); }
 [data-theme="dark"] .nav-pill { background: rgb(37 99 235 / 0.28); box-shadow: inset 0 0 0 1px rgb(96 165 250 / 0.25); }
 @media (prefers-reduced-motion: reduce) { .press, .press:active { transition: none; transform: none; } }
+.trend-draw { animation: trend-draw 1.1s var(--ease-ios) both; }
+@keyframes trend-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { .trend-draw { animation: none; } }
 
 /* Toasts: frosted pill, follows the theme. */
 :root { --toast-bg: rgb(255 255 255 / 0.92); --toast-fg: #0f172a; --toast-bd: rgb(226 232 240); --toast-shadow: 0 12px 32px rgb(15 23 42 / 0.14); }
