@@ -107,18 +107,27 @@ export default function PLScreen() {
       const blob = await buildReport('pdf', {
         title: `${shopName || 'Shop'} - Statistics`,
         subtitle: bucket.full,
-        columns: [{ label: 'Item', w: 5 }, { label: 'Amount', w: 2, align: 'right' }, { label: '% of sales', w: 1, align: 'right' }],
+        kpis: [
+          { label: 'Money in (net sales)', value: rs(sales) },
+          { label: 'Money out (expenses)', value: rs(exp) },
+          { label: net >= 0 ? 'Profit' : 'Loss', value: rs(net), tone: net >= 0 ? 'good' : 'bad' },
+        ],
+        columns: [{ label: 'What', w: 5 }, { label: 'Amount', w: 2.2, align: 'right' }, { label: 'Share of sales', w: 1.6, align: 'right' }],
         rows: [
-          ['INCOME', '', ''],
-          ['Cash sales', rs(cash), pct(cash)],
-          ['UPI sales', rs(upi), pct(upi)],
-          ['Net sales (after returns)', rs(sales), sales > 0 ? '100.0%' : '-'],
-          ['', '', ''],
-          ['EXPENSES', '', ''],
-          ...cats.map(([k, v]) => [String(k).replace(/_/g, ' '), rs(v), pct(v)]),
-          ['Total expenses', rs(exp), pct(exp)],
-          ['', '', ''],
-          ['NET PROFIT', rs(net), margin == null ? '-' : `${margin.toFixed(1)}%`],
+          { kind: 'section', cells: ['MONEY IN: sales'] },
+          ['Paid in cash', rs(cash), pct(cash)],
+          ['Paid by UPI', rs(upi), pct(upi)],
+          { kind: 'total', cells: ['Total sales (after returns)', rs(sales), sales > 0 ? '100.0%' : '-'] },
+          { kind: 'gap', cells: [] },
+          { kind: 'section', cells: ['MONEY OUT: expenses'] },
+          ...cats.map(([k, v]) => [String(k).replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()), rs(v), pct(v)]),
+          { kind: 'total', cells: ['Total expenses', rs(exp), pct(exp)] },
+          { kind: 'gap', cells: [] },
+          { kind: 'total', cells: [net >= 0 ? 'PROFIT (sales minus expenses)' : 'LOSS (sales minus expenses)', rs(net), margin == null ? '-' : `${margin.toFixed(1)}%`] },
+        ],
+        notes: [
+          'Total sales = all bills in this period minus returns.',
+          'Profit = total sales minus expenses. Share of sales shows how much of every 100 rupees of sales each line is.',
         ],
       });
       await saveFile(blob, `Statistics-${dayKey(new Date())}.pdf`, 'Statistics');

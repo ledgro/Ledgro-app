@@ -527,9 +527,10 @@ export default function Ledger() {
       });
 
       const blob = await buildReport(format, {
-        title: 'Ledgro - Bill History',
-        subtitle: `Generated ${new Date().toLocaleString()} • ${rows.length} bills`,
-        summary: [`Net total (sales minus returns, voids excluded): ${rs(total)}`],
+        title: 'Bill History',
+        subtitle: `${rows.length} bills`,
+        kpis: [{ label: 'Bills listed', value: String(rows.length) }, { label: 'Net total', value: rs(total), tone: total >= 0 ? 'good' : 'bad' }],
+        notes: ['Net total = sales minus returns. Voided bills are not counted.'],
         columns: [
           { label: 'Bill', w: 1.2, max: 18 }, { label: 'Date', w: 1.6, max: 24 }, { label: 'Status', w: 0.8, max: 10 },
           { label: 'Pay', w: 0.7, max: 8 }, { label: 'Total', w: 1.1, align: 'right', max: 18 }, { label: 'Items', w: 4, max: 70 },
