@@ -8,6 +8,7 @@ import { saveFile } from '../lib/shareFile';
 import BottomNav from '../components/BottomNav';
 import { Download, ChevronLeft } from 'lucide-react';
 import { formatCurrency, cn, sanitizeText } from '../lib/utils';
+import { motion } from 'framer-motion';
 import { Skeleton } from '../components/Skeleton';
 
 import { addDays, subDays, startOfWeek, endOfWeek, subWeeks, startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
@@ -143,7 +144,13 @@ export default function PLScreen() {
             {buckets.map((b, i) => (
               <button key={b.label + i} type="button" onClick={() => setSel(i)} aria-label={`${b.full}: ${formatCurrency(totals[i].rev)}`} aria-pressed={i === idx}
                 className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
-                <span className={cn('w-full rounded-xl transition-all duration-500', i === idx ? 'bg-blue-600' : 'bar-idle')} style={{ height: `${Math.max(6, (totals[i].rev / max) * 100)}%` }} />
+                <motion.span
+                  key={`${tab}-${i}`}
+                  initial={{ height: '6%' }}
+                  animate={{ height: `${Math.max(6, (totals[i].rev / max) * 100)}%` }}
+                  transition={{ type: 'spring', stiffness: 140, damping: 22, delay: i * 0.04 }}
+                  className={cn('w-full rounded-xl transition-colors duration-500', i === idx ? 'bg-blue-600' : 'bar-idle')}
+                />
                 <span className={cn('text-[0.65rem] font-semibold', i === idx ? 'text-slate-900' : 'text-slate-500')}>{b.label}</span>
               </button>
             ))}

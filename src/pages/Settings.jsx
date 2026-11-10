@@ -290,6 +290,19 @@ export default function Settings() {
       </header>
 
       <main className="p-4 space-y-6">
+        <section aria-label="Your name" className="bg-white rounded-3xl shadow-sm border border-slate-100 px-5 py-4">
+          <label htmlFor="your-name" className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Your name (shown on Home)</label>
+          <input
+            id="your-name"
+            type="text"
+            maxLength={30}
+            defaultValue={(() => { try { return localStorage.getItem('ledgro_name') || ''; } catch { return ''; } })()}
+            onBlur={(e) => { try { localStorage.setItem('ledgro_name', e.target.value.trim()); } catch { /* storage blocked */ } }}
+            placeholder="Your first name"
+            className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium"
+          />
+        </section>
+
         <section aria-label="Shop tools" className="bg-white rounded-3xl shadow-sm border border-slate-100 divide-y divide-slate-100 overflow-hidden">
           {[
             ['/products', 'Products', Package],

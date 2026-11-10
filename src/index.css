@@ -187,3 +187,11 @@ html[data-kb="1"] .kb-slim button { height: 2.75rem; }
 
 /* Toasts follow the theme so the loading spinner stays visible in dark mode. */
 
+
+/* iPhone-style motion: one easing curve everywhere, quick press feedback, soft entrances. */
+:root { --ease-ios: cubic-bezier(0.32, 0.72, 0, 1); }
+.press { transition: transform 0.28s var(--ease-ios), background-color 0.3s var(--ease-ios), color 0.3s var(--ease-ios); -webkit-tap-highlight-color: transparent; }
+.press:active { transform: scale(0.94); transition-duration: 0.12s; }
+.nav-pill { background: rgb(37 99 235 / 0.12); }
+[data-theme="dark"] .nav-pill { background: rgb(37 99 235 / 0.28); box-shadow: inset 0 0 0 1px rgb(96 165 250 / 0.25); }
+@media (prefers-reduced-motion: reduce) { .press, .press:active { transition: none; transform: none; } }

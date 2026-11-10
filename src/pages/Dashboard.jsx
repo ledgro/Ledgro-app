@@ -9,6 +9,7 @@ import { bizDayKey } from '../lib/statsMath';
 import { serverTimestamp, doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
+import Reveal from '../components/Reveal';
 import CashNotes from '../components/CashNotes';
 import { Link } from 'react-router-dom';
 import { Cloud, CloudOff, RefreshCcw, Eye, EyeOff, Search as SearchIcon } from 'lucide-react';
@@ -21,6 +22,13 @@ import { QuickActions, LowStock, LatestActivity } from '../components/DashboardE
 
 export default function Dashboard() {
   const { user, shopId, shopName, isAdmin } = useAuth();
+  const displayName = (() => {
+    let saved = '';
+    try { saved = localStorage.getItem('ledgro_name') || ''; } catch { /* storage blocked */ }
+    const fromMail = user?.email ? user.email.split('@')[0].replace(/[._0-9]+/g, ' ').trim() : '';
+    const n = (saved || user?.displayName || fromMail || shopName || 'there').trim();
+    return n.charAt(0).toUpperCase() + n.slice(1);
+  })();
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState({ online: navigator.onLine, pending: false, lastSynced: 'Just now' });
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
@@ -201,21 +209,21 @@ export default function Dashboard() {
       <header className="sticky top-0 z-30 flex items-center justify-between px-4 pb-2 pt-4 backdrop-blur-md">
         <div className="flex min-w-0 items-center gap-3">
           <span aria-hidden="true" className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-lg font-black text-white">
-            {(user?.displayName || shopName || 'L').trim().charAt(0).toUpperCase()}
+            {displayName.charAt(0).toUpperCase()}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-base font-bold text-slate-900">Hello, {(user?.displayName || shopName || 'there').trim().split(' ')[0]}</p>
+            <p className="truncate text-base font-bold text-slate-900">Hello, {displayName.split(' ')[0]}</p>
             <p className="flex items-center gap-1 text-xs font-semibold text-slate-500">
               {syncStatus.online ? <><Cloud size={12} className="text-blue-500" /> Online</> : <><CloudOff size={12} className="text-amber-500" /> <span className="text-amber-600">Offline: reconnect to bill or save</span></>}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={!hidden} onClick={() => setHidden((h) => !h)} className="glass-btn active:scale-90 transition-transform">
+          <button type="button" aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={!hidden} onClick={() => setHidden((h) => !h)} className="glass-btn press">
             {hidden ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
-          <button type="button" aria-label="Refresh Dashboard" onClick={() => fetchDashboardData()} className="glass-btn active:scale-90 transition-transform"><RefreshCcw size={16} /></button>
-          <Link to="/search" aria-label="Search" className="glass-btn active:scale-90 transition-transform"><SearchIcon size={18} /></Link>
+          <button type="button" aria-label="Refresh Dashboard" onClick={() => fetchDashboardData()} className="glass-btn press"><RefreshCcw size={16} /></button>
+          <Link to="/search" aria-label="Search" className="glass-btn press"><SearchIcon size={18} /></Link>
         </div>
       </header>
 
@@ -238,6 +246,7 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
+            <Reveal i={0}>
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0a1840] via-[#0f2a6b] to-[#1d4ed8] p-6 text-white shadow-lg">
               <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-400/30 blur-3xl" />
               <div className="relative">
@@ -265,8 +274,11 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <QuickActions />
+            </Reveal>
 
+            <Reveal i={1}><QuickActions /></Reveal>
+
+            <Reveal i={2}>
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Expected Cash</p>
@@ -278,8 +290,10 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <LowStock shopId={shopId} />
-            <LatestActivity shopId={shopId} mask={mask} />
+            </Reveal>
+
+            <Reveal i={3}><LowStock shopId={shopId} /></Reveal>
+            <Reveal i={4}><LatestActivity shopId={shopId} mask={mask} /></Reveal>
 
           </>
         )}
