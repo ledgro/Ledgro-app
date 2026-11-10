@@ -34,7 +34,7 @@ const ProductRow = memo(function ProductRow({ item, onOpen }) {
     <button
       type="button"
       onClick={() => onOpen(item)}
-      className="mb-3 flex w-full items-center justify-between rounded-2xl border border-slate-100 bg-white p-3 text-left shadow-sm active:bg-slate-50"
+      className="press glass-card mb-3 flex w-full items-center justify-between rounded-2xl p-3 text-left"
     >
       <ProductThumb item={item} className="mr-3 h-12 w-12" />
       <div className="min-w-0 flex-1 pr-3">
@@ -58,7 +58,7 @@ const ProductCard = memo(function ProductCard({ item, onOpen }) {
   const tracked = item.stockCount != null;
   const out = tracked && item.stockCount <= 0;
   return (
-    <button type="button" onClick={() => onOpen(item)} className="overflow-hidden rounded-2xl border border-slate-100 bg-white text-left shadow-sm active:scale-[0.98] transition-transform">
+    <button type="button" onClick={() => onOpen(item)} className="press glass-card overflow-hidden rounded-2xl text-left transition-transform">
       <ProductThumb item={item} className="aspect-square w-full !rounded-none" />
       <div className="p-3">
         <h3 className="line-clamp-2 text-sm font-semibold text-slate-900">{item.name}</h3>
@@ -504,8 +504,8 @@ export default function Products() {
   };
 
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 pt-4 pb-1">
+    <div className="page-bg h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
+      <header className="glass-header sticky top-0 z-30 px-4 pt-4 pb-2">
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-xl font-bold text-slate-900">Products</h1>
           <div className="flex items-center gap-2">
@@ -524,19 +524,19 @@ export default function Products() {
           <button
             type="button"
             onClick={() => openDrawer()}
-            className="flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white active:scale-95 transition-transform"
+            className="press flex h-10 items-center gap-1 rounded-full bg-blue-600 px-4 text-sm font-bold text-white shadow-md"
           >
             <Plus size={16} /> New
           </button>
           </div>
         </div>
         <div className="relative mb-3">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
           <input maxLength={60}
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="block h-12 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="glass-input block h-12 w-full rounded-full pl-11 pr-4 text-sm font-semibold placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Search products..."
           />
         </div>
@@ -552,8 +552,8 @@ export default function Products() {
           </div>
         ) : (
           view === 'grid'
-            ? <div className="grid grid-cols-2 gap-4">{visible.map((e) => (e.type === 'colour' ? <div key={e.key} className="col-span-2">{renderEntry(e)}</div> : renderProductCard(e.item)))}</div>
-            : <div>{visible.map(renderEntry)}</div>
+            ? <div className="rise-list grid grid-cols-2 gap-4">{visible.map((e) => (e.type === 'colour' ? <div key={e.key} className="col-span-2">{renderEntry(e)}</div> : renderProductCard(e.item)))}</div>
+            : <div className="rise-list">{visible.map(renderEntry)}</div>
         )}
         {entries.length > limit && <div ref={moreRef} className="py-6 text-center text-sm font-semibold text-slate-400">Loading more...</div>}
 

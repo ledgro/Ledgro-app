@@ -72,7 +72,7 @@ function ProductColourCard({ entry, onEdit }) {
   };
 
   return (
-    <div className="mb-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+    <div className="glass-card mb-4 rounded-2xl p-4">
       <div className="flex items-start gap-4">
         <div className="relative shrink-0">
           <ProductThumb item={rep} className="h-20 w-20" />

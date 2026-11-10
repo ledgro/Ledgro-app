@@ -132,7 +132,7 @@ export default function PLScreen() {
 
   return (
     <div className="page-bg h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
-      <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-slate-50">
+      <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 glass-header">
         <Link to="/dashboard" aria-label="Back" className="glass-btn"><ChevronLeft size={20} /></Link>
         <h1 className="text-lg font-bold text-slate-900">Statistics</h1>
         <button type="button" onClick={handleExportPDF} disabled={loading || isExporting} aria-label="Download PDF" className="glass-btn disabled:opacity-50"><Download size={18} /></button>

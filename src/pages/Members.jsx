@@ -193,8 +193,8 @@ export default function Members() {
   };
 
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 py-3 flex justify-between items-center">
+    <div className="page-bg h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
+      <header className="sticky top-0 z-30 glass-header px-4 py-3 flex justify-between items-center">
         <h1 className="text-xl font-bold text-slate-900">Shop Members</h1>
       </header>
 

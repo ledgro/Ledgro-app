@@ -84,7 +84,7 @@ export default function Search() {
 
   return (
     <div className="page-bg h-[100dvh] overflow-y-auto bg-slate-50">
-      <header className="sticky top-0 z-30 flex items-center gap-2 px-4 py-3 bg-slate-50">
+      <header className="sticky top-0 z-30 flex items-center gap-2 px-4 py-3 glass-header">
         <button type="button" aria-label="Back" onClick={() => navigate(-1)} className="glass-btn"><ChevronLeft size={20} /></button>
         <div className="relative flex-1">
           <SearchIcon size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />

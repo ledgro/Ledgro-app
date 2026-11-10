@@ -545,7 +545,7 @@ export default function Ledger() {
 
   return (
     <div className="page-bg h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 pt-3 pb-2 shadow-subtle flex flex-col gap-3">
+      <header className="sticky top-0 z-30 glass-header px-4 pt-3 pb-2 flex flex-col gap-3">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold text-slate-900">Bill History</h1>
           <ExportMenu label="Export PDF" onPick={handleExportLedger} className="text-blue-600 font-bold text-sm flex items-center gap-1 active:scale-95 disabled:opacity-50 bg-blue-50 px-3 py-1.5 rounded-full" />
@@ -631,7 +631,7 @@ export default function Ledger() {
 
               return (
                 <button type="button" key={bill.id} onClick={() => { setSelectedBill(bill); setReturnItems({}); setRefundEdits({}); }}
-                  className={cn("w-full text-left p-4 rounded-2xl shadow-subtle border active:scale-[0.98] transition-all cursor-pointer block",
+                  className={cn("w-full text-left p-4 rounded-2xl border active:scale-[0.98] transition-all cursor-pointer block",
                     bill.isVoided ? "bg-slate-50 border-slate-200 opacity-60" : "bg-white border-slate-100"
                   )}
                 >
