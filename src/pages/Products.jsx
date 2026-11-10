@@ -607,7 +607,7 @@ export default function Products() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 pb-48 relative">
+            <div className="flex-1 overflow-y-auto p-4 pb-6 relative">
               <form id="product-form" onSubmit={handleSaveProduct} onChange={() => setDirty(true)} className="space-y-6">
 
                 <div className="space-y-4">
@@ -800,22 +800,16 @@ export default function Products() {
                 </div>
 
               </form>
-            </div>
 
-            <div className="kb-slim px-4 pt-3 bg-white border-t border-slate-100 pb-safe absolute bottom-0 left-0 right-0 space-y-2">
-              <button
-                type="submit"
-                form="product-form"
-                disabled={submitting || !name.trim() || !price}
-                className="w-full bg-blue-600 text-white font-bold h-12 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
-              >
-                {submitting ? 'Saving...' : (editingItem ? 'Update Product' : 'Save product')}
-              </button>
-              <div className="kb-hide flex gap-2 pb-2">
-                <button type="button" onClick={requestClose} disabled={submitting} className="h-10 flex-1 rounded-xl bg-slate-100 text-sm font-bold text-slate-700 active:bg-slate-200 disabled:opacity-50">Discard</button>
-                {editingItem && <button type="button" onClick={handleDeleteProduct} disabled={submitting} className="h-10 flex-1 rounded-xl bg-red-50 text-sm font-bold text-red-600 active:bg-red-100 disabled:opacity-50">Delete product</button>}
+              <div className="sheet-foot mt-8 flex gap-2 pb-safe">
+                {editingItem && <button type="button" onClick={handleDeleteProduct} disabled={submitting} className="press h-12 rounded-xl bg-red-50 px-4 text-sm font-bold text-red-600 disabled:opacity-50">Delete</button>}
+                {dirty && <button type="button" onClick={requestClose} disabled={submitting} className="press h-12 rounded-xl bg-slate-100 px-4 text-sm font-bold text-slate-700 disabled:opacity-50">Discard</button>}
+                <button type="submit" form="product-form" disabled={submitting || !name.trim() || !price} className="press flex h-12 flex-1 items-center justify-center rounded-xl bg-blue-600 font-bold text-white shadow-sm disabled:opacity-50">
+                  {submitting ? 'Saving...' : (editingItem ? 'Update' : 'Save product')}
+                </button>
               </div>
             </div>
+
           </Drawer.Content>
         </Drawer.Portal>
       </Drawer.Root>

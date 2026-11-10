@@ -271,7 +271,7 @@ export default function StaffCash({ embedded = false }) {
                 <input className={field} value={f.note} maxLength={200} onChange={(e) => setF((p) => ({ ...p, note: e.target.value }))} />
               </div>
             </div>
-            <div className="absolute bottom-0 left-0 right-0 border-t border-slate-100 bg-white p-4 pb-safe">
+            <div className="kb-hide absolute bottom-0 left-0 right-0 border-t border-slate-100 bg-white p-4 pb-safe">
               <button type="button" disabled={saving} onClick={save} className="h-14 w-full rounded-xl bg-blue-600 font-bold text-white active:bg-blue-700 disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
               {editing && <button type="button" disabled={saving} onClick={async () => { const e = editing; setOpen(false); setEditing(null); await remove(e); }} className="mt-2 h-10 w-full rounded-xl bg-red-50 text-sm font-bold text-red-600 disabled:opacity-50">Delete entry</button>}
             </div>

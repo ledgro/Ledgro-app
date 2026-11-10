@@ -137,7 +137,12 @@ async function start() {
     createRoot(document.getElementById('root')).render(
       <StrictMode>
         <App />
-        <Toaster position="top-center" theme={document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'} />
+        <Toaster
+          position="top-center"
+          offset={{ top: 'max(0.75rem, env(safe-area-inset-top))' }}
+          theme={document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'}
+          toastOptions={{ unstyled: false, style: { background: 'var(--toast-bg)', color: 'var(--toast-fg)', border: '1px solid var(--toast-bd)', borderRadius: '18px', boxShadow: 'var(--toast-shadow)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', fontWeight: 600, fontSize: '0.9rem' } }}
+        />
       </StrictMode>,
     );
     installErrorOverlay();

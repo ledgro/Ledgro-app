@@ -359,30 +359,18 @@ export default function Expenses() {
                   />
                 </div>
 
-                  <button
-                    type="submit"
-                    disabled={submitting || !amount}
-                    className="w-full bg-indigo-600 text-white font-bold py-4 px-4 rounded-xl flex items-center justify-center gap-2 active:bg-indigo-700 disabled:opacity-50 transition-colors"
-                  >
-                    {submitting ? 'Saving...' : editing ? 'Save Changes' : 'Save Expense'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { if (!submitting) setIsOpen(false); }}
-                    className="w-full bg-slate-100 text-slate-700 font-bold py-3 px-4 rounded-xl active:bg-slate-200 transition-colors"
-                  >
-                    Discard
-                  </button>
+                <div className="sheet-foot flex gap-2 pt-2">
                   {editing && isAdmin && (
-                    <button
-                      type="button"
-                      onClick={async () => { const id = editing.id; setIsOpen(false); setEditing(null); await handleDeleteExpense(id); }}
-                      className="w-full bg-red-50 text-red-600 font-bold py-3 px-4 rounded-xl active:bg-red-100 transition-colors"
-                    >
-                      Delete Expense
-                    </button>
+                    <button type="button" onClick={async () => { const id = editing.id; setIsOpen(false); setEditing(null); await handleDeleteExpense(id); }} className="press h-14 rounded-xl bg-red-50 px-4 font-bold text-red-600">Delete</button>
                   )}
-                </form>
+                  {(editing ? (description !== (editing.description || '') || Math.round(parseFloat(amount || 0) * 100) !== (editing.amount || 0)) : (!!amount || !!description)) && (
+                    <button type="button" onClick={() => { if (!submitting) setIsOpen(false); }} className="press h-14 rounded-xl bg-slate-100 px-4 font-bold text-slate-700">Discard</button>
+                  )}
+                  <button type="submit" disabled={submitting || !amount} className="press flex h-14 flex-1 items-center justify-center rounded-xl bg-indigo-600 font-bold text-white disabled:opacity-50">
+                    {submitting ? 'Saving...' : editing ? 'Save' : 'Save Expense'}
+                  </button>
+                </div>
+              </form>
               </div>
             </div>
           </Drawer.Content>

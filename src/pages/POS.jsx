@@ -594,6 +594,30 @@ export default function POS() {
                 <p className="font-medium">No items yet</p>
                 <p className="text-sm mt-1">Tap search or pick a best seller</p>
               </div>
+              {!editBill && (
+                <section aria-label="Draft bills" className="mt-6">
+                  <h2 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">Drafts {held.length > 0 && `(${held.length})`}</h2>
+                  {held.length === 0 ? (
+                    <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-4 text-center text-xs font-medium text-slate-500">Tap Hold on a bill to park it here and serve the next customer.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {held.map((h) => {
+                        const sm = heldSummary(h);
+                        return (
+                          <li key={h.id} className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                            <button type="button" onClick={() => resumeHeld(h)} className="press min-w-0 flex-1 text-left">
+                              <p className="font-bold tabular-nums text-slate-900">{formatCurrency(sm.total)} <span className="text-xs font-semibold text-slate-500">· {sm.count} {sm.count === 1 ? 'item' : 'items'} · {new Date(h.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></p>
+                              <p className="truncate text-xs font-medium text-slate-500">{sm.names}</p>
+                            </button>
+                            <button type="button" onClick={() => resumeHeld(h)} className="press rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white">Resume</button>
+                            <button type="button" onClick={() => updateHeld(removeHeld(held, h.id))} aria-label="Delete draft" className="press rounded-lg px-2 py-1 text-xs font-bold text-red-500">Delete</button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </section>
+              )}
               <QuickPicks onAddItem={handleAddItem} />
             </div>
           ) : (
