@@ -302,14 +302,9 @@ export default function Expenses() {
             <div className="p-4 bg-white rounded-t-[10px] flex-1 pb-safe overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-gray-300 mb-6" />
               <div className="max-w-md mx-auto">
-                <div className="mb-6 flex items-center justify-between">
-                  <Drawer.Title className="font-bold text-gray-900 text-xl">
-                    {editing ? 'Edit Expense' : 'Add Expense'}
-                  </Drawer.Title>
-                  {editing && isAdmin && (
-                    <button type="button" aria-label="Delete expense" onClick={async () => { const id = editing.id; await handleDeleteExpense(id); }} className="press flex h-10 w-10 items-center justify-center rounded-full bg-red-50 text-red-600"><Trash2 size={18} /></button>
-                  )}
-                </div>
+                <Drawer.Title className="font-bold text-gray-900 mb-6 text-xl">
+                  {editing ? 'Edit Expense' : 'Add Expense'}
+                </Drawer.Title>
 
               <form onSubmit={handleAddExpense} className="space-y-6">
                 <div>
@@ -376,6 +371,7 @@ export default function Expenses() {
                 </div>
 
                 <div className="sheet-foot flex gap-2 pt-2">
+                  {editing && isAdmin && <button type="button" aria-label="Delete expense" onClick={() => handleDeleteExpense(editing.id)} className="press flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600"><Trash2 size={20} /></button>}
                   {expDirty && (
                     <button type="button" onClick={requestClose} className="press h-14 rounded-xl bg-slate-100 px-4 font-bold text-slate-700">Discard</button>
                   )}

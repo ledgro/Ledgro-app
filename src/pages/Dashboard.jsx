@@ -10,6 +10,7 @@ import { serverTimestamp, doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import Reveal from '../components/Reveal';
+import { useMyName } from '../lib/myName';
 import CashNotes from '../components/CashNotes';
 import { Link } from 'react-router-dom';
 import { Cloud, CloudOff, RefreshCcw, Eye, EyeOff, Search as SearchIcon } from 'lucide-react';
@@ -22,13 +23,7 @@ import { QuickActions, LowStock, LatestActivity } from '../components/DashboardE
 
 export default function Dashboard() {
   const { user, shopId, shopName, isAdmin } = useAuth();
-  const displayName = (() => {
-    let saved = '';
-    try { saved = localStorage.getItem('ledgro_name') || ''; } catch { /* storage blocked */ }
-    const fromMail = user?.email ? user.email.split('@')[0].replace(/[._0-9]+/g, ' ').trim() : '';
-    const n = (saved || user?.displayName || fromMail || shopName || 'there').trim();
-    return n.charAt(0).toUpperCase() + n.slice(1);
-  })();
+  const displayName = useMyName(shopId, user, shopName);
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState({ online: navigator.onLine, pending: false, lastSynced: 'Just now' });
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
@@ -247,7 +242,7 @@ export default function Dashboard() {
         ) : (
           <>
             <Reveal i={0}>
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0a1840] via-[#0f2a6b] to-[#1d4ed8] p-6 text-white shadow-lg">
+            <div className="relative overflow-hidden rounded-3xl hero-card p-6 text-white shadow-lg">
               <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-400/30 blur-3xl" />
               <div className="relative">
                 <p className="text-xs font-bold uppercase tracking-wider text-blue-100/80">Today's net earnings</p>

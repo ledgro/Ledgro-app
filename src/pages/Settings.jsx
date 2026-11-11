@@ -12,6 +12,7 @@ import BottomNav from '../components/BottomNav';
 import { usesPassword, displayId, isStaffEmail } from '../lib/staffLogin';
 import AddEmailForm from '../components/AddEmailForm';
 import { Link } from 'react-router-dom';
+import { useMyName, saveMyName } from '../lib/myName';
 import { FileText, ShieldCheck, Mail, Package, Receipt, ArrowLeftRight, Users, History, ChevronRight, Store, Settings2, Database, User, LogOut, ChevronLeft, Save, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { hapticVibrate } from '../lib/utils';
@@ -25,6 +26,7 @@ import { getThemePref, setThemePref } from '../lib/theme';
 export default function Settings() {
   const [themePref, setThemePrefState] = useState(getThemePref());
   const { user, isAdmin, shopId, shopAdminId, shopProfile, signOut, deleteAccount, changePassword, deleteShopData, reauthWithGoogle } = useAuth();
+  const myName = useMyName(shopId, user, '');
   const isOwner = !!user?.uid && shopAdminId === user.uid;
   const [recalculating, setRecalculating] = useState(false);
   const navigate = useNavigate();
@@ -293,23 +295,29 @@ export default function Settings() {
       <main className="p-4 space-y-6">
         <section aria-label="You" className="glass-card flex items-center gap-4 rounded-3xl p-5">
           <span aria-hidden="true" className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-2xl font-black text-white">
-            {(() => { let n = ''; try { n = localStorage.getItem('ledgro_name') || ''; } catch { /* storage blocked */ } return (n || user?.displayName || displayId(user) || 'L').trim().charAt(0).toUpperCase(); })()}
+            {(myName || 'L').charAt(0).toUpperCase()}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-lg font-bold text-slate-900">{(() => { let n = ''; try { n = localStorage.getItem('ledgro_name') || ''; } catch { /* storage blocked */ } return n || user?.displayName || 'Your profile'; })()}</p>
+            <p className="truncate text-lg font-bold text-slate-900">{myName || 'Your profile'}</p>
             <p className="truncate text-sm text-slate-500">{displayId(user)}</p>
           </div>
           <span className="rounded-full bg-blue-500/15 px-3 py-1 text-xs font-bold text-blue-600">{isOwner ? 'Owner' : isAdmin ? 'Co-admin' : 'Staff'}</span>
         </section>
 
         <section aria-label="Your name" className="bg-white rounded-3xl shadow-sm border border-slate-100 px-5 py-4">
-          <label htmlFor="your-name" className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Your name (shown on Home)</label>
+          <label htmlFor="your-name" className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Your name (shown on Home and to your team)</label>
           <input
             id="your-name"
             type="text"
             maxLength={30}
-            defaultValue={(() => { try { return localStorage.getItem('ledgro_name') || ''; } catch { return ''; } })()}
-            onBlur={(e) => { try { localStorage.setItem('ledgro_name', e.target.value.trim()); } catch { /* storage blocked */ } }}
+            key={myName}
+            defaultValue={myName}
+            onBlur={async (e) => {
+              const v = e.target.value.trim();
+              if (!v || v === myName) return;
+              if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
+              try { await saveMyName(shopId, user, v); toast.success('Name saved'); } catch (err) { console.error(err); toast.error('Could not save your name.'); }
+            }}
             placeholder="Your first name"
             className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium"
           />
