@@ -438,7 +438,8 @@ service cloud.firestore {
           && isValidVariantFields(request.resource.data)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['updatedBy']) || request.resource.data.updatedBy == request.auth.uid)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['deleted']) || (isAdmin(shopId) && request.resource.data.deleted == true));
-        allow delete: if isSoleAdmin(shopId);
+        // An admin removes a product for good (its picture is deleted with it). Old bills keep the name they were sold under.
+        allow delete: if isAdmin(shopId);
       }
 
       // Catalog pictures: one small JPEG thumbnail (data URL) per product. Not used on bills.
