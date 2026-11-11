@@ -179,6 +179,7 @@ export default function Products() {
   const requestClose = async () => {
     if (submitting) return;
     if (dirty && !(await confirm({ title: 'Discard changes?', message: 'What you entered will be lost.', confirmText: 'Discard', cancelText: 'Keep editing', danger: true }))) return;
+    if (dirty) toast('Discarded');
     setIsDrawerOpen(false);
   };
 
@@ -598,6 +599,10 @@ export default function Products() {
                 {editingItem ? <Edit2 size={20} className="text-blue-600" /> : <PackagePlus size={20} className="text-blue-600" />}
                 {editingItem ? 'Edit Product' : 'New Product'}
               </Drawer.Title>
+              <div className="flex items-center gap-2">
+              {editingItem && (
+                <button type="button" aria-label="Delete product" onClick={handleDeleteProduct} disabled={submitting} className="press flex h-8 w-8 items-center justify-center rounded-full bg-red-50 text-red-600 disabled:opacity-50"><Trash2 size={16} /></button>
+              )}
               <button
                 aria-label="Close"
                 onClick={requestClose}
@@ -605,6 +610,7 @@ export default function Products() {
               >
                 ✕
               </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 pb-6 relative">
@@ -802,7 +808,6 @@ export default function Products() {
               </form>
 
               <div className="sheet-foot mt-8 flex gap-2 pb-safe">
-                {editingItem && <button type="button" onClick={handleDeleteProduct} disabled={submitting} className="press h-12 rounded-xl bg-red-50 px-4 text-sm font-bold text-red-600 disabled:opacity-50">Delete</button>}
                 {dirty && <button type="button" onClick={requestClose} disabled={submitting} className="press h-12 rounded-xl bg-slate-100 px-4 text-sm font-bold text-slate-700 disabled:opacity-50">Discard</button>}
                 <button type="submit" form="product-form" disabled={submitting || !name.trim() || !price} className="press flex h-12 flex-1 items-center justify-center rounded-xl bg-blue-600 font-bold text-white shadow-sm disabled:opacity-50">
                   {submitting ? 'Saving...' : (editingItem ? 'Update' : 'Save product')}

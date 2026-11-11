@@ -163,6 +163,16 @@ export default function Expenses() {
     }
   };
 
+  const expDirty = editing
+    ? (description !== (editing.description || '') || Math.round(parseFloat(amount || 0) * 100) !== (editing.amount || 0))
+    : (!!amount || !!description);
+  const requestClose = async () => {
+    if (submitting) return;
+    if (expDirty && !(await confirm({ title: 'Discard changes?', message: 'What you entered will be lost.', confirmText: 'Discard', cancelText: 'Keep editing', danger: true }))) return;
+    if (expDirty) toast('Discarded');
+    setIsOpen(false);
+  };
+
   const handleDeleteExpense = async (id) => {
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
     if (!(await confirm({ title: 'Delete expense?', message: 'This expense will be removed.', confirmText: 'Delete', danger: true }))) return;
@@ -277,6 +287,7 @@ export default function Expenses() {
       </main>}
 
       <Drawer.Root handleOnly repositionInputs={false} open={isOpen} onOpenChange={(open) => {
+         if (!open && isOpen) { requestClose(); return; }
          setIsOpen(open);
          if (!open) {
             setEditing(null);
@@ -291,9 +302,14 @@ export default function Expenses() {
             <div className="p-4 bg-white rounded-t-[10px] flex-1 pb-safe overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-gray-300 mb-6" />
               <div className="max-w-md mx-auto">
-                <Drawer.Title className="font-bold text-gray-900 mb-6 text-xl">
-                  {editing ? 'Edit Expense' : 'Add Expense'}
-                </Drawer.Title>
+                <div className="mb-6 flex items-center justify-between">
+                  <Drawer.Title className="font-bold text-gray-900 text-xl">
+                    {editing ? 'Edit Expense' : 'Add Expense'}
+                  </Drawer.Title>
+                  {editing && isAdmin && (
+                    <button type="button" aria-label="Delete expense" onClick={async () => { const id = editing.id; await handleDeleteExpense(id); }} className="press flex h-10 w-10 items-center justify-center rounded-full bg-red-50 text-red-600"><Trash2 size={18} /></button>
+                  )}
+                </div>
 
               <form onSubmit={handleAddExpense} className="space-y-6">
                 <div>
@@ -360,11 +376,8 @@ export default function Expenses() {
                 </div>
 
                 <div className="sheet-foot flex gap-2 pt-2">
-                  {editing && isAdmin && (
-                    <button type="button" onClick={async () => { const id = editing.id; setIsOpen(false); setEditing(null); await handleDeleteExpense(id); }} className="press h-14 rounded-xl bg-red-50 px-4 font-bold text-red-600">Delete</button>
-                  )}
-                  {(editing ? (description !== (editing.description || '') || Math.round(parseFloat(amount || 0) * 100) !== (editing.amount || 0)) : (!!amount || !!description)) && (
-                    <button type="button" onClick={() => { if (!submitting) setIsOpen(false); }} className="press h-14 rounded-xl bg-slate-100 px-4 font-bold text-slate-700">Discard</button>
+                  {expDirty && (
+                    <button type="button" onClick={requestClose} className="press h-14 rounded-xl bg-slate-100 px-4 font-bold text-slate-700">Discard</button>
                   )}
                   <button type="submit" disabled={submitting || !amount} className="press flex h-14 flex-1 items-center justify-center rounded-xl bg-indigo-600 font-bold text-white disabled:opacity-50">
                     {submitting ? 'Saving...' : editing ? 'Save' : 'Save Expense'}
