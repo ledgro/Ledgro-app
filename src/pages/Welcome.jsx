@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
-import { Store, Phone, MapPin, ReceiptText, Clock, PackagePlus, Users, ShoppingCart } from 'lucide-react';
+import { User, Store, Phone, MapPin, ReceiptText, Clock, PackagePlus, Users, ShoppingCart } from 'lucide-react';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 
@@ -21,9 +21,11 @@ export default function Welcome() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [a, setA] = useState({ phone: '', address: '', tagline: '', cutoff: 270 });
+  const [a, setA] = useState({ name: (() => { try { return localStorage.getItem('ledgro_name') || ''; } catch { return ''; } })(), phone: '', address: '', tagline: '', cutoff: 270 });
 
   const questions = [
+    { icon: User, title: 'What is your name?', hint: 'Shown on your Home screen. You can change it later in Profile.',
+      body: <input type="text" maxLength={30} autoComplete="given-name" value={a.name} onChange={(e) => setA((p) => ({ ...p, name: e.target.value }))} placeholder="Your first name" className={input} /> },
     { icon: Phone, title: 'What phone number should customers see?', hint: 'Printed at the top of every receipt. You can leave it empty.',
       body: <input type="tel" inputMode="tel" maxLength={30} value={a.phone} onChange={(e) => setA((p) => ({ ...p, phone: e.target.value }))} placeholder="Shop phone number" className={input} /> },
     { icon: MapPin, title: 'Where is your shop?', hint: 'The address printed under the shop name.',
@@ -73,6 +75,7 @@ export default function Welcome() {
   };
 
   const next = async () => {
+    if (step === 0) { try { localStorage.setItem('ledgro_name', a.name.trim()); } catch { /* storage blocked */ } }
     if (step === questions.length - 1) { if (!(await save())) return; }
     setStep((s) => s + 1);
   };
