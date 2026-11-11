@@ -1,10 +1,11 @@
-import { collection, getDocs, orderBy, query, Timestamp, where } from 'firebase/firestore';
+import { collection, getCountFromServer, getDocs, orderBy, query, Timestamp, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { clearStore, getAllRecords, putRecords } from './idb';
 
 const STORE = 'catalogCache';
 const META_ID = '__meta';
-export const FULL_REFRESH_MS = 24 * 60 * 60 * 1000;
+// Safety net only. Deleted products are caught sooner by the cheap count check in loadCatalog.
+export const FULL_REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
 
 const isTs = (v) => v && typeof v === 'object' && typeof v.seconds === 'number' && typeof v.nanoseconds === 'number';
 
@@ -72,7 +73,10 @@ async function writeCache(shopId, items, cursor, fullAt) {
  * Returns the shop catalog. First visit (or once a day) reads every product; every other time
  * it reads only products changed since the newest one already held, keeping reads small.
  * Every catalog write sets updatedAt to server time (enforced by firestore.rules), so a change
- * can never be missed. The daily full read also picks up products an admin deleted.
+ * can never be missed. Deletions leave no trace to query, so after the changed-products read the
+ * number of products held is compared with a server count (one billed read per 1,000 products).
+ * If they differ, something was deleted and the full list is read once. A weekly full read remains
+ * as a safety net.
  */
 export async function loadCatalog(shopId, { onCached } = {}) {
   const ref = collection(db, `shops/${shopId}/catalog`);
@@ -90,6 +94,15 @@ export async function loadCatalog(shopId, { onCached } = {}) {
   const cursor = new Timestamp(meta.cursor.seconds, meta.cursor.nanoseconds);
   const changed = toItems(await getDocs(query(ref, where('updatedAt', '>=', cursor), orderBy('updatedAt'))));
   const items = mergeChanged(cached, changed);
+
+  let serverCount = null;
+  try { serverCount = (await getCountFromServer(ref)).data().count; } catch { /* offline: try again next time */ }
+  if (serverCount !== null && serverCount !== items.length) {
+    const all = toItems(await getDocs(ref));
+    await writeCache(shopId, all, newestCursor(all, null), Date.now());
+    return all;
+  }
+
   if (changed.length) await writeCache(shopId, items, newestCursor(changed, meta.cursor), meta.fullAt);
   return items;
 }
