@@ -12,7 +12,7 @@ import BottomNav from '../components/BottomNav';
 import { usesPassword, displayId, isStaffEmail } from '../lib/staffLogin';
 import AddEmailForm from '../components/AddEmailForm';
 import { Link } from 'react-router-dom';
-import { Package, Receipt, ArrowLeftRight, Users, History, ChevronRight, Store, Settings2, Database, User, LogOut, ChevronLeft, Save, Trash2 } from 'lucide-react';
+import { FileText, ShieldCheck, Mail, Package, Receipt, ArrowLeftRight, Users, History, ChevronRight, Store, Settings2, Database, User, LogOut, ChevronLeft, Save, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { hapticVibrate } from '../lib/utils';
 import { format } from 'date-fns';
@@ -24,7 +24,7 @@ import { getThemePref, setThemePref } from '../lib/theme';
 
 export default function Settings() {
   const [themePref, setThemePrefState] = useState(getThemePref());
-  const { user, shopId, shopAdminId, shopProfile, signOut, deleteAccount, changePassword, deleteShopData, reauthWithGoogle } = useAuth();
+  const { user, isAdmin, shopId, shopAdminId, shopProfile, signOut, deleteAccount, changePassword, deleteShopData, reauthWithGoogle } = useAuth();
   const isOwner = !!user?.uid && shopAdminId === user.uid;
   const [recalculating, setRecalculating] = useState(false);
   const navigate = useNavigate();
@@ -287,10 +287,21 @@ export default function Settings() {
         <button onClick={() => navigate(-1)} className="p-1 -ml-1 text-slate-500 hover:text-slate-600 active:bg-slate-100 rounded-full transition-colors">
           <ChevronLeft size={24} />
         </button>
-        <h1 className="text-xl font-bold text-slate-900">Settings</h1>
+        <h1 className="text-xl font-bold text-slate-900">Profile</h1>
       </header>
 
       <main className="p-4 space-y-6">
+        <section aria-label="You" className="glass-card flex items-center gap-4 rounded-3xl p-5">
+          <span aria-hidden="true" className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-2xl font-black text-white">
+            {(() => { let n = ''; try { n = localStorage.getItem('ledgro_name') || ''; } catch { /* storage blocked */ } return (n || user?.displayName || displayId(user) || 'L').trim().charAt(0).toUpperCase(); })()}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-lg font-bold text-slate-900">{(() => { let n = ''; try { n = localStorage.getItem('ledgro_name') || ''; } catch { /* storage blocked */ } return n || user?.displayName || 'Your profile'; })()}</p>
+            <p className="truncate text-sm text-slate-500">{displayId(user)}</p>
+          </div>
+          <span className="rounded-full bg-blue-500/15 px-3 py-1 text-xs font-bold text-blue-600">{isOwner ? 'Owner' : isAdmin ? 'Co-admin' : 'Staff'}</span>
+        </section>
+
         <section aria-label="Your name" className="bg-white rounded-3xl shadow-sm border border-slate-100 px-5 py-4">
           <label htmlFor="your-name" className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Your name (shown on Home)</label>
           <input
@@ -508,8 +519,26 @@ export default function Settings() {
            </div>
         </section>
 
+        <section aria-label="Help and legal" className="glass-card divide-y divide-slate-100 overflow-hidden rounded-3xl">
+          {[
+            ['/terms', 'Terms of Service', FileText],
+            ['/privacy', 'Privacy Policy', ShieldCheck],
+          ].map(([to, label, Icon]) => (
+            <Link key={to} to={to} className="flex h-14 items-center gap-3 px-5 font-bold text-slate-900 active:bg-slate-50">
+              <Icon size={20} className="text-blue-600" aria-hidden="true" />
+              <span className="flex-1">{label}</span>
+              <ChevronRight size={18} className="text-slate-400" aria-hidden="true" />
+            </Link>
+          ))}
+          <a href="mailto:getledgro@gmail.com" className="flex h-14 items-center gap-3 px-5 font-bold text-slate-900 active:bg-slate-50">
+            <Mail size={20} className="text-blue-600" aria-hidden="true" />
+            <span className="flex-1">Help and feedback</span>
+            <span className="text-xs font-semibold text-slate-500">getledgro@gmail.com</span>
+          </a>
+        </section>
+
         <div className="text-center text-xs text-slate-500 font-medium py-4">
-          Ledgro PWA Version 1.0.0
+          Ledgro
         </div>
       </main>
 
