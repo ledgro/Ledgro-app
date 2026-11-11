@@ -234,6 +234,7 @@ service cloud.firestore {
           && request.resource.data.createdAt == request.time
           && request.resource.data.amount is number
           && request.resource.data.amount > 0
+          && request.resource.data.amount <= 100000000
           && isValidString(request.resource.data.category, 1, 50)
           && isValidString(request.resource.data.description, 0, 200)
           && request.resource.data.get('paidVia', 'cash') in ['cash', 'upi', 'staff']
@@ -243,7 +244,7 @@ service cloud.firestore {
           && (isAdmin(shopId) || (resource.data.creatorId == request.auth.uid && request.time < resource.data.createdAt + duration.value(1, 'd')))
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amount', 'category', 'description', 'paidVia', 'updatedAt'])
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['paidVia']) || request.resource.data.paidVia in ['cash', 'upi', 'staff'])
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount']) || (request.resource.data.amount is number && request.resource.data.amount > 0))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount']) || (request.resource.data.amount is number && request.resource.data.amount > 0 && request.resource.data.amount <= 100000000))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['category']) || isValidString(request.resource.data.category, 1, 50))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['description']) || isValidString(request.resource.data.description, 0, 200));
 
