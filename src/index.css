@@ -214,3 +214,9 @@ html[data-kb="1"] .kb-slim button { height: 2.75rem; }
 .rise-list > *:nth-child(n+7) { animation-delay: 240ms; }
 @keyframes rise { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .rise-list > * { animation: none; } }
+
+/* Sign-in fields: icon on the left, one rounded box. */
+.field-wrap { display: flex; align-items: center; gap: 0.6rem; height: 3rem; padding: 0 0.9rem; border-radius: 0.9rem; background: #fff; border: 1px solid rgb(226 232 240); }
+.field-wrap:focus-within { box-shadow: 0 0 0 2px #3b82f6; }
+[data-theme="dark"] .field-wrap { background: rgb(255 255 255 / 0.06); border-color: rgb(255 255 255 / 0.1); }
+.field-input { flex: 1; min-width: 0; height: 100%; background: transparent; border: 0; outline: none; font-weight: 600; font-size: 0.95rem; }

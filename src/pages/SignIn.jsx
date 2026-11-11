@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { POLICY_VERSION } from '../lib/constants';
@@ -42,6 +43,7 @@ const SignIn = () => {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [lang, setLang] = useState('en');
   const [showPw, setShowPw] = useState(false);
+  const [showPass, setShowPass] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [pwMode, setPwMode] = useState('signin'); // 'signin' | 'create' (an invite code makes it a staff account, no code makes it an owner account)
@@ -166,7 +168,7 @@ const SignIn = () => {
   };
 
   return (
-    <div className="h-[100dvh] overflow-y-auto flex flex-col items-center justify-center bg-white p-6">
+    <div className="page-bg h-[100dvh] overflow-y-auto flex flex-col items-center justify-center bg-white p-6">
       <div className="max-w-md w-full text-center space-y-12">
         <div className="space-y-3">
           <h1 className="text-5xl font-black text-blue-600 tracking-tight font-bruno">Ledgro</h1>
@@ -246,26 +248,37 @@ const SignIn = () => {
                 {lang === 'en' ? 'Continue with email or username' : 'ഇമെയിൽ അല്ലെങ്കിൽ യൂസർനെയിം ഉപയോഗിച്ച് തുടരുക'} {/* TODO: native speaker review */}
               </button>
             ) : (
-              <form onSubmit={handlePasswordSignIn} className="space-y-3 rounded-xl border border-slate-200 p-4">
+              <form onSubmit={handlePasswordSignIn} className="glass-card space-y-3 rounded-3xl p-4">
                 {pwMode === 'create' && showCode && (
                   <input
                     type="text" autoCapitalize="characters" autoCorrect="off" spellCheck={false} maxLength={20}
                     value={joinCode} onChange={(e) => setJoinCode(e.target.value)} placeholder="Shop invite code"
-                    className="w-full h-12 px-4 border border-slate-200 rounded-xl font-mono font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="field-wrap field-input font-mono w-full"
                   />
                 )}
-                <input maxLength={100}
-                  type="text" autoCapitalize="none" autoCorrect="off" autoComplete="username" spellCheck={false}
-                  value={identifier} onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder={pwMode === 'signin' ? 'Username or email' : joinCode.trim() ? 'Choose a username' : 'Email'}
-                  className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <input
-                  type="password" autoComplete={pwMode === 'signin' ? 'current-password' : 'new-password'}
-                  value={password} onChange={(e) => setPassword(e.target.value)}
-                  placeholder={pwMode === 'signin' ? 'Password' : 'Choose a password (8+ characters)'}
-                  className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <div className="field-wrap">
+                  <Mail size={18} className="text-slate-500 flex-shrink-0" aria-hidden="true" />
+                  <input maxLength={100}
+                    type="text" autoCapitalize="none" autoCorrect="off" autoComplete="username" spellCheck={false}
+                    value={identifier} onChange={(e) => setIdentifier(e.target.value)}
+                    aria-label={pwMode === 'signin' ? 'Username or email' : 'Email or username'}
+                    placeholder={pwMode === 'signin' ? 'Username or email' : joinCode.trim() ? 'Choose a username' : 'Email'}
+                    className="field-input"
+                  />
+                </div>
+                <div className="field-wrap">
+                  <Lock size={18} className="text-slate-500 flex-shrink-0" aria-hidden="true" />
+                  <input
+                    type={showPass ? 'text' : 'password'} maxLength={100} autoComplete={pwMode === 'signin' ? 'current-password' : 'new-password'}
+                    value={password} onChange={(e) => setPassword(e.target.value)}
+                    aria-label="Password"
+                    placeholder={pwMode === 'signin' ? 'Password' : 'Choose a password (8+ characters)'}
+                    className="field-input"
+                  />
+                  <button type="button" onClick={() => setShowPass((v) => !v)} aria-label={showPass ? 'Hide password' : 'Show password'} className="p-1 text-slate-500">
+                    {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
                 <button type="submit" disabled={isSigningIn} className="w-full h-12 rounded-full bg-blue-600 text-white font-bold disabled:opacity-50 active:scale-[0.98]">
                   {isSigningIn ? 'Please wait...' : pwMode === 'signin' ? 'Sign in' : joinCode.trim() ? 'Join the shop' : 'Create account'}
                 </button>
