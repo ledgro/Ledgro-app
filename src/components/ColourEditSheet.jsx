@@ -61,7 +61,7 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose })
         if (cur) mirror.push(() => addItem({ ...cur, ...u.data, stockCount: u.stockAfter, updatedBy: user.uid }));
       });
       plan.removes.forEach((id) => {
-        ops.push((b) => b.update(col(id), isAdmin ? { deleted: true, isActive: false, updatedBy: user.uid, updatedAt: serverTimestamp() } : { isActive: false, updatedBy: user.uid, updatedAt: serverTimestamp() }));
+        ops.push((b) => (isAdmin ? b.delete(col(id)) : b.update(col(id), { isActive: false, updatedBy: user.uid, updatedAt: serverTimestamp() })));
         const cur = catalog.find((i) => i.id === id);
         mirror.push(() => (isAdmin ? removeItem(id) : cur && addItem({ ...cur, isActive: false })));
       });
@@ -76,6 +76,10 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose })
         await batch.commit();
       }
       mirror.forEach((m) => m());
+      // Every size of this colour was removed for good, so its picture goes too.
+      if (isAdmin && plan.removes.length && plan.removes.length >= entry.items.length) {
+        try { await removeImage(shopId, imageKey(rep)); } catch (err) { console.warn('Picture not removed', err); }
+      }
       // The colour's photo is stored under its colour name, so a renamed colour takes it along.
       if (plan.colourChanged && !plan.merged && entry.items.some((i) => i.hasImage)) {
         try {

@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useInView } from 'react-intersection-observer';
 import { useCatalogStore } from '../store/catalogStore';
-import { collection, addDoc, doc, updateDoc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Drawer } from 'vaul';
@@ -449,10 +449,14 @@ export default function Products() {
     try {
       const docRef = doc(db, `shops/${shopId}/catalog`, editingItem.id);
 
-      await updateDoc(docRef, { deleted: true, isActive: false, updatedBy: user.uid, updatedAt: serverTimestamp() });
+      await deleteDoc(docRef);
+      // The picture goes too, unless another size of the same colour still uses it.
+      const key = imageKey(editingItem);
+      const shared = catalogItems.some((i) => i.id !== editingItem.id && !i.deleted && imageKey(i) === key);
+      if (editingItem.hasImage && !shared) { try { await removeImage(shopId, key); } catch (e) { console.warn('Picture not removed', e); } }
 
       removeCatalogItem(editingItem.id);
-      toast.success('Product permanently deleted');
+      toast.success('Product deleted');
       setIsDrawerOpen(false);
     } catch (error) {
       console.error(error);

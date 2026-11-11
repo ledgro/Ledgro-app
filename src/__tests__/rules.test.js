@@ -316,13 +316,13 @@ d('firestore.rules', () => {
     const item = { name: 'Rice', lastUsedPrice: 5000, unit: 'kg', stockCount: null, isActive: true, frequency: 0, createdBy: MEMBER, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
     const ref = (uid, id) => doc(as(uid), `shops/${SHOP}/catalog/${id}`);
     const touch = (extra) => ({ ...extra, updatedAt: serverTimestamp() });
-    it('member creates and adjusts stock; nobody hard-deletes', async () => {
+    it('member creates and adjusts stock; only an admin deletes for good', async () => {
       await assertSucceeds(setDoc(ref(MEMBER, 'c1'), item));
       await assertSucceeds(updateDoc(ref(MEMBER, 'c1'), touch({ stockCount: 10 })));
       await assertSucceeds(updateDoc(ref(MEMBER, 'c1'), touch({ stockCount: 12 })));
       await assertFails(updateDoc(ref(MEMBER, 'c1'), touch({ stockCount: -1 })));
       await assertFails(deleteDoc(ref(MEMBER, 'c1')));
-      await assertFails(deleteDoc(ref(ADMIN, 'c1')));
+      await assertSucceeds(deleteDoc(ref(ADMIN, 'c1')));
     });
     it('every write must stamp updatedAt with server time (delta sync depends on it)', async () => {
       const { updatedAt: _omit, ...noStamp } = item;
