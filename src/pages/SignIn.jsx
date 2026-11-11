@@ -36,7 +36,6 @@ const SignIn = () => {
   }, []);
 
   const [notice] = useState(() => {
-  const [showPass, setShowPass] = useState(false);
     try { const n = localStorage.getItem('ledgro_notice'); if (n) localStorage.removeItem('ledgro_notice'); return n || ''; } catch { return ''; }
   });
   const [error, setError] = useState('');
@@ -44,6 +43,7 @@ const SignIn = () => {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [lang, setLang] = useState('en');
   const [showPw, setShowPw] = useState(false);
+  const [showPass, setShowPass] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [pwMode, setPwMode] = useState('signin'); // 'signin' | 'create' (an invite code makes it a staff account, no code makes it an owner account)
