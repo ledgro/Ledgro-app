@@ -220,3 +220,8 @@ html[data-kb="1"] .kb-slim button { height: 2.75rem; }
 .field-wrap:focus-within { box-shadow: 0 0 0 2px #3b82f6; }
 [data-theme="dark"] .field-wrap { background: rgb(255 255 255 / 0.06); border-color: rgb(255 255 255 / 0.1); }
 .field-input { flex: 1; min-width: 0; height: 100%; background: transparent; border: 0; outline: none; font-weight: 600; font-size: 0.95rem; }
+
+/* Light mode: soft sky glow at the top and a brighter hero card, so it matches the dark look. */
+.page-bg { background: radial-gradient(120% 42% at 85% -10%, rgb(147 197 253 / 0.5), transparent 62%), #f8fafc; }
+.hero-card { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 55%, #4f46e5 100%); }
+[data-theme="dark"] .hero-card { background: linear-gradient(135deg, #0a1840 0%, #0f2a6b 50%, #1d4ed8 100%); }
