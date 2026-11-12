@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 # A newer push to the same branch cancels the older run, so a burst of pushes never queues up.
 concurrency:
   group: ci-${{ github.ref }}

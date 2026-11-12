@@ -18,6 +18,8 @@ concurrency:
 
 jobs:
   deploy:
+    # a manual run from any other branch could reach the service-account secret
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read

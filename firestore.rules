@@ -459,7 +459,9 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if request.auth.uid == userId;
       allow create, update: if request.auth.uid == userId
-        && request.resource.data.keys().hasOnly(['consentRecord']);
+        && request.resource.data.keys().hasOnly(['consentRecord'])
+        && request.resource.data.consentRecord is map
+        && request.resource.data.consentRecord.size() <= 10;
       allow delete: if request.auth.uid == userId;
     }
 
