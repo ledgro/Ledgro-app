@@ -29,7 +29,11 @@ const ProtectedRoute = ({ children, requireNoShop = false }) => {
   const { user, hasShop } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
   if (hasShop === null) return null;
-  if (requireNoShop && hasShop) return <Navigate to="/dashboard" replace />;
+  if (requireNoShop && hasShop) {
+    let welcome = false;
+    try { welcome = sessionStorage.getItem('ledgro_show_welcome') === '1'; } catch { /* storage blocked */ }
+    return <Navigate to={welcome ? '/welcome' : '/dashboard'} replace />;
+  }
   if (!requireNoShop && hasShop === false) return <Navigate to="/setup" replace />;
   return children;
 };
