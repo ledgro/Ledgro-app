@@ -129,6 +129,8 @@ service cloud.firestore {
       // Running invoice number per financial year. Each save moves it up by exactly one, so numbers never repeat or skip.
       match /billCounters/{series} {
         allow get: if isMember(shopId);
+        // Listing is only for the whole-shop delete, which must find every counter to remove it.
+        allow list: if isSoleAdmin(shopId) && request.query.limit <= 100;
         allow create: if isMember(shopId)
           && request.resource.data.keys().hasOnly(['last'])
           && request.resource.data.last == 1;

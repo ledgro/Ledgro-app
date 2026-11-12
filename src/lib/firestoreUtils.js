@@ -1,5 +1,5 @@
 import {
-  collection, query, orderBy, limit, startAfter, getDocs, writeBatch, doc, deleteDoc, waitForPendingWrites,
+  collection, query, orderBy, limit, startAfter, getDocs, getDocsFromServer, getCountFromServer, writeBatch, doc, deleteDoc, waitForPendingWrites,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { imageKey } from './productImage';
@@ -36,7 +36,7 @@ export async function deleteCollectionPaged(collectionPath, pageSize = DELETE_PA
   if (pageSize > PAGE_SIZE) pageSize = PAGE_SIZE;
   const ref = collection(db, collectionPath);
   for (let page = 0; page < MAX_PAGES; page++) {
-    const snap = await getDocs(query(ref, limit(pageSize)));
+    const snap = await getDocsFromServer(query(ref, limit(pageSize))); // never the offline cache: a stale empty cache would look like 'done'
     if (snap.empty) return;
     const batch = writeBatch(db);
     snap.docs.forEach((d) => batch.delete(d.ref));
@@ -58,7 +58,7 @@ const STEP_LABEL = { bills: 'bills', expenses: 'expenses', catalog: 'products', 
  * so delete by id without reading them, then sweep up anything left over a few at a time.
  */
 async function deleteImagesFast(shopId, tick) {
-  const catalog = await getDocs(collection(db, `shops/${shopId}/catalog`));
+  const catalog = await getDocsFromServer(collection(db, `shops/${shopId}/catalog`));
   const keys = new Set();
   catalog.docs.forEach((d) => {
     const item = { id: d.id, ...d.data() };
@@ -130,7 +130,17 @@ export async function deleteShopCascade(shopId, onStep) {
     ...others.map((sub) => collection_(sub)),
   ];
   await pool(tasks, 4);
-  await deleteDoc(doc(db, 'shops', shopId));
+
+  // Check on the server that nothing is left before removing the shop itself; sweep again if something is.
+  for (const sub of ['catalog']) { // only catalog: other lists are rule-capped at 100, which count queries cannot satisfy
+    for (let pass = 0; pass < 3; pass++) {
+      const left = (await getCountFromServer(collection(db, `shops/${shopId}/${sub}`))).data().count;
+      if (!left) break;
+      await collection_(sub, sub === 'catalog' ? 50 : DELETE_PAGE)();
+    }
+  }
+  running.add('shop'); onStep?.('Removing the shop...');
+  await step('shop', async (tick) => { tick(); await deleteDoc(doc(db, 'shops', shopId)); }, 30000);
 }
 
 /**
