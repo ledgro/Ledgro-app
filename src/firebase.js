@@ -46,6 +46,8 @@ const googleProvider = new GoogleAuthProvider();
 let db;
 try {
   db = initializeFirestore(app, {
+    // Some networks and browsers (Brave, proxies) stall the default streaming connection, so writes never finish. Fall back to long polling there.
+    experimentalAutoDetectLongPolling: true,
     localCache: persistentLocalCache({
       tabManager: persistentMultipleTabManager(),
       cacheSizeBytes: 104857600 // 100 MB max to prevent eviction loops

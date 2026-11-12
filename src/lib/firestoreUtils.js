@@ -51,7 +51,7 @@ export async function deleteCollectionPaged(collectionPath, pageSize = DELETE_PA
  * Only valid when the caller is the sole admin AND sole member
  * (that is the only case firestore.rules allow it).
  */
-const STEP_LABEL = { bills: 'bills', expenses: 'expenses', catalog: 'products', dailyClosures: 'cash counts', dailyStats: 'totals', transfers: 'transfers', memberProfiles: 'names', errorLogs: 'error logs', catalogImages: 'photos', staffCash: 'staff cash', billCounters: 'bill numbers', auditLogs: 'activity log', staffPeople: 'salaries' };
+const STEP_LABEL = { bills: 'bills', expenses: 'expenses', catalog: 'products', dailyClosures: 'cash counts', dailyStats: 'totals', transfers: 'transfers', memberProfiles: 'names', errorLogs: 'error logs', photos: 'photos', catalogImages: 'photos', staffCash: 'staff cash', billCounters: 'bill numbers', auditLogs: 'activity log', staffPeople: 'salaries' };
 
 /**
  * Photos are big (up to 70 KB each), so listing them to delete is slow. Their ids come from the catalog items,
@@ -102,16 +102,34 @@ async function step(label, run, ms = 60000, tries = 4) {
   throw last;
 }
 
+/** Runs async tasks with at most `n` going at once, so the single write connection is not flooded. */
+async function pool(tasks, n) {
+  let next = 0;
+  const worker = async () => { while (next < tasks.length) { const t = tasks[next++]; await t(); } };
+  await Promise.all(Array.from({ length: Math.min(n, tasks.length) }, worker));
+}
+
 export async function deleteShopCascade(shopId, onStep) {
-  // everything at once, products and photos as separate jobs. Safe to run again: it carries on with what is left.
-  const done = (sub) => () => onStep?.(`Deleted ${STEP_LABEL[sub] || sub}`);
-  const jobs = [];
-  for (const sub of ['bills', 'expenses', 'catalog', 'dailyClosures', 'dailyStats', 'transfers', 'memberProfiles', 'errorLogs', 'staffCash', 'billCounters', 'auditLogs', 'staffPeople']) {
-    jobs.push(step(STEP_LABEL[sub] || sub, (tick) => deleteCollectionPaged(`shops/${shopId}/${sub}`, DELETE_PAGE, tick)).then(done(sub)));
-  }
-  // photos are found from the catalog when it is still there; the sweep afterwards catches any the catalog no longer lists
-  jobs.push(step('photos', (tick) => deleteImagesFast(shopId, tick)).then(done('catalogImages')));
-  await Promise.all(jobs);
+  // Safe to run again: each step only deletes what is still left. Products go first, the biggest job on its own
+  // so it is not stuck behind a dozen others, then the rest four at a time.
+  const running = new Set();
+  const say = (extra) => onStep?.(running.size ? `Deleting ${[...running].join(', ')}${extra ? ` (${extra})` : ''}...` : 'Almost done...');
+  const run = (key, work) => async () => {
+    const label = STEP_LABEL[key] || key;
+    running.add(label); say();
+    try { await step(label, work); } finally { running.delete(label); say(); }
+  };
+  const collection_ = (sub, size = DELETE_PAGE) => run(sub, (tick) => {
+    let n = 0;
+    return deleteCollectionPaged(`shops/${shopId}/${sub}`, size, () => { n += size; tick(); if (sub === 'catalog') say(`${n}+ gone`); });
+  });
+  const others = ['bills', 'expenses', 'dailyClosures', 'dailyStats', 'transfers', 'memberProfiles', 'errorLogs', 'staffCash', 'billCounters', 'auditLogs', 'staffPeople'];
+  const tasks = [
+    collection_('catalog', 50),
+    run('photos', (tick) => deleteImagesFast(shopId, tick)),
+    ...others.map((sub) => collection_(sub)),
+  ];
+  await pool(tasks, 4);
   await deleteDoc(doc(db, 'shops', shopId));
 }
 
