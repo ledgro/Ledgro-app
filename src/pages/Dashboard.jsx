@@ -13,7 +13,7 @@ import Reveal from '../components/Reveal';
 import { useMyName } from '../lib/myName';
 import CashNotes from '../components/CashNotes';
 import { Link } from 'react-router-dom';
-import { Cloud, CloudOff, RefreshCcw, Eye, EyeOff, Search as SearchIcon } from 'lucide-react';
+import { Cloud, CloudOff, RefreshCcw, Eye, EyeOff, Search as SearchIcon, ChevronRight } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { Skeleton } from '../components/Skeleton';
 import { Drawer } from 'vaul';
@@ -242,7 +242,7 @@ export default function Dashboard() {
         ) : (
           <>
             <Reveal i={0}>
-            <div className="relative overflow-hidden rounded-3xl hero-card p-6 text-white shadow-lg">
+            <Link to="/pnl" aria-label="Open statistics" className="press relative block overflow-hidden rounded-3xl hero-card p-6 text-white shadow-lg">
               <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-400/30 blur-3xl" />
               <div className="relative">
                 <p className="text-xs font-bold uppercase tracking-wider text-blue-100/80">Today's net earnings</p>
@@ -266,8 +266,9 @@ export default function Dashboard() {
                     <p className="text-lg font-black tabular-nums">{mask(formatCurrency(stats.upiSplit))}</p>
                   </div>
                 </div>
+                <p className="mt-4 flex items-center justify-end gap-1 text-xs font-bold text-blue-100/80">Full details <ChevronRight size={14} aria-hidden="true" /></p>
               </div>
-            </div>
+            </Link>
 
             </Reveal>
 
@@ -275,14 +276,16 @@ export default function Dashboard() {
 
             <Reveal i={2}>
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
+              <button type="button" onClick={() => setIsCloseDrawerOpen(true)} className="press bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center text-left">
                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Expected Cash</p>
                  <h2 className="text-2xl font-black text-slate-900">{mask(formatCurrency(stats.expectedCash))}</h2>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
+                 <p className="mt-1 text-[0.7rem] font-bold text-blue-600">See how it adds up</p>
+              </button>
+              <Link to="/pnl" className="press bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">In Bank (UPI)</p>
                  <h2 className="text-2xl font-black text-slate-900">{mask(formatCurrency(stats.upiInBank))}</h2>
-              </div>
+                 <p className="mt-1 text-[0.7rem] font-bold text-blue-600">Open statistics</p>
+              </Link>
             </div>
 
             </Reveal>

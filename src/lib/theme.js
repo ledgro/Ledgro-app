@@ -2,7 +2,7 @@ const KEY = 'ledgro-theme';
 const mq = () => (typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null);
 
 export function getThemePref() {
-  try { const v = localStorage.getItem(KEY); return v === 'light' || v === 'dark' ? v : 'auto'; } catch { return 'auto'; }
+  try { const v = localStorage.getItem(KEY); return v === 'light' || v === 'dark' || v === 'auto' ? v : 'dark'; } catch { return 'dark'; }
 }
 
 export function applyTheme(pref = getThemePref()) {
@@ -12,7 +12,7 @@ export function applyTheme(pref = getThemePref()) {
 }
 
 export function setThemePref(pref) {
-  try { if (pref === 'auto') localStorage.removeItem(KEY); else localStorage.setItem(KEY, pref); } catch { /* storage blocked */ }
+  try { localStorage.setItem(KEY, pref); } catch { /* storage blocked */ }
   applyTheme(pref);
 }
 
