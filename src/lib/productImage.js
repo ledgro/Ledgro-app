@@ -44,6 +44,7 @@ export async function compressImage(file) {
   canvas.width = size; canvas.height = size;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, size, size);
+  ctx.imageSmoothingQuality = 'high'; // big phone photos shrink 10x; the default looks jagged and compresses worse
   ctx.drawImage(bmp, sx, sy, side, side, 0, 0, size, size);
   bmp.close?.();
   let q = 0.72;
