@@ -84,8 +84,10 @@ const ShopSetup = () => {
       setShopId(docRef.id);
       localStorage.setItem('ledgro_offline_shopId', docRef.id);
       syncMyProfile(docRef.id, user); // so others see this name right away, not only after the next sign-in
+      // hasShop flipping to true would otherwise bounce this page straight to the dashboard; the flag sends it to the questions
+      try { sessionStorage.setItem('ledgro_show_welcome', '1'); } catch { /* storage blocked */ }
       setHasShop(true);
-      navigate('/welcome');
+      navigate('/welcome', { replace: true });
     } catch (err) {
       console.error(err);
       setError('Failed to create shop. Please try again.');

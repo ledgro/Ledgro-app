@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { saveMyName } from '../lib/myName';
 import { useNavigate } from 'react-router-dom';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -22,6 +22,7 @@ export default function Welcome() {
   const { shopId, shopName, user } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
+  useEffect(() => () => { try { sessionStorage.removeItem('ledgro_show_welcome'); } catch { /* storage blocked */ } }, []);
   const [saving, setSaving] = useState(false);
   const [a, setA] = useState({ name: '', phone: '', address: '', tagline: '', cutoff: 270 });
 
