@@ -3,7 +3,8 @@ import { saveMyName } from '../lib/myName';
 import { useNavigate } from 'react-router-dom';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
-import { User, Store, Phone, MapPin, ReceiptText, Clock, PackagePlus, Users, ShoppingCart } from 'lucide-react';
+import { User, Store, Phone, MapPin, ReceiptText, Clock, PackagePlus, Users, ShoppingCart, Moon, Sun, Smartphone } from 'lucide-react';
+import { getThemePref, setThemePref } from '../lib/theme';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 
@@ -24,9 +25,21 @@ export default function Welcome() {
   const [saving, setSaving] = useState(false);
   const [a, setA] = useState({ name: '', phone: '', address: '', tagline: '', cutoff: 270 });
 
+  const [theme, setTheme] = useState(getThemePref());
   const questions = [
     { icon: User, title: 'What is your name?', hint: 'Shown on your Home screen and to your team. You can change it later in Profile.',
       body: <input type="text" maxLength={30} autoComplete="given-name" value={a.name} onChange={(e) => setA((p) => ({ ...p, name: e.target.value }))} placeholder="Your first name" className={input} /> },
+    { icon: Moon, title: 'Dark or light?', hint: 'Dark is easier on the eyes in a shop. You can change it any time in Profile.',
+      body: (
+        <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Theme">
+          {[['dark', 'Dark', Moon], ['light', 'Light', Sun], ['auto', 'Auto', Smartphone]].map(([v, label, I]) => (
+            <button key={v} type="button" role="radio" aria-checked={theme === v} onClick={() => { setThemePref(v); setTheme(v); }}
+              className={`flex flex-col items-center gap-2 rounded-2xl border px-2 py-5 font-bold ${theme === v ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-700'}`}>
+              <I size={22} aria-hidden="true" />{label}
+            </button>
+          ))}
+        </div>
+      ) },
     { icon: Phone, title: 'What phone number should customers see?', hint: 'Printed at the top of every receipt. You can leave it empty.',
       body: <input type="tel" inputMode="tel" maxLength={30} value={a.phone} onChange={(e) => setA((p) => ({ ...p, phone: e.target.value }))} placeholder="Shop phone number" className={input} /> },
     { icon: MapPin, title: 'Where is your shop?', hint: 'The address printed under the shop name.',
