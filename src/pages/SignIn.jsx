@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { POLICY_VERSION } from '../lib/constants';
@@ -250,11 +250,15 @@ const SignIn = () => {
             ) : (
               <form onSubmit={handlePasswordSignIn} className="glass-card space-y-3 rounded-3xl p-4">
                 {pwMode === 'create' && showCode && (
-                  <input
-                    type="text" autoCapitalize="characters" autoCorrect="off" spellCheck={false} maxLength={20}
-                    value={joinCode} onChange={(e) => setJoinCode(e.target.value)} placeholder="Shop invite code"
-                    className="field-wrap field-input font-mono w-full"
-                  />
+                  <div className="field-wrap">
+                    <KeyRound size={18} className="text-slate-500 flex-shrink-0" aria-hidden="true" />
+                    <input
+                      type="text" autoCapitalize="characters" autoCorrect="off" spellCheck={false} maxLength={20}
+                      value={joinCode} onChange={(e) => setJoinCode(e.target.value)} placeholder="Shop invite code"
+                      aria-label="Shop invite code"
+                      className="field-input uppercase tracking-wider placeholder:normal-case placeholder:tracking-normal"
+                    />
+                  </div>
                 )}
                 <div className="field-wrap">
                   <Mail size={18} className="text-slate-500 flex-shrink-0" aria-hidden="true" />
