@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { onAuthStateChanged, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, updatePassword, sendEmailVerification, signOut as firebaseSignOut, setPersistence, indexedDBLocalPersistence, deleteUser, reauthenticateWithPopup, verifyBeforeUpdateEmail } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, signInWithCredential, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, updatePassword, sendEmailVerification, signOut as firebaseSignOut, setPersistence, indexedDBLocalPersistence, deleteUser, reauthenticateWithPopup, verifyBeforeUpdateEmail } from 'firebase/auth';
 import { listenForSessionEvents } from '../lib/sessionBroadcast';
 import { clearStore } from '../lib/idb';
 import { sessionGuard } from '../lib/SessionGuard';
@@ -11,6 +11,19 @@ import SplashScreen from '../components/SplashScreen';
 import { syncMyProfile, useMemberNames } from '../lib/memberNames';
 import { setLogContext } from '../lib/errorLog';
 import { toLoginEmail, isEmail, isStaffEmail, usernameError, passwordError, authMessage, usesPassword } from '../lib/staffLogin';
+
+import { isNative } from '../lib/native';
+
+// Android app: Google's own account picker (popups do not work inside an app WebView),
+// then the token goes to the Firebase web SDK so the rest of the app is unchanged.
+async function nativeGoogleCredential() {
+  const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+  const res = await FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true });
+  const idToken = res?.credential?.idToken;
+  if (!idToken) throw Object.assign(new Error('No Google token'), { code: 'auth/internal-error' });
+  return GoogleAuthProvider.credential(idToken);
+}
+const nativeCancelled = (e) => /cancel/i.test(`${e?.code || ''} ${e?.message || ''}`);
 
 const AuthContext = createContext();
 const SESSION_DURATION = 3 * 24 * 60 * 60 * 1000;
@@ -281,8 +294,10 @@ export const AuthProvider = ({ children }) => {
       } catch (err) {
         console.warn('IndexedDB persistence unavailable:', err);
       }
-      await signInWithPopup(auth, googleProvider);
+      if (isNative) await signInWithCredential(auth, await nativeGoogleCredential());
+      else await signInWithPopup(auth, googleProvider);
     } catch (error) {
+      if (isNative && nativeCancelled(error)) return;
       if (error.code === 'auth/account-exists-with-different-credential') {
         throw new Error('An account already exists with this email using a different sign-in method. Please sign in using your original provider.');
       } else if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
@@ -405,8 +420,10 @@ export const AuthProvider = ({ children }) => {
   const reauthWithGoogle = useCallback(async () => {
     if (!auth.currentUser || usesPassword(auth.currentUser) || recentSignIn()) return;
     try {
-      await reauthenticateWithPopup(auth.currentUser, googleProvider);
+      if (isNative) await reauthenticateWithCredential(auth.currentUser, await nativeGoogleCredential());
+      else await reauthenticateWithPopup(auth.currentUser, googleProvider);
     } catch (error) {
+      if (isNative && nativeCancelled(error)) throw new Error('Cancelled. Nothing was deleted.');
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') throw new Error('Cancelled. Nothing was deleted.');
       throw new Error(`Google sign-in failed (${error.code || 'unknown'}). Nothing was deleted.`);
     }

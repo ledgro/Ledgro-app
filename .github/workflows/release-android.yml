@@ -1,9 +1,10 @@
 name: Android APK
 
-# Builds the Ledgro Android app (a Trusted Web Activity: it opens https://ledgro-app.pages.dev).
+# Builds the Ledgro Android app: a Capacitor app (the web code bundled inside, plus native Google sign-in).
 # - push a tag like v1.0.0  -> signed APK is attached to a GitHub Release
 # - run it by hand          -> signed APK is kept as a 7 day download
-# Secrets used (nothing else): ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD
+# Secrets used (nothing else): ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
+# GOOGLE_SERVICES_JSON_BASE64 (optional; Firebase google-services.json, needed for Google sign-in in the app)
 on:
   push:
     tags: ['v*.*.*']
@@ -34,6 +35,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
+          cache: npm
 
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
@@ -49,45 +51,38 @@ jobs:
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/ledgro.keystore"
           chmod 600 "$RUNNER_TEMP/ledgro.keystore"
 
-      - name: Android SDK for Bubblewrap (standard layout, own copy)
-        run: |
-          set -eu
-          SDK="$HOME/android-sdk"
-          mkdir -p "$SDK/cmdline-tools/latest"
-          cp -r "$ANDROID_HOME/cmdline-tools/latest/." "$SDK/cmdline-tools/latest/"
-          # Bubblewrap only checks for a bin folder at the SDK root; Gradle wants the standard layout
-          ln -s cmdline-tools/latest/bin "$SDK/bin"
-          ln -s cmdline-tools/latest/lib "$SDK/lib"   # the sdkmanager script loads its jars from ../lib
-          SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$SDKM" --sdk_root="$SDK" --licenses > /dev/null || true
-          yes | "$SDKM" --sdk_root="$SDK" "platforms;android-36" "platform-tools" > /dev/null || true
-          "$SDKM" --sdk_root="$SDK" --list_installed
-          mkdir -p "$HOME/.bubblewrap"
-          printf '{"jdkPath":"%s","androidSdkPath":"%s"}' "$JAVA_HOME" "$SDK" > "$HOME/.bubblewrap/config.json"
-
       - name: Version from the tag (or the run number for a manual run)
         run: |
           set -eu
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then NAME="${GITHUB_REF_NAME#v}"; else NAME="0.0.${GITHUB_RUN_NUMBER}"; fi
-          node -e '
-            const fs=require("fs"); const m=JSON.parse(fs.readFileSync("twa-manifest.json","utf8"));
-            m.appVersion=process.argv[1]; m.appVersionCode=Number(process.argv[2]);
-            m.signingKey.path=process.argv[3];
-            fs.writeFileSync("twa-manifest.json",JSON.stringify(m,null,2));
-          ' "$NAME" "$GITHUB_RUN_NUMBER" "$RUNNER_TEMP/ledgro.keystore"
           echo "APP_VERSION=$NAME" >> "$GITHUB_ENV"
 
-      - name: Build signed APK
-        env:
-          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      - name: Build the web app and copy it into the Android project
         run: |
           set -eu
-          # the runner also sets ANDROID_SDK_ROOT to its own SDK; Gradle refuses two different paths
-          export ANDROID_SDK_ROOT="$HOME/android-sdk"
-          npx --yes @bubblewrap/cli@1.27.0 update --skipVersionUpgrade
-          npx --yes @bubblewrap/cli@1.27.0 build --skipPwaValidation
-          mv app-release-signed.apk "ledgro-${APP_VERSION}.apk"
+          npm ci
+          npm run build
+          npx cap sync android
+
+      - name: Firebase config (for Google sign-in)
+        env:
+          GSJ: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          set -eu
+          if [ -n "$GSJ" ]; then printf '%s' "$GSJ" | base64 -d > android/app/google-services.json; echo "google-services.json written"; else echo "::warning::GOOGLE_SERVICES_JSON_BASE64 not set: Google sign-in will not work in this APK"; fi
+
+      - name: Build signed APK
+        working-directory: android
+        env:
+          LEDGRO_KEYSTORE: ${{ runner.temp }}/ledgro.keystore
+          LEDGRO_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          LEDGRO_VERSION_NAME: ${{ env.APP_VERSION }}
+          LEDGRO_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          set -eu
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          ./gradlew --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk "../ledgro-${APP_VERSION}.apk"
 
       - name: Check the APK is signed with the key listed in assetlinks.json
         run: |

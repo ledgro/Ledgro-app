@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import { Toaster, toast } from 'sonner';
 import { registerSW } from 'virtual:pwa-register'
+import { isNative } from './lib/native'
 import { installErrorOverlay } from './lib/errorOverlay'
 import { applyTheme, watchSystemTheme } from './lib/theme'
 
@@ -55,7 +56,8 @@ window.addEventListener('vite:preloadError', (event) => {
   }
 });
 
-const updateSW = registerSW({
+// The app ships its own files, so no service worker there; updates come as a new app version.
+const updateSW = isNative ? (() => {}) : registerSW({
   onRegisteredSW(swUrl, registration) {
     if (registration) {
       setInterval(() => {
