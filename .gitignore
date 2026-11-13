@@ -30,3 +30,6 @@ dist-ssr
 *.jks
 *.keystore.base64.txt
 ledgro-credentials.txt
+
+# Android: Firebase config is written by CI from a secret
+android/app/google-services.json
