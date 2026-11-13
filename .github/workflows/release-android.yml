@@ -21,7 +21,7 @@ jobs:
   apk:
     # a manual run from another branch could read the signing key
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: write        # attach the APK to the release
