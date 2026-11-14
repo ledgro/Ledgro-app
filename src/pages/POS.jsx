@@ -10,7 +10,7 @@ import { billDelta, bizDayKey } from '../lib/statsMath';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
 import { collection, getDoc, runTransaction, doc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Tag, Share2, PlusCircle, Download, Pause } from 'lucide-react';
+import { Tag, Share2, PlusCircle, Download, Pause, Send, Check } from 'lucide-react';
 import { loadHeld, saveHeld, addHeld, removeHeld, heldSummary, MAX_HELD } from '../lib/heldBills';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSpring, animated } from '@react-spring/web';
@@ -46,6 +46,9 @@ export default function POS() {
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+  // 'processing' (sheet while the bill is really being saved), 'saved' (success sheet), then null and the full bill screen rises in.
+  const [phase, setPhase] = useState(null);
+  const phaseStartRef = useRef(0);
   const [lastBill, setLastBill] = useState(null);
   const [receiptFormat, setReceiptFormat] = useState('png'); // 'png' | 'pdf'
   const [receiptFiles, setReceiptFiles] = useState(null);
@@ -260,6 +263,8 @@ export default function POS() {
 
     setIsCheckingOut(true);
     isSubmittingRef.current = true;
+    phaseStartRef.current = Date.now();
+    setPhase('processing');
 
     try {
       const paymentData = {
@@ -406,11 +411,15 @@ export default function POS() {
       setSplitCash('');
       setTendered('');
       setLastBill({ ...payload, shopProfile, tendered: paymentMethod === 'cash' && tendered !== '' && Math.round((parseFloat(tendered) || 0) * 100) !== billTotal ? Math.round((parseFloat(tendered) || 0) * 100) : null });
+      // The sheet stays for at least 1.4 s so the cashier sees it work; a slower save just keeps it up longer.
+      await new Promise((r) => setTimeout(r, Math.max(0, 1400 - (Date.now() - phaseStartRef.current))));
       setCheckoutSuccess(true);
       setIsPayOpen(false);
+      setPhase('saved');
       const bCount = parseInt(localStorage.getItem('ledgro-billCount') || '0');
       localStorage.setItem('ledgro-billCount', (bCount + 1).toString());
     } catch (err) {
+      setPhase(null);
       console.error('Checkout failed:', err);
       if (localStorage.getItem('ledgro_haptic') !== 'false') {
         hapticVibrate([100, 50, 100]);
@@ -487,9 +496,16 @@ export default function POS() {
     window.dispatchEvent(new Event('ledgro:checkout-complete'));
   };
 
-  if (checkoutSuccess) {
+  useEffect(() => {
+    if (phase !== 'saved') return undefined;
+    const t = setTimeout(() => setPhase(null), 1700);
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  if (checkoutSuccess && !phase) {
     return (
-      <div className="page-bg min-h-screen flex flex-col items-center justify-start gap-4 p-4 pb-10">
+      <motion.div initial={{ y: '40%', opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 220, damping: 28 }}
+      className="page-bg min-h-screen flex flex-col items-center justify-start gap-4 p-4 pb-10">
         <Receipt ref={receiptRef} billData={lastBill} />
 
         <div className="glass-card rounded-3xl p-8 text-center max-w-sm w-full z-10">
@@ -542,7 +558,7 @@ export default function POS() {
             <Receipt billData={lastBill} preview />
           </div>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
@@ -832,6 +848,40 @@ export default function POS() {
         globalDiscount={state.globalDiscount}
         dispatch={dispatch}
       />
+
+      {checkoutSuccess && phase && <Receipt ref={receiptRef} billData={lastBill} />}
+
+      <AnimatePresence>
+        {phase && (
+          <>
+            <motion.div key="ck-bg" className="fixed inset-0 z-[90] bg-black/50" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+            <motion.div key="ck-sheet" role="status" aria-live="polite" className="fixed inset-x-0 bottom-0 z-[91] mx-auto w-full max-w-md rounded-t-[28px] bg-white px-6 pb-[max(1.75rem,env(safe-area-inset-bottom))] pt-3 text-center shadow-2xl"
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 32 }}>
+              <div className="mx-auto mb-6 h-1.5 w-10 rounded-full bg-slate-200" aria-hidden="true" />
+              {phase === 'processing' ? (
+                <div className="py-4">
+                  <motion.div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center text-green-500"
+                    animate={{ x: [0, 6, 0], y: [0, -6, 0], rotate: [0, 4, 0] }} transition={{ repeat: Infinity, duration: 0.9, ease: 'easeInOut' }}>
+                    <Send size={52} strokeWidth={1.8} aria-hidden="true" />
+                  </motion.div>
+                  <h2 className="text-lg font-black text-slate-900">Processing…</h2>
+                  <p className="mt-1 text-sm font-medium text-slate-500">Saving this bill</p>
+                </div>
+              ) : (
+                <div className="py-2">
+                  <motion.div initial={{ scale: 0.3, rotate: -20, opacity: 0 }} animate={{ scale: 1, rotate: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 14 }}
+                    className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-green-500 text-white">
+                    <Check size={44} strokeWidth={3} aria-hidden="true" />
+                  </motion.div>
+                  <h2 className="text-lg font-black text-slate-900">Success!</h2>
+                  <p className="mt-1 text-sm font-medium text-slate-500">{lastBill?.billNo ? `Bill #${lastBill.billNo} saved` : 'Bill saved'}</p>
+                  <button type="button" onClick={() => setPhase(null)} className="press mx-auto mt-5 rounded-full bg-slate-900 px-8 py-3 text-sm font-bold text-white">View bill</button>
+                </div>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       <BottomNav />
     </div>
