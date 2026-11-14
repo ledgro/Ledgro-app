@@ -1,3 +1,4 @@
+import { normalizePhone } from '../lib/phone';
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -368,7 +369,7 @@ export default function Settings() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1">Phone Number</label>
-              <input type="tel" maxLength={30} value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium" />
+              <input type="tel" maxLength={30} value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={() => setPhone((v) => normalizePhone(v))} className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1">Receipt Footer Tagline</label>

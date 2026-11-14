@@ -380,6 +380,7 @@ export default function Dashboard() {
                    )}
                  </div>
 
+                 <div className="sticky bottom-0 -mx-4 mt-4 border-t border-slate-200 bg-slate-50 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
                  <button
                    onClick={handleCloseRegister}
                    disabled={isClosingRecord || stats.staffCashFailed || actualCashCounted === '' || isNaN(parseFloat(actualCashCounted))}
@@ -387,6 +388,7 @@ export default function Dashboard() {
                  >
                    {isClosingRecord ? 'Saving...' : 'Save Count'}
                  </button>
+                 </div>
                </div>
             </div>
             <button aria-label="Close" onClick={() => setIsCloseDrawerOpen(false)} className="absolute top-4 right-4 p-2 bg-slate-200 rounded-full text-slate-600">✕</button>

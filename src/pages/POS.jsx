@@ -489,17 +489,20 @@ export default function POS() {
 
   if (checkoutSuccess) {
     return (
-      <div className="min-h-screen bg-green-50 flex flex-col items-center justify-start gap-4 p-4 pb-10">
+      <div className="page-bg min-h-screen flex flex-col items-center justify-start gap-4 p-4 pb-10">
         <Receipt ref={receiptRef} billData={lastBill} />
 
-        <div className="bg-white p-8 rounded-2xl shadow-sm text-center max-w-sm w-full z-10">
-          <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        <div className="glass-card rounded-3xl p-8 text-center max-w-sm w-full z-10">
+          <motion.div initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 16 }}
+            className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-green-500/15 text-green-500">
+            <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <motion.path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ delay: 0.15, duration: 0.4, ease: 'easeOut' }} />
             </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Checkout Successful</h2>
-          <p className="text-gray-500 mb-8 font-medium">₹{lastBill?.grandTotal ? (lastBill.grandTotal / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : 0} collected via {lastBill?.paymentMethod?.toUpperCase()}</p>
+          </motion.div>
+          <h2 className="text-2xl font-black text-slate-900 mb-1">Bill saved</h2>
+          {lastBill?.billNo ? <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Bill #{lastBill.billNo}</p> : null}
+          <p className="text-4xl font-black text-slate-900 tabular-nums">₹{lastBill?.grandTotal ? (lastBill.grandTotal / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : 0}</p>
+          <p className="text-slate-500 mt-1 mb-8 font-medium">collected via {lastBill?.paymentMethod?.toUpperCase()}</p>
 
           <div className="space-y-3">
             <div className="flex bg-slate-100 p-1 rounded-xl" role="group" aria-label="Receipt format">
