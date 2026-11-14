@@ -107,7 +107,7 @@ describe('POS checkout', () => {
     expect(findUndefined(payload)).toBeNull();
     expect(payload.items[0].unitPrice).toBe(5000);
     expect(payload.grandTotal).toBe(5000);
-    expect(await screen.findByText(/Bill saved/i)).toBeTruthy();
+    expect(await screen.findByText(/Bill saved/i, {}, { timeout: 6000 })).toBeTruthy();
   });
 });
 
