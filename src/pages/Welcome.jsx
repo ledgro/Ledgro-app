@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { User, Store, Phone, MapPin, ReceiptText, Clock, PackagePlus, Users, ShoppingCart, Moon, Sun, Smartphone } from 'lucide-react';
+import { normalizePhone } from '../lib/phone';
 import { getThemePref, setThemePref } from '../lib/theme';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
@@ -42,7 +43,7 @@ export default function Welcome() {
         </div>
       ) },
     { icon: Phone, title: 'What phone number should customers see?', hint: 'Printed at the top of every receipt. You can leave it empty.',
-      body: <input type="tel" inputMode="tel" maxLength={30} value={a.phone} onChange={(e) => setA((p) => ({ ...p, phone: e.target.value }))} placeholder="Shop phone number" className={input} /> },
+      body: <input type="tel" inputMode="tel" maxLength={30} value={a.phone} onChange={(e) => setA((p) => ({ ...p, phone: e.target.value }))} onBlur={() => setA((p) => ({ ...p, phone: normalizePhone(p.phone) }))} placeholder="Shop phone number" className={input} /> },
     { icon: MapPin, title: 'Where is your shop?', hint: 'The address printed under the shop name.',
       body: <input type="text" maxLength={200} value={a.address} onChange={(e) => setA((p) => ({ ...p, address: e.target.value }))} placeholder="Street, town" className={input} /> },
     { icon: ReceiptText, title: 'What should the bottom of the receipt say?', hint: 'One line, like a thank you or your exchange rule.',
@@ -107,7 +108,8 @@ export default function Welcome() {
   return (
     <div className="flex min-h-[100dvh] flex-col bg-slate-50 px-4 pb-safe pt-8">
       <div className="mx-auto w-full max-w-md flex-1">
-        <div className="mb-6 flex gap-1.5" aria-label={`Step ${step + 1} of ${total}`}>
+        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">Step {Math.min(step + 1, total)} of {total}</p>
+        <div className="mb-6 flex gap-1.5" aria-hidden="true">
           {Array.from({ length: total }, (_, i) => <span key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? 'bg-blue-600' : 'bg-slate-200'}`} />)}
         </div>
         {q ? (
