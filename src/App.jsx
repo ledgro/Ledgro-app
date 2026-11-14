@@ -1,3 +1,4 @@
+import { installNativeBack } from './lib/nativeBack';
 import { createHashRouter, RouterProvider, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { lazy, Suspense, useEffect } from 'react';
@@ -115,6 +116,8 @@ const router = createHashRouter([
     ]
   }
 ]);
+
+installNativeBack(router);
 
 export default function App() {
   useKeyboardInset();

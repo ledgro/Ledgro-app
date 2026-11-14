@@ -37,7 +37,10 @@
   padding-bottom: calc(6rem + env(safe-area-inset-bottom));
 }
 
-.floating-nav { background: rgb(255 255 255 / 0.94); border: 1px solid rgb(226 232 240); box-shadow: 0 10px 30px rgb(15 23 42 / 0.12); backdrop-filter: blur(12px); }
+.floating-nav { background: rgb(255 255 255 / 0.94); border: 1px solid rgb(226 232 240); box-shadow: 0 10px 30px rgb(15 23 42 / 0.12); transform: translateZ(0); }
+/* The pages scroll inside their own boxes, not the body, so the bounce/stretch has to be switched off on those boxes too.
+   (Blur on the fixed nav is gone: the bar is 94% opaque anyway, and blur behind a fixed bar makes scrolling stutter on phones.) */
+html, body, .overflow-y-auto, .overflow-auto { overscroll-behavior: none; }
 [data-theme="dark"] .floating-nav { background: rgb(17 26 43 / 0.94); border-color: #2b3648; box-shadow: 0 10px 30px rgb(0 0 0 / 0.5); }
 
 @utility pb-safe {
