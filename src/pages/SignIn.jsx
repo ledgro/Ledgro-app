@@ -6,6 +6,7 @@ import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { POLICY_VERSION } from '../lib/constants';
 import { isEmail } from '../lib/staffLogin';
+import { isNative } from '../lib/native';
 
 const SignIn = () => {
   const { signInWithGoogle, signInWithPassword, user, hasShop } = useAuth();
@@ -15,7 +16,8 @@ const SignIn = () => {
     const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
     const isAndroid = /android/i.test(ua);
 
-    const isIAB = (
+    // The Ledgro app itself is a WebView ("; wv)"), but it signs in with Google's native picker, so the guard must not fire there.
+    const isIAB = !isNative && (
       ua.indexOf('FBAN') > -1 ||
       ua.indexOf('FBAV') > -1 ||
       ua.indexOf('WhatsApp') > -1 ||
