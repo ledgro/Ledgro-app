@@ -54,6 +54,7 @@ export default function POS() {
   const [splitCash, setSplitCash] = useState('');
   const [splitErr, setSplitErr] = useState('');
   const [finalTotal, setFinalTotal] = useState(''); // typed final bill total; anything below the total becomes a discount
+  const [upiCleared, setUpiCleared] = useState(false); // person erased the split UPI box on purpose: keep it empty instead of refilling the remainder
   const [tendered, setTendered] = useState(''); // cash handed over, for the change line only. Never saved.
   const [isPayOpen, setIsPayOpen] = useState(false);
 
@@ -681,7 +682,7 @@ export default function POS() {
 
             <button
               type="button"
-              onClick={() => { setFinalTotal(''); setTendered(paymentMethod === 'split' ? '' : String(grandTotal / 100)); setIsPayOpen(true); }}
+              onClick={() => { setUpiCleared(false); setFinalTotal(''); setTendered(paymentMethod === 'split' ? '' : String(grandTotal / 100)); setIsPayOpen(true); }}
               disabled={isCheckingOut}
               className="w-full bg-blue-600 text-white font-bold h-14 rounded-xl flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 transition-all active:scale-[0.98] shadow-sm"
             >
@@ -742,7 +743,7 @@ export default function POS() {
                   <button
                     key={method}
                     type="button"
-                    onClick={() => { setPaymentMethod(method); setTendered(method === 'split' ? '' : String(payTotal / 100)); if (method !== 'split') setSplitCash(''); }}
+                    onClick={() => { setUpiCleared(false); setPaymentMethod(method); setTendered(method === 'split' ? '' : String(payTotal / 100)); if (method !== 'split') setSplitCash(''); }}
                     className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider rounded-lg transition-all ${paymentMethod === method ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
                   >
                     {method}
@@ -808,7 +809,7 @@ export default function POS() {
                   ))}
                 </div>
                 <label className="block text-xs font-bold text-slate-500">UPI actually received (optional)</label>
-                <input type="number" inputMode="decimal" value={tendered === '' ? splitUpiShown : tendered} onChange={(e) => setTendered(e.target.value.slice(0, 9))}
+                <input type="number" inputMode="decimal" value={tendered === '' && !upiCleared ? splitUpiShown : tendered} placeholder={String(splitUpiShown)} onChange={(e) => { const v = e.target.value.slice(0, 9); setTendered(v); setUpiCleared(v === ''); }}
                   className="w-full px-3 h-12 border border-blue-200 bg-blue-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-700" />
                 {splitCash !== '' && shortUi(Math.round(((parseFloat(splitCash) || 0) + (parseFloat(tendered === '' ? splitUpiShown : tendered) || 0)) * 100), false)}
                 </div>
