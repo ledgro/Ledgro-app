@@ -1,3 +1,4 @@
+import Reports from './pages/Reports';
 import { installNativeBack } from './lib/nativeBack';
 import { createHashRouter, RouterProvider, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -109,6 +110,7 @@ const router = createHashRouter([
       { path: '/members', element: <ProtectedRoute><Members /></ProtectedRoute> },
       { path: '/settings', element: <ProtectedRoute><Settings /></ProtectedRoute> },
       { path: '/search', element: <ProtectedRoute><Search /></ProtectedRoute> },
+      { path: '/reports', element: <ProtectedRoute><Reports /></ProtectedRoute> },
       { path: '/pnl', element: <ProtectedRoute><PLScreen /></ProtectedRoute> },
       { path: '/privacy', element: <PrivacyPolicy /> },
       { path: '/terms', element: <TermsOfService /> },
