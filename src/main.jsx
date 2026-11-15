@@ -115,7 +115,7 @@ function showFatal(message) {
   p.style.cssText = 'font-size:14px;line-height:1.5;max-width:420px;margin:0;color:#475569;word-break:break-word';
   const btn = document.createElement('button');
   btn.textContent = 'Clear cache and reload';
-  btn.style.cssText = 'height:48px;padding:0 24px;border:0;border-radius:12px;background:#2563EB;color:#fff;font-size:16px;font-weight:700';
+  btn.style.cssText = 'height:48px;padding:0 24px;border:0;border-radius:12px;background:#0d9488;color:#fff;font-size:16px;font-weight:700';
   btn.onclick = async () => {
     try {
       const regs = await navigator.serviceWorker?.getRegistrations();
