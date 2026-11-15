@@ -76,11 +76,8 @@ export default function Dashboard() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   });
   const [isCloseDrawerOpen, setIsCloseDrawerOpen] = useState(false);
-<<<<<<< HEAD
   const [countErr, setCountErr] = useState('');
-=======
   const [searchOpen, setSearchOpen] = useState(false);
->>>>>>> origin/main
   const [isClosingRecord, setIsClosingRecord] = useState(false);
   const [savedCount, setSavedCount] = useState(null); // today's saved cash count, shown so a save is never in doubt
 
