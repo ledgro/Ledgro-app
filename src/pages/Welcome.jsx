@@ -25,7 +25,7 @@ export default function Welcome() {
   const [step, setStep] = useState(0);
   useEffect(() => () => { try { sessionStorage.removeItem('ledgro_show_welcome'); } catch { /* storage blocked */ } }, []);
   const [saving, setSaving] = useState(false);
-  const [a, setA] = useState({ name: '', phone: '', address: '', tagline: '', cutoff: 270 });
+  const [a, setA] = useState({ name: (user?.displayName || '').trim().split(/\s+/)[0].slice(0, 30), phone: '', address: '', tagline: '', cutoff: 270 });
 
   const [theme, setTheme] = useState(getThemePref());
   const questions = [
@@ -69,12 +69,12 @@ export default function Welcome() {
   ];
   const total = questions.length + 1; // the last screen is the next steps
 
-  const save = async () => {
+  const save = async (src = a) => {
     const data = {};
-    if (a.phone.trim()) data.phone = a.phone.trim();
-    if (a.address.trim()) data.address = a.address.trim();
-    if (a.tagline.trim()) data.tagline = a.tagline.trim();
-    if (a.cutoff !== 270) data.dayCutoffMin = a.cutoff;
+    if (src.phone.trim()) data.phone = src.phone.trim();
+    if (src.address.trim()) data.address = src.address.trim();
+    if (src.tagline.trim()) data.tagline = src.tagline.trim();
+    if (src.cutoff !== 270) data.dayCutoffMin = src.cutoff;
     if (Object.keys(data).length === 0) return true;
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return false; }
     setSaving(true);
@@ -88,6 +88,17 @@ export default function Welcome() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const RESETS = [{ name: '' }, {}, { phone: '' }, { address: '' }, { tagline: '' }, { cutoff: 270 }];
+  // Skip only this question: its answer is dropped and the next one opens.
+  const skip = async () => {
+    setA((p) => ({ ...p, ...RESETS[step] }));
+    if (step === questions.length - 1) {
+      const keep = { ...a, ...RESETS[step] };
+      if (keep.phone.trim() || keep.address.trim() || keep.tagline.trim()) { if (!(await save(keep))) return; }
+    }
+    setStep((s) => s + 1);
   };
 
   const next = async () => {
@@ -108,7 +119,10 @@ export default function Welcome() {
   return (
     <div className="flex min-h-[100dvh] flex-col bg-slate-50 px-4 pb-safe pt-8">
       <div className="mx-auto w-full max-w-md flex-1">
-        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">Step {Math.min(step + 1, total)} of {total}</p>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Step {Math.min(step + 1, total)} of {total}</p>
+          {q && <button type="button" onClick={() => navigate('/dashboard', { replace: true })} disabled={saving} className="py-1 text-xs font-bold text-slate-500">Skip setup</button>}
+        </div>
         <div className="mb-6 flex gap-1.5" aria-hidden="true">
           {Array.from({ length: total }, (_, i) => <span key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? 'bg-blue-600' : 'bg-slate-200'}`} />)}
         </div>
@@ -137,7 +151,7 @@ export default function Welcome() {
         <div className="mx-auto flex w-full max-w-md items-center gap-3 py-4">
           {step > 0 && <button type="button" onClick={() => setStep((s) => s - 1)} disabled={saving} className="h-14 rounded-xl bg-white px-5 font-bold text-slate-600 border border-slate-200">Back</button>}
           <button type="button" onClick={next} disabled={saving} className="h-14 flex-1 rounded-xl bg-blue-600 font-bold text-white active:bg-blue-700 disabled:opacity-50">{saving ? 'Saving...' : 'Next'}</button>
-          <button type="button" onClick={() => navigate('/dashboard', { replace: true })} disabled={saving} className="h-14 px-3 text-sm font-bold text-slate-500">Skip</button>
+          <button type="button" onClick={skip} disabled={saving} className="h-14 px-3 text-sm font-bold text-slate-500">Skip</button>
         </div>
       )}
     </div>
