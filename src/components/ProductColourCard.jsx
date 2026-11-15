@@ -6,7 +6,9 @@ import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
 import ProductThumb from './ProductThumb';
-import { compressImage, saveImage, removeImage, imageKey } from '../lib/productImage';
+import ImageCropSheet from './ImageCropSheet';
+import PhotoPreview from './PhotoPreview';
+import { compressImage, saveImage, removeImage, imageKey, loadItemImage } from '../lib/productImage';
 import { sizeLabelOf } from '../lib/variants';
 import { confirm } from '../lib/confirm';
 import { formatCurrency, cn } from '../lib/utils';
@@ -24,6 +26,12 @@ function ProductColourCard({ entry, onEdit }) {
   const addItem = useCatalogStore((s) => s.addItem);
   const [busy, setBusy] = useState(false);
   const input = useRef(null);
+  const [cropFile, setCropFile] = useState(null);
+  const [viewSrc, setViewSrc] = useState(null);
+  const openPreview = async () => {
+    if (!hasPhoto) return;
+    try { const d = await loadItemImage(shopId, rep); if (d) setViewSrc(d); } catch { toast.error('Could not open the photo.'); }
+  };
   const { name, colour, items, rep } = entry;
   const hasPhoto = items.some((i) => i.hasImage);
   const prices = items.map((i) => Number(i.lastUsedPrice) || 0);
@@ -43,10 +51,16 @@ function ProductColourCard({ entry, onEdit }) {
     }
   };
 
-  const onPick = async (e) => {
+  const onPick = (e) => {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f || busy) return;
+    setCropFile(f); // crop first, then save
+  };
+
+  const saveCropped = async (f) => {
+    setCropFile(null);
+    if (busy) return;
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again.'); return; }
     setBusy(true);
     try {
@@ -75,7 +89,9 @@ function ProductColourCard({ entry, onEdit }) {
     <div className="glass-card mb-4 rounded-2xl p-4">
       <div className="flex items-start gap-4">
         <div className="relative shrink-0">
-          <ProductThumb item={rep} className="h-20 w-20" />
+          <button type="button" onClick={openPreview} disabled={!hasPhoto} aria-label={hasPhoto ? 'View photo' : 'No photo yet'} className="block rounded-xl"><ProductThumb item={rep} className="h-20 w-20" /></button>
+          {cropFile && <ImageCropSheet file={cropFile} onCancel={() => setCropFile(null)} onDone={saveCropped} />}
+          {viewSrc && <PhotoPreview src={viewSrc} onClose={() => setViewSrc(null)} />}
           <button type="button" aria-label={`${hasPhoto ? 'Change' : 'Add'} photo for ${colour || name}`} disabled={busy} onClick={() => input.current?.click()}
             className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-white shadow active:scale-95 disabled:opacity-50">
             <Camera size={16} />

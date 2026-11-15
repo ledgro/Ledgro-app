@@ -382,10 +382,20 @@ export default function Products() {
         if (lacking) { toast.error(`This product already has ${lacking}. Fill ${lacking} too.`); setSubmitting(false); return; }
         const batch = writeBatch(db);
         const created = [];
+        // Turning a plain product into variants keeps the SAME product (its bills and photo stay linked) as the first variant, instead of hiding it and making copies.
+        const reuse = convert && editingItem?.id ? editingItem : null;
+        let first = true;
         for (const opts of fresh) {
           const raw = comboStock[comboKey(opts)];
           const stockN = raw === undefined || raw === '' ? null : parseFloat(raw);
           if (stockN !== null && (isNaN(stockN) || stockN < 0)) { toast.error('Enter a valid stock count'); setSubmitting(false); return; }
+          if (reuse && first) {
+            first = false;
+            const upd = { ...basePayload, name: variantName(baseName, opts), baseName, groupId, options: opts, stockCount: stockN, updatedBy: user.uid };
+            batch.update(doc(db, `shops/${shopId}/catalog`, reuse.id), upd);
+            created.push({ ...reuse, ...upd, id: reuse.id, updatedAt: new Date() });
+            continue;
+          }
           const ref = doc(collection(db, `shops/${shopId}/catalog`));
           const payload = {
             ...basePayload, name: variantName(baseName, opts), baseName, groupId, options: opts, stockCount: stockN,
@@ -397,11 +407,6 @@ export default function Products() {
         await batch.commit();
         created.forEach((c) => addCatalogItem(c));
         await persistPhoto(created.map((c) => imageKey(c)));
-        if (convert && editingItem?.id) {
-          // The plain product is replaced by its variants: hide it from billing and lists.
-          await updateDoc(doc(db, `shops/${shopId}/catalog`, editingItem.id), { isActive: false, updatedBy: user.uid, updatedAt: serverTimestamp() });
-          addCatalogItem({ ...editingItem, isActive: false });
-        }
         toast.success(fresh.length === 1 ? 'Variant added' : `${fresh.length} variants added`);
       } else {
         // Check for duplicates before adding
