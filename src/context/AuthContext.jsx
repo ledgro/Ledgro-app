@@ -287,7 +287,10 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  const signingIn = useRef(false);
   const signInWithGoogle = useCallback(async () => {
+    if (signingIn.current) return; // a second tap while one is open breaks Firebase's popup handler
+    signingIn.current = true;
     try {
       try {
         await setPersistence(auth, indexedDBLocalPersistence);
@@ -298,6 +301,9 @@ export const AuthProvider = ({ children }) => {
       else await signInWithPopup(auth, googleProvider);
     } catch (error) {
       if (isNative && nativeCancelled(error)) return;
+      if (/INTERNAL ASSERTION|Pending promise/i.test(error?.message || '')) {
+        throw Object.assign(new Error(isNative ? 'Google sign-in hit a glitch. Close the app fully and open it again.' : 'This browser cannot open the Google popup. Open ledgro-app.pages.dev in Chrome, or use the Ledgro app.'), { code: 'auth/internal-error' });
+      }
       if (error.code === 'auth/account-exists-with-different-credential') {
         throw new Error('An account already exists with this email using a different sign-in method. Please sign in using your original provider.');
       } else if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
@@ -308,6 +314,8 @@ export const AuthProvider = ({ children }) => {
         // keep the Firebase code so the screen can show it (unauthorized-domain, network, internal-error...)
         throw Object.assign(new Error('Google sign-in failed. Please try again.'), { code: error.code });
       }
+    } finally {
+      signingIn.current = false;
     }
   }, []);
 

@@ -8,7 +8,7 @@ import { db } from '../firebase';
 import { useInView } from 'react-intersection-observer';
 import BottomNav from '../components/BottomNav';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, XCircle, RefreshCcw, Search, ArrowLeftRight, Pencil, X } from 'lucide-react';
+import { RefreshCcw, Search, ArrowLeftRight, Pencil, X, XCircle, Banknote, Smartphone, Wallet, ReceiptText, CalendarDays, ChevronLeft, ChevronRight, Undo2, Plus } from 'lucide-react';
 import { Drawer } from 'vaul';
 import { formatCurrency, cn, hapticVibrate } from '../lib/utils';
 import { useBodyLock } from '../hooks/useBodyLock';
@@ -506,6 +506,29 @@ export default function Ledger() {
     });
   }, [processedBills]);
 
+  const payParts = (b) => {
+    const total = Number(b.grandTotal) || 0;
+    if (b.payment?.method === 'split') return { cash: Number(b.payment.breakdown?.cash) || 0, upi: Number(b.payment.breakdown?.upi) || 0 };
+    const m = b.refundMethod || b.paymentMethod || b.payment?.method;
+    return m === 'upi' ? { cash: 0, upi: total } : { cash: total, upi: 0 };
+  };
+
+  // Totals for what is on screen (the loaded, filtered bills), so the numbers always match the list below.
+  const summary = useMemo(() => {
+    const out = { count: 0, total: 0, cash: 0, upi: 0 };
+    processedBills.forEach((b) => {
+      if (b.isVoided || !(b.type === 'sale' || b.type === 'return' || !b.type)) return;
+      const parts = payParts(b);
+      out.count += 1; out.total += Number(b.grandTotal) || 0; out.cash += parts.cash; out.upi += parts.upi;
+    });
+    return out;
+  }, [processedBills]);
+
+  const dayLabel = day ? bizDateFromKey(day).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'All days';
+  const filtersOn = !!(activeFilter || searchQuery.trim() || day || showVoided);
+  const clearFilters = () => { setActiveFilter(''); setSearchQuery(''); setDay(''); setShowVoided(false); };
+  const FILTERS = [['', 'All', null], ['cash', 'Cash', Banknote], ['upi', 'UPI', Smartphone], ['split', 'Split', Wallet], ['return', 'Returns', Undo2]];
+
   // Exports the WHOLE ledger (paged) as PDF, not just what is scrolled in.
   const handleExportLedger = async (format) => {
     if (!shopId) return;
@@ -546,61 +569,47 @@ export default function Ledger() {
 
   return (
     <div className="page-bg h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
-      <header className="sticky top-0 z-30 glass-header px-4 pt-3 pb-2 flex flex-col gap-3">
-        <div className="flex justify-between items-center">
-          <h1 className="text-xl font-bold text-slate-900">Bill History</h1>
-          <ExportMenu label="Export PDF" onPick={handleExportLedger} className="text-blue-600 font-bold text-sm flex items-center gap-1 active:scale-95 disabled:opacity-50 bg-blue-50 px-3 py-1.5 rounded-full" />
+      <header className="sticky top-0 z-30 glass-header px-4 pb-3 pt-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h1 className="text-xl font-black text-slate-900">History</h1>
+          <ExportMenu label="PDF" onPick={handleExportLedger} className="glass-btn-flat h-10 gap-1.5 rounded-full px-4 text-sm font-bold active:scale-95 disabled:opacity-50" />
         </div>
 
-        <div className="relative">
-           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-           <input maxLength={60}
-             type="text"
-             value={searchQuery}
-             onChange={e => setSearchQuery(e.target.value)}
-             onBlur={() => saveRecentSearch(searchQuery)}
-             placeholder="Search bills, items, amounts..."
-             className="w-full bg-slate-100 border border-slate-200 text-slate-900 text-sm rounded-xl pl-10 pr-10 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-           />
-           {searchQuery && (
-             <button type="button" aria-label="Clear search" onClick={() => setSearchQuery('')} className="absolute right-1 top-1/2 -translate-y-1/2 p-2 text-slate-500"><X size={16} /></button>
-           )}
-        </div>
-
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-          {['cash', 'upi', 'split', 'return'].map(f => (
-            <button
-              type="button"
-              key={f}
-              onClick={() => setActiveFilter(activeFilter === f ? '' : f)}
-              className={cn("px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-colors border",
-                activeFilter === f ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-500 border-slate-200"
-              )}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2 pt-1">
-          <button type="button" aria-label="Previous day" disabled={!day} onClick={() => shiftDay(-1)}
-            className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-600 disabled:opacity-40">&lsaquo;</button>
-          <input type="date" aria-label="Pick a day" value={day} max={dayKey(bizDate())} onChange={(e) => setDay(e.target.value)}
-            className="flex-1 min-w-0 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-700" />
-          <button type="button" aria-label="Next day" disabled={!day || day >= dayKey(bizDate())} onClick={() => shiftDay(1)}
-            className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-600 disabled:opacity-40">&rsaquo;</button>
-          {day && (
-            <button type="button" onClick={() => setDay('')}
-              className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider text-blue-600">Latest</button>
+        <div className="relative mb-3">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+          <input maxLength={60} type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onBlur={() => saveRecentSearch(searchQuery)}
+            placeholder="Search bill no, item or amount" aria-label="Search bills"
+            className="glass-input block h-12 w-full rounded-full pl-11 pr-11 text-sm font-semibold placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          {searchQuery && (
+            <button type="button" aria-label="Clear search" onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-500"><X size={16} /></button>
           )}
         </div>
 
-        <div className="flex justify-between items-center pt-1">
-          <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 cursor-pointer">
-             <input type="checkbox" checked={showVoided} onChange={e => setShowVoided(e.target.checked)} className="rounded text-blue-600 focus:ring-blue-500" />
-             Show voided & edited bills
+        <div className="no-scrollbar -mx-4 mb-3 flex gap-2 overflow-x-auto px-4" role="group" aria-label="Filter by payment">
+          {FILTERS.map(([key, label, Icon]) => {
+            const on = activeFilter === key;
+            return (
+              <button type="button" key={label} aria-pressed={on} onClick={() => setActiveFilter(key)}
+                className={cn('press flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-bold', on ? 'bg-blue-600 text-white shadow-md' : 'glass-btn-flat')}>
+                {Icon && <Icon size={15} aria-hidden="true" />}{label}
+              </button>
+            );
+          })}
+          <button type="button" aria-pressed={showVoided} onClick={() => setShowVoided((v) => !v)}
+            className={cn('press flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-bold', showVoided ? 'bg-slate-700 text-white' : 'glass-btn-flat')}>
+            <XCircle size={15} aria-hidden="true" />Voided
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button type="button" aria-label="Previous day" disabled={!day} onClick={() => shiftDay(-1)} className="glass-btn disabled:opacity-40"><ChevronLeft size={18} /></button>
+          <label className="glass-btn-flat relative flex h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-full px-4 text-sm font-bold">
+            <CalendarDays size={16} aria-hidden="true" className="flex-shrink-0" />
+            <span className="truncate">{dayLabel}</span>
+            <input type="date" aria-label="Pick a day" value={day} max={dayKey(bizDate())} onChange={(e) => setDay(e.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
           </label>
-          <span className="text-xs text-slate-500">Filters apply to loaded bills only</span>
+          <button type="button" aria-label="Next day" disabled={!day || day >= dayKey(bizDate())} onClick={() => shiftDay(1)} className="glass-btn disabled:opacity-40"><ChevronRight size={18} /></button>
+          {day && <button type="button" onClick={() => setDay('')} className="px-2 text-xs font-black uppercase tracking-wider text-blue-600">All</button>}
         </div>
       </header>
 
@@ -616,64 +625,82 @@ export default function Ledger() {
            </div>
         )}
 
-        {processedBills.length === 0 && !loading ? (
-          <div className="text-center text-slate-500 mt-20 font-medium">No results found.</div>
+        {processedBills.length > 0 && (
+          <div className="glass-card mb-5 rounded-3xl p-4">
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{day ? dayLabel : 'Loaded bills'}</p>
+                <p className="mt-1 text-3xl font-black tabular-nums text-slate-900">{formatCurrency(summary.total)}</p>
+              </div>
+              <p className="pb-1 text-sm font-bold text-slate-500">{summary.count} {summary.count === 1 ? 'bill' : 'bills'}</p>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="rounded-2xl bg-green-500/10 px-3 py-2"><p className="flex items-center gap-1 text-[0.7rem] font-bold uppercase tracking-wider text-green-600"><Banknote size={13} aria-hidden="true" />Cash</p><p className="text-base font-black tabular-nums text-slate-900">{formatCurrency(summary.cash)}</p></div>
+              <div className="rounded-2xl bg-blue-500/10 px-3 py-2"><p className="flex items-center gap-1 text-[0.7rem] font-bold uppercase tracking-wider text-blue-500"><Smartphone size={13} aria-hidden="true" />UPI</p><p className="text-base font-black tabular-nums text-slate-900">{formatCurrency(summary.upi)}</p></div>
+            </div>
+          </div>
+        )}
+
+        {!searchQuery && recentSearches.length > 0 && (
+           <div className="mb-4 flex flex-wrap gap-2">
+             <span className="w-full text-xs font-bold uppercase text-slate-500">Recent searches</span>
+             {recentSearches.map((q) => (
+               <button key={q} onClick={() => setSearchQuery(q)} className="glass-btn-flat rounded-full px-3 py-1 text-xs font-semibold">{q}</button>
+             ))}
+           </div>
+        )}
+
+        {loading && bills.length === 0 ? (
+          <div className="space-y-3" aria-busy="true" aria-label="Loading bills">
+            {[0, 1, 2, 3].map((i) => <div key={i} className="glass-card h-[72px] animate-pulse rounded-2xl" />)}
+          </div>
+        ) : processedBills.length === 0 ? (
+          <div className="flex flex-col items-center px-6 pt-16 text-center">
+            <span className="glass-card mb-5 flex h-20 w-20 items-center justify-center rounded-full text-slate-400"><ReceiptText size={34} aria-hidden="true" /></span>
+            <p className="text-lg font-black text-slate-900">{filtersOn ? 'No bills match' : 'No bills yet'}</p>
+            <p className="mt-1 max-w-xs text-sm font-medium text-slate-500">{filtersOn ? 'Try another day or clear the filters.' : 'Every bill you make shows up here, newest first.'}</p>
+            {filtersOn
+              ? <button type="button" onClick={clearFilters} className="press glass-btn-flat mt-5 h-11 rounded-full px-6 text-sm font-bold">Clear filters</button>
+              : <button type="button" onClick={() => navigate('/pos')} className="press mt-5 flex h-11 items-center gap-2 rounded-full bg-blue-600 px-6 text-sm font-bold text-white shadow-md"><Plus size={16} aria-hidden="true" />Create a bill</button>}
+          </div>
         ) : (
           <div className="space-y-6" ref={ledgerListRef}>
             {sections.map((sec) => (
-              <section key={sec.key} className="space-y-3">
-                <div className="flex items-baseline justify-between border-b border-slate-200 pb-1.5">
-                  <h2 className="text-sm font-black text-slate-800">{sec.label}</h2>
+              <section key={sec.key}>
+                <div className="mb-2 flex items-baseline justify-between px-1">
+                  <h2 className="text-sm font-black text-slate-900">{sec.label}</h2>
                   <span className="text-xs font-semibold text-slate-500">{sec.count} {sec.count === 1 ? 'bill' : 'bills'} · {formatCurrency(sec.total)}</span>
                 </div>
-            {sec.bills.map(bill => {
-              const date = bill.createdAt?.toDate ? bill.createdAt.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : 'Pending sync...';
-              const isReturn = bill.type === 'return';
-
-              return (
-                <button type="button" key={bill.id} onClick={() => { setSelectedBill(bill); setReturnItems({}); setRefundEdits({}); }}
-                  className={cn("w-full text-left p-4 rounded-2xl border active:scale-[0.98] transition-all cursor-pointer block",
-                    bill.isVoided ? "bg-slate-50 border-slate-200 opacity-60" : "bg-white border-slate-100"
-                  )}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center gap-2">
-                      {bill.isVoided ? <XCircle size={16} className="text-slate-500" /> : isReturn ? <ArrowLeftRight size={16} className="text-orange-500" /> : <CheckCircle2 size={16} className="text-green-500" />}
-                      <span className="text-xs font-semibold text-slate-500">{date}</span>
-                      {isReturn && <span className="bg-orange-100 text-orange-700 text-xs font-black uppercase px-2 py-0.5 rounded">{bill.exchangeOf ? 'Exchange' : 'Return'}</span>}
-                      {!isReturn && bill.exchangeOf && <span className="bg-blue-100 text-blue-700 text-xs font-black uppercase px-2 py-0.5 rounded">Exchange</span>}
-                    </div>
-                    <span className={cn("font-black text-lg", bill.isVoided ? "text-slate-500 line-through" : isReturn ? "text-red-600" : "text-slate-900")}>
-                      {formatCurrency(bill.grandTotal)}
-                    </span>
-                  </div>
-
-                  {(bill.items || []).some((i) => i.catalogId) && (
-                    <div className="mt-3 flex gap-1.5">
-                      {[...new Set((bill.items || []).map((i) => i.catalogId).filter(Boolean))].slice(0, 4).map((cid) => (
-                        <CatalogThumb key={cid} catalogId={cid} className="h-10 w-10" />
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex justify-between items-end mt-3">
-                    <div className="text-sm font-medium text-slate-500 flex items-center gap-2">
-                      <span>{bill.items?.length || 0} {(bill.items?.length || 0) === 1 ? 'item' : 'items'}</span>
-                      {bill.billNo && (<><span>•</span><span className="text-xs text-slate-500 font-mono">#{bill.billNo}</span></>)}
-                      <span>•</span>
-                      {bill.payment?.method === 'split' ? (
-                        <div className="flex items-center text-xs font-bold bg-slate-100 rounded overflow-hidden">
-                          <span className="px-1.5 py-0.5 bg-green-100 text-green-700">₹{(bill.payment.breakdown.cash / 100).toFixed(0)} C</span>
-                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700">₹{(bill.payment.breakdown.upi / 100).toFixed(0)} U</span>
-                        </div>
-                      ) : (
-                        <span className="uppercase text-xs font-bold bg-slate-100 px-2 py-0.5 rounded">{bill.refundMethod || bill.paymentMethod || bill.payment?.method}</span>
-                      )}
-                    </div>
-                    {bill.isVoided && <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-0.5 rounded uppercase tracking-wider">Voided</span>}
-                  </div>
-                </button>
-              );
-            })}
+                <div className="rise-list space-y-2">
+                  {sec.bills.map((bill) => {
+                    const time = bill.createdAt?.toDate ? bill.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Syncing…';
+                    const isReturn = bill.type === 'return';
+                    const method = bill.payment?.method === 'split' ? 'split' : (bill.refundMethod || bill.paymentMethod || bill.payment?.method || 'cash');
+                    const Icon = isReturn ? Undo2 : method === 'upi' ? Smartphone : method === 'split' ? Wallet : Banknote;
+                    const tone = bill.isVoided ? 'bg-slate-500/15 text-slate-500' : isReturn ? 'bg-orange-500/15 text-orange-500' : method === 'upi' ? 'bg-blue-500/15 text-blue-500' : method === 'split' ? 'bg-purple-500/15 text-purple-500' : 'bg-green-500/15 text-green-600';
+                    const names = (bill.items || []).map((i) => i.name).filter(Boolean);
+                    const itemsText = names.length ? `${names.slice(0, 2).join(', ')}${names.length > 2 ? ` +${names.length - 2}` : ''}` : `${bill.items?.length || 0} items`;
+                    const title = isReturn ? (bill.exchangeOf ? 'Exchange' : 'Return') : (bill.billNo ? `Bill #${bill.billNo}` : 'Bill');
+                    return (
+                      <button type="button" key={bill.id} onClick={() => { setSelectedBill(bill); setReturnItems({}); setRefundEdits({}); }}
+                        className={cn('press glass-card flex w-full items-center gap-3 rounded-2xl p-3 text-left', bill.isVoided && 'opacity-60')}>
+                        <span className={cn('flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl', tone)}><Icon size={20} aria-hidden="true" /></span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-2">
+                            <span className="truncate text-sm font-black text-slate-900">{title}</span>
+                            {bill.isVoided && <span className="rounded bg-slate-500/20 px-1.5 py-0.5 text-[0.6rem] font-black uppercase tracking-wider text-slate-500">Voided</span>}
+                            {!isReturn && bill.exchangeOf && <span className="rounded bg-blue-500/15 px-1.5 py-0.5 text-[0.6rem] font-black uppercase tracking-wider text-blue-500">Exchange</span>}
+                          </span>
+                          <span className="mt-0.5 block truncate text-xs font-medium text-slate-500">{time} · {itemsText}</span>
+                        </span>
+                        <span className="flex-shrink-0 text-right">
+                          <span className={cn('block text-base font-black tabular-nums', bill.isVoided ? 'text-slate-500 line-through' : isReturn ? 'text-red-500' : 'text-slate-900')}>{formatCurrency(bill.grandTotal)}</span>
+                          <span className="block text-[0.65rem] font-bold uppercase tracking-wider text-slate-500">{method}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </section>
             ))}
           </div>

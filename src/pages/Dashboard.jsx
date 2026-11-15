@@ -19,6 +19,7 @@ import { formatCurrency, cn } from '../lib/utils';
 import { Skeleton } from '../components/Skeleton';
 import { Drawer } from 'vaul';
 import { computeDailyAggregations } from '../lib/aggregations';
+import { SearchPanel } from './Search';
 import { QuickActions, LowStock, LatestActivity } from '../components/DashboardExtras';
 
 
@@ -75,7 +76,11 @@ export default function Dashboard() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   });
   const [isCloseDrawerOpen, setIsCloseDrawerOpen] = useState(false);
+<<<<<<< HEAD
   const [countErr, setCountErr] = useState('');
+=======
+  const [searchOpen, setSearchOpen] = useState(false);
+>>>>>>> origin/main
   const [isClosingRecord, setIsClosingRecord] = useState(false);
   const [savedCount, setSavedCount] = useState(null); // today's saved cash count, shown so a save is never in doubt
 
@@ -224,7 +229,7 @@ export default function Dashboard() {
             {hidden ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
           <button type="button" aria-label="Refresh Dashboard" onClick={() => fetchDashboardData()} className="glass-btn press"><RefreshCcw size={16} /></button>
-          <Link to="/search" aria-label="Search" className="glass-btn press"><SearchIcon size={18} /></Link>
+          <button type="button" aria-label="Search" onClick={() => setSearchOpen(true)} className="glass-btn press"><SearchIcon size={18} /></button>
         </div>
       </header>
 
@@ -421,6 +426,7 @@ export default function Dashboard() {
         </Drawer.Portal>
       </Drawer.Root>
 
+      {searchOpen && <SearchPanel onClose={() => setSearchOpen(false)} />}
       <BottomNav />
     </div>
   );

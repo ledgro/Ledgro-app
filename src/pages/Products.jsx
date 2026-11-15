@@ -9,7 +9,7 @@ import { collection, addDoc, doc, updateDoc, deleteDoc, writeBatch, serverTimest
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Drawer } from 'vaul';
-import { PackagePlus, Search, Plus, Archive, ChevronDown, ChevronUp, Edit2, Trash2, Camera, FileDown, LayoutGrid, List, ArrowLeftRight } from 'lucide-react';
+import { PackagePlus, Search, Plus, Archive, ChevronDown, ChevronUp, Edit2, Trash2, Camera, FileDown, LayoutGrid, List, ArrowLeftRight, ArrowDownAZ } from 'lucide-react';
 import { formatCurrency, sanitizeText, cn } from '../lib/utils';
 import { sessionGuard } from '../lib/SessionGuard';
 import { useCatalogLoader } from '../hooks/useCatalogLoader';
@@ -512,30 +512,15 @@ export default function Products() {
 
   return (
     <div className="page-bg h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
-      <header className="glass-header sticky top-0 z-30 px-4 pt-4 pb-2">
-        <div className="mb-3 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-slate-900">Products</h1>
-          <div className="flex items-center gap-2">
-            <button type="button" aria-pressed={sortBy === 'a_z'} onClick={() => setSortBy((v) => (v === 'a_z' ? 'recently_added' : 'a_z'))} className={cn('flex h-9 items-center rounded-lg px-3 text-sm font-bold', sortBy === 'a_z' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700')}>A-Z</button>
-            <button type="button" aria-label={view === 'list' ? 'Grid view' : 'List view'} onClick={() => setView(view === 'list' ? 'grid' : 'list')} className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-              {view === 'list' ? <LayoutGrid size={18} /> : <List size={18} />}
-            </button>
-            {isAdmin && (
-              <button type="button" aria-label="Export or import products" onClick={() => setTransferOpen(true)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-                <ArrowLeftRight size={18} />
-              </button>
-            )}
-            <button type="button" aria-label="Export catalog PDF" onClick={() => setExportOpen(true)} disabled={!activeProducts.length} className="flex h-9 items-center gap-1 rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-700 disabled:opacity-50">
-              <FileDown size={16} /> PDF
-            </button>
-          <button
-            type="button"
-            onClick={() => openDrawer()}
-            className="press flex h-10 items-center gap-1 rounded-full bg-blue-600 px-4 text-sm font-bold text-white shadow-md"
-          >
-            <Plus size={16} /> New
-          </button>
+      <header className="glass-header sticky top-0 z-30 px-4 pb-3 pt-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl font-black text-slate-900">Products</h1>
+            <p className="text-xs font-medium text-slate-500">{activeProducts.length} {activeProducts.length === 1 ? 'item' : 'items'}</p>
           </div>
+          <button type="button" onClick={() => openDrawer()} className="press flex h-10 flex-shrink-0 items-center gap-1.5 rounded-full bg-blue-600 px-5 text-sm font-bold text-white shadow-md">
+            <Plus size={16} aria-hidden="true" /> New
+          </button>
         </div>
         <div className="relative mb-3">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
@@ -547,15 +532,38 @@ export default function Products() {
             placeholder="Search products..."
           />
         </div>
-        {filterOptions.length > 2 && <CategoryChips options={filterOptions} value={filter} onChange={setFilter} />}
+        <div className="no-scrollbar -mx-4 mb-1 flex gap-2 overflow-x-auto px-4">
+          <button type="button" aria-pressed={sortBy === 'a_z'} onClick={() => setSortBy((v) => (v === 'a_z' ? 'recently_added' : 'a_z'))}
+            className={cn('press flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-bold', sortBy === 'a_z' ? 'bg-blue-600 text-white shadow-md' : 'glass-btn-flat')}>
+            <ArrowDownAZ size={15} aria-hidden="true" /> A to Z
+          </button>
+          <button type="button" onClick={() => setView(view === 'list' ? 'grid' : 'list')} className="press glass-btn-flat flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-bold">
+            {view === 'list' ? <LayoutGrid size={15} aria-hidden="true" /> : <List size={15} aria-hidden="true" />}{view === 'list' ? 'Grid' : 'List'}
+          </button>
+          {isAdmin && (
+            <button type="button" onClick={() => setTransferOpen(true)} className="press glass-btn-flat flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-bold">
+              <ArrowLeftRight size={15} aria-hidden="true" /> Import / export
+            </button>
+          )}
+          <button type="button" onClick={() => setExportOpen(true)} disabled={!activeProducts.length} className="press glass-btn-flat flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-bold disabled:opacity-50">
+            <FileDown size={15} aria-hidden="true" /> PDF
+          </button>
+        </div>
+        {filterOptions.length > 2 && <div className="mt-2"><CategoryChips options={filterOptions} value={filter} onChange={setFilter} /></div>}
       </header>
 
       <main className="p-4 flex-1">
         {activeProducts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-center text-slate-500">
-            <PackagePlus size={48} className="text-slate-300 mb-4" />
-            <p className="font-semibold text-lg">No active products found.</p>
-            <p className="text-sm">Tap "New" to add your first product.</p>
+          <div className="flex flex-col items-center px-6 pt-16 text-center">
+            <span className="glass-card mb-5 flex h-20 w-20 items-center justify-center rounded-full text-slate-400"><PackagePlus size={34} aria-hidden="true" /></span>
+            <p className="text-lg font-black text-slate-900">{searchQuery.trim() ? 'No products match' : 'No products yet'}</p>
+            <p className="mt-1 max-w-xs text-sm font-medium text-slate-500">{searchQuery.trim() ? 'Try a different name, or clear the search.' : 'Add your first product to start billing, or import a list.'}</p>
+            {searchQuery.trim()
+              ? <button type="button" onClick={() => setSearchQuery('')} className="press glass-btn-flat mt-5 h-11 rounded-full px-6 text-sm font-bold">Clear search</button>
+              : <div className="mt-5 flex flex-wrap justify-center gap-2">
+                  <button type="button" onClick={() => openDrawer()} className="press flex h-11 items-center gap-2 rounded-full bg-blue-600 px-6 text-sm font-bold text-white shadow-md"><Plus size={16} aria-hidden="true" />Add product</button>
+                  {isAdmin && <button type="button" onClick={() => setTransferOpen(true)} className="press glass-btn-flat flex h-11 items-center gap-2 rounded-full px-5 text-sm font-bold"><ArrowLeftRight size={16} aria-hidden="true" />Import</button>}
+                </div>}
           </div>
         ) : (
           view === 'grid'

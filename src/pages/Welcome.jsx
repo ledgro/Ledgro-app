@@ -25,12 +25,11 @@ export default function Welcome() {
   const [step, setStep] = useState(0);
   useEffect(() => () => { try { sessionStorage.removeItem('ledgro_show_welcome'); } catch { /* storage blocked */ } }, []);
   const [saving, setSaving] = useState(false);
-  const [a, setA] = useState({ name: (user?.displayName || '').trim().split(/\s+/)[0].slice(0, 30), phone: '', address: '', tagline: '', cutoff: 270 });
+  const [a, setA] = useState({ name: (user?.displayName || '').trim().slice(0, 30), phone: '', address: '', tagline: '', cutoff: 270 });
 
   const [theme, setTheme] = useState(getThemePref());
-  const hasGoogleName = !!(user?.displayName || '').trim(); // already the Home/Profile name, so do not ask again
   const questions = [
-    { key: 'name', icon: User, title: 'What is your name?', hint: 'Shown on your Home screen and to your team. You can change it later in Profile.',
+    { key: 'name', icon: User, title: 'What is your name?', hint: 'Filled in from your Google account. Change it if you like. Shown on your Home screen and to your team.',
       body: <input type="text" maxLength={30} autoComplete="given-name" value={a.name} onChange={(e) => setA((p) => ({ ...p, name: e.target.value }))} placeholder="Your first name" className={input} /> },
     { key: 'theme', icon: Moon, title: 'Dark or light?', hint: 'Dark is easier on the eyes in a shop. You can change it any time in Profile.',
       body: (
@@ -67,7 +66,7 @@ export default function Welcome() {
           ))}
         </div>
       ) },
-  ].filter((q) => !(hasGoogleName && q.key === 'name'));
+  ];
   const total = questions.length + 1; // the last screen is the next steps
 
   const save = async (src = a) => {
