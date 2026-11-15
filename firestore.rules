@@ -435,8 +435,10 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly([
               'source', 'costPrice', 'name', 'lastUsedPrice', 'unit', 'stockCount',
-              'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency', 'updatedBy', 'deleted', 'baseName', 'options', 'hasImage'
+              'lowStockAlert', 'category', 'description', 'isActive', 'updatedAt', 'frequency', 'updatedBy', 'deleted', 'baseName', 'options', 'hasImage', 'groupId'
             ])
+          // groupId may only be set once, when a plain product becomes a variant of a group (never moved between groups)
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['groupId']) || resource.data.get('groupId', null) == null)
           && isValidVariantFields(request.resource.data)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['updatedBy']) || request.resource.data.updatedBy == request.auth.uid)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['deleted']) || (isAdmin(shopId) && request.resource.data.deleted == true));

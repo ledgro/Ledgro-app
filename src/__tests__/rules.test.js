@@ -542,6 +542,11 @@ d('firestore.rules', () => {
       await assertFails(updateDoc(ref('v1'), { groupId: 'g2', updatedAt: serverTimestamp() }));
       await assertSucceeds(updateDoc(ref('v1'), { baseName: 'Heels', name: 'Heels - 6 / Black', options: { Size: '6', Colour: 'Black' }, updatedAt: serverTimestamp() }));
     });
+    it('a plain product can become the first variant of a group (once)', async () => {
+      await assertSucceeds(setDoc(ref('p1'), { ...base, name: 'Plain shoe' }));
+      await assertSucceeds(updateDoc(ref('p1'), { baseName: 'Plain shoe', groupId: 'g9', options: { Size: '6' }, name: 'Plain shoe - 6', updatedAt: serverTimestamp() }));
+      await assertFails(updateDoc(ref('p1'), { groupId: 'g10', updatedAt: serverTimestamp() }));
+    });
     it('20 variants in one batch stay within rule limits', async () => {
       const db = as(MEMBER);
       const b = writeBatch(db);
