@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
-import { ChevronLeft, Search as SearchIcon, X, Package, FileText, Receipt } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Search as SearchIcon, X, Package, FileText, Receipt } from 'lucide-react';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useCatalogStore } from '../store/catalogStore';
@@ -17,14 +18,14 @@ function Group({ title, Icon, children, count }) {
   return (
     <section aria-label={title}>
       <h2 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500"><Icon size={14} aria-hidden="true" /> {title}</h2>
-      <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-100 bg-white shadow-sm">{children}</ul>
+      <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-100">{children}</ul>
     </section>
   );
 }
 
-export default function Search() {
+/** Floating search card over whatever page is open (not a page of its own). Closes on the backdrop, Cancel, Escape, or the phone's Back button. */
+export function SearchPanel({ onClose }) {
   const { shopId } = useAuth();
-  const navigate = useNavigate();
   const inputRef = useRef(null);
   const [term, setTerm] = useState('');
   const [bills, setBills] = useState([]);
@@ -35,6 +36,11 @@ export default function Search() {
   const items = useCatalogStore((s) => s.items);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   // Firestore has no text search, so bills and expenses are matched in the browser over the latest 100 of each.
   useEffect(() => {
@@ -83,27 +89,32 @@ export default function Search() {
   const none = t && !prods.length && !billHits.length && !expHits.length;
 
   return (
-    <div className="page-bg h-[100dvh] overflow-y-auto bg-slate-50">
-      <header className="sticky top-0 z-30 flex items-center gap-2 px-4 py-3 glass-header">
-        <button type="button" aria-label="Back" onClick={() => navigate(-1)} className="glass-btn"><ChevronLeft size={20} /></button>
-        <div className="relative flex-1">
-          <SearchIcon size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
-          <input maxLength={60}
-            ref={inputRef}
-            value={term}
-            onChange={(e) => setTerm(e.target.value)}
-            placeholder="Search products, bills, expenses"
-            aria-label="Search"
-            enterKeyHint="search"
-            className="h-11 w-full rounded-full border border-slate-200 bg-white pl-10 pr-10 text-sm font-semibold"
-          />
-          {term && (
-            <button type="button" aria-label="Clear" onClick={() => { setTerm(''); inputRef.current?.focus(); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-500"><X size={16} /></button>
-          )}
+    <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true" aria-label="Search" data-state="open">
+      <motion.div className="absolute inset-0 bg-black/55" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }} onClick={onClose} />
+      <motion.div
+        className="glass-card absolute inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] mx-auto flex max-h-[calc(100dvh-1.5rem)] max-w-xl flex-col overflow-hidden rounded-3xl shadow-2xl"
+        initial={{ opacity: 0, y: -14, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+      >
+        <div className="flex items-center gap-2 border-b border-slate-200 p-3">
+          <div className="relative flex-1">
+            <SearchIcon size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+            <input maxLength={60}
+              ref={inputRef}
+              value={term}
+              onChange={(e) => setTerm(e.target.value)}
+              placeholder="Search products, bills, expenses"
+              aria-label="Search"
+              enterKeyHint="search"
+              className="glass-input h-11 w-full rounded-full pl-10 pr-10 text-sm font-semibold placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {term && (
+              <button type="button" aria-label="Clear" onClick={() => { setTerm(''); inputRef.current?.focus(); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-500"><X size={16} /></button>
+            )}
+          </div>
+          <button type="button" onClick={onClose} className="press px-2 text-sm font-bold text-blue-600">Cancel</button>
         </div>
-      </header>
 
-      <main className="space-y-5 p-4 pb-12">
+      <main className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4">
         {!t && <p className="text-sm text-slate-500">Type a product name, SKU, barcode, bill number or expense. Latest bills are below.</p>}
         <Group title="Products" Icon={Package} count={prods.length}>
           {prods.map((p) => (
@@ -140,6 +151,17 @@ export default function Search() {
         </Group>
         {none && <p className="py-10 text-center text-sm font-semibold text-slate-500">Nothing found for "{term.trim()}". Bills and expenses search the latest 100; type a full bill number for older ones.</p>}
       </main>
+      </motion.div>
+    </div>
+  );
+}
+
+// Direct link to /search (kept for old links): the panel over an empty page, closing back to where you came from.
+export default function Search() {
+  const navigate = useNavigate();
+  return (
+    <div className="page-bg h-[100dvh]">
+      <SearchPanel onClose={() => ((window.history.state?.idx ?? 0) > 0 ? navigate(-1) : navigate('/dashboard', { replace: true }))} />
     </div>
   );
 }
