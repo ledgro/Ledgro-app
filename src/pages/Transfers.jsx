@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import FieldError, { errRing } from '../components/FieldError';
 import { toast } from 'sonner';
 import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, increment, writeBatch, deleteDoc } from 'firebase/firestore';
 import { ArrowDownToLine, ArrowUpFromLine, Trash2 } from 'lucide-react';
@@ -24,6 +25,8 @@ export default function Transfers() {
 
   const [direction, setDirection] = useState('in');
   const [party, setParty] = useState('');
+  const [fe, setFe] = useState({});
+  const clr = (k) => setFe((p) => (p[k] ? { ...p, [k]: '' } : p));
   const [productName, setProductName] = useState('');
   const [qty, setQty] = useState('');
   const [price, setPrice] = useState('');
@@ -85,9 +88,14 @@ export default function Transfers() {
     const cleanName = sanitizeText(productName).slice(0, 100);
     const qtyNum = parseFloat(qty);
     const priceNum = price !== '' ? parseFloat(price) : null;
-    if (!cleanParty || !cleanName) { toast.error('Enter the shop and the product.'); return; }
-    if (!(qtyNum > 0) || qtyNum > 100000) { toast.error('Enter a valid quantity.'); return; }
-    if (priceNum !== null && (isNaN(priceNum) || priceNum < 0)) { toast.error('Enter a valid price.'); return; }
+    const errs = {};
+    if (!cleanParty) errs.party = direction === 'in' ? 'Enter the shop it came from.' : 'Enter the shop it went to.';
+    if (!cleanName) errs.product = 'Enter the product name.';
+    if (!(qtyNum > 0)) errs.qty = qty === '' ? 'Enter how many pieces.' : 'Quantity must be more than 0.';
+    else if (qtyNum > 100000) errs.qty = 'Quantity can be at most 100000.';
+    if (priceNum !== null && (isNaN(priceNum) || priceNum < 0)) errs.price = 'Price must be 0 or more. Leave it empty if you do not know it.';
+    if (Object.keys(errs).length) { setFe(errs); return; }
+    setFe({});
 
     const existing = items.find((i) => i.id && (i.name || '').trim().toLowerCase() === cleanName.toLowerCase());
     if (!existing && direction === 'out') { toast.error('That product is not in your list. Only products you have can go out.'); return; }
@@ -157,7 +165,7 @@ export default function Transfers() {
       </header>
 
       <main className="p-4 space-y-6">
-        <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+        <form noValidate onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
           <div className="grid grid-cols-2 gap-2" role="group" aria-label="Direction">
             {[['in', 'In', ArrowDownToLine], ['out', 'Out', ArrowUpFromLine]].map(([v, label, Icon]) => (
               <button key={v} type="button" aria-pressed={direction === v} onClick={() => setDirection(v)}
@@ -170,15 +178,17 @@ export default function Transfers() {
 
           <label className="block">
             <span className="block text-sm font-semibold text-slate-700 mb-1">{direction === 'in' ? 'Received from' : 'Sent to'}</span>
-            <input list="transfer-parties" value={party} onChange={(e) => setParty(e.target.value)} maxLength={60}
-              className="w-full px-4 h-12 border border-slate-200 rounded-xl font-medium text-slate-900" />
+            <input list="transfer-parties" value={party} onChange={(e) => { setParty(e.target.value); clr('party'); }} maxLength={60} aria-invalid={!!fe.party}
+              className={'w-full px-4 h-12 border border-slate-200 rounded-xl font-medium text-slate-900' + errRing(fe.party)} />
+            <FieldError>{fe.party}</FieldError>
             <datalist id="transfer-parties">{parties.map((p) => <option key={p} value={p} />)}</datalist>
           </label>
 
           <label className="block">
             <span className="block text-sm font-semibold text-slate-700 mb-1">Product</span>
-            <input list="transfer-products" value={productName} onChange={(e) => setProductName(e.target.value)} maxLength={100}
-              className="w-full px-4 h-12 border border-slate-200 rounded-xl font-medium text-slate-900" />
+            <input list="transfer-products" value={productName} onChange={(e) => { setProductName(e.target.value); clr('product'); }} maxLength={100} aria-invalid={!!fe.product}
+              className={'w-full px-4 h-12 border border-slate-200 rounded-xl font-medium text-slate-900' + errRing(fe.product)} />
+            <FieldError>{fe.product}</FieldError>
             <datalist id="transfer-products">{items.filter((i) => i.isActive !== false).map((i) => <option key={i.id} value={i.name} />)}</datalist>
             {direction === 'in' && productName.trim() && !items.some((i) => (i.name || '').trim().toLowerCase() === productName.trim().toLowerCase()) && (
               <span className="block text-xs text-blue-600 mt-1">New product. It will be added to your list.</span>
@@ -188,13 +198,15 @@ export default function Transfers() {
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="block text-sm font-semibold text-slate-700 mb-1">Quantity</span>
-              <input type="number" inputMode="decimal" min="0" step="1" value={qty} onChange={(e) => setQty(e.target.value.slice(0, 8))}
-                className="w-full px-4 h-12 border border-slate-200 rounded-xl font-medium text-slate-900" />
+              <input type="number" inputMode="decimal" min="0" step="1" value={qty} onChange={(e) => { setQty(e.target.value.slice(0, 8)); clr('qty'); }} aria-invalid={!!fe.qty}
+                className={'w-full px-4 h-12 border border-slate-200 rounded-xl font-medium text-slate-900' + errRing(fe.qty)} />
+              <FieldError>{fe.qty}</FieldError>
             </label>
             <label className="block">
               <span className="block text-sm font-semibold text-slate-700 mb-1">Price each (optional)</span>
-              <input type="number" inputMode="decimal" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value.slice(0, 10))}
-                className="w-full px-4 h-12 border border-slate-200 rounded-xl font-medium text-slate-900" />
+              <input type="number" inputMode="decimal" min="0" step="0.01" value={price} onChange={(e) => { setPrice(e.target.value.slice(0, 10)); clr('price'); }} aria-invalid={!!fe.price}
+                className={'w-full px-4 h-12 border border-slate-200 rounded-xl font-medium text-slate-900' + errRing(fe.price)} />
+              <FieldError>{fe.price}</FieldError>
             </label>
           </div>
 
