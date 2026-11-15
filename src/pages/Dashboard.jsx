@@ -13,7 +13,7 @@ import Reveal from '../components/Reveal';
 import { useMyName } from '../lib/myName';
 import CashNotes from '../components/CashNotes';
 import { Link } from 'react-router-dom';
-import { Cloud, CloudOff, RefreshCcw, Eye, EyeOff, Search as SearchIcon, ChevronRight } from 'lucide-react';
+import { Cloud, CloudOff, RefreshCcw, Eye, EyeOff, Search as SearchIcon, ChevronRight, Banknote, Smartphone } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
 import { Skeleton } from '../components/Skeleton';
 import { Drawer } from 'vaul';
@@ -57,6 +57,9 @@ export default function Dashboard() {
     staffCashFailed: false,
     upiInBank: 0,
     netEarnings: 0,
+    sales: 0,
+    expenses: 0,
+    billCount: 0,
     vsYesterday: 0,
     cashSplit: 0,
     upiSplit: 0,
@@ -256,16 +259,25 @@ export default function Dashboard() {
                     </span>
                   )}
                 </div>
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur-sm">
-                    <p className="text-[0.7rem] font-bold uppercase tracking-wider text-blue-100/80">Cash</p>
-                    <p className="text-lg font-black tabular-nums">{mask(formatCurrency(stats.cashSplit))}</p>
-                  </div>
-                  <div className="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur-sm">
-                    <p className="text-[0.7rem] font-bold uppercase tracking-wider text-blue-100/80">UPI</p>
-                    <p className="text-lg font-black tabular-nums">{mask(formatCurrency(stats.upiSplit))}</p>
-                  </div>
+                <div className="mt-5 grid grid-cols-3 gap-2">
+                  {[['Sales', mask(formatCurrency(stats.sales))], ['Expenses', mask(formatCurrency(stats.expenses))], ['Bills', hidden ? '•••' : String(stats.billCount)]].map(([l, v]) => (
+                    <div key={l} className="min-w-0 rounded-2xl bg-white/10 px-3 py-2.5 backdrop-blur-sm">
+                      <p className="text-[0.65rem] font-bold uppercase tracking-wider text-blue-100/80">{l}</p>
+                      <p className="truncate text-base font-black tabular-nums">{v}</p>
+                    </div>
+                  ))}
                 </div>
+                {(() => {
+                  const wk = stats.weekData || []; const max = Math.max(1, ...wk.map((n) => Math.abs(n)));
+                  return wk.length > 0 && (
+                    <div className={cn('mt-4', hidden && 'opacity-40')} aria-hidden="true">
+                      <div className="flex h-10 items-end gap-1.5">
+                        {wk.map((n, i) => <div key={i} className={cn('flex-1 rounded-t-md', i === wk.length - 1 ? 'bg-white' : 'bg-white/35')} style={{ height: `${Math.max(6, (Math.abs(n) / max) * 100)}%` }} />)}
+                      </div>
+                      <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wider text-blue-100/70">Last 7 days</p>
+                    </div>
+                  );
+                })()}
                 <p className="mt-4 flex items-center justify-end gap-1 text-xs font-bold text-blue-100/80">Full details <ChevronRight size={14} aria-hidden="true" /></p>
               </div>
             </Link>
@@ -275,16 +287,24 @@ export default function Dashboard() {
             <Reveal i={1}><QuickActions /></Reveal>
 
             <Reveal i={2}>
-            <div className="grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => setIsCloseDrawerOpen(true)} className="press bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center text-left">
-                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Expected Cash</p>
-                 <h2 className="text-2xl font-black text-slate-900">{mask(formatCurrency(stats.expectedCash))}</h2>
-                 <p className="mt-1 text-[0.7rem] font-bold text-blue-600">See how it adds up</p>
+            <div className="glass-card divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-100 shadow-sm">
+              <button type="button" onClick={() => setIsCloseDrawerOpen(true)} className="press flex w-full items-center gap-3 p-4 text-left">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-500/15 text-green-600"><Banknote size={20} aria-hidden="true" /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-bold uppercase tracking-wider text-slate-500">Cash in drawer</span>
+                  <span className="block text-[0.7rem] font-semibold text-slate-500">Count it &amp; see how it adds up</span>
+                </span>
+                <span className="text-xl font-black tabular-nums text-slate-900">{mask(formatCurrency(stats.expectedCash))}</span>
+                <ChevronRight size={16} className="shrink-0 text-slate-400" aria-hidden="true" />
               </button>
-              <Link to="/pnl" className="press bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
-                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">In Bank (UPI)</p>
-                 <h2 className="text-2xl font-black text-slate-900">{mask(formatCurrency(stats.upiInBank))}</h2>
-                 <p className="mt-1 text-[0.7rem] font-bold text-blue-600">Open statistics</p>
+              <Link to="/pnl" className="press flex items-center gap-3 p-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-blue-600"><Smartphone size={20} aria-hidden="true" /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-bold uppercase tracking-wider text-slate-500">UPI in bank</span>
+                  <span className="block text-[0.7rem] font-semibold text-slate-500">Open statistics</span>
+                </span>
+                <span className="text-xl font-black tabular-nums text-slate-900">{mask(formatCurrency(stats.upiInBank))}</span>
+                <ChevronRight size={16} className="shrink-0 text-slate-400" aria-hidden="true" />
               </Link>
             </div>
 
