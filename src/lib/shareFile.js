@@ -1,5 +1,25 @@
 // Share / save a generated file (PNG or PDF) in a way that also works on iOS.
 import { toast } from 'sonner';
+import { isNative } from './native';
+
+// Android app: the WebView has no share sheet or downloads, so write the file to the app cache and hand it to Android's own share sheet.
+async function nativeShare(blob, filename, title) {
+  const [{ Filesystem, Directory }, { Share }] = await Promise.all([import('@capacitor/filesystem'), import('@capacitor/share')]);
+  const data = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onloadend = () => resolve(String(r.result).split(',')[1]);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+  const { uri } = await Filesystem.writeFile({ path: filename, data, directory: Directory.Cache });
+  try {
+    await Share.share({ title, files: [uri], dialogTitle: title || 'Share' });
+    return 'shared';
+  } catch (err) {
+    if (/cancel/i.test(`${err?.message || ''}`)) return 'cancelled';
+    throw err;
+  }
+}
 
 // iOS notes:
 //  - navigator.share({files}) only works inside a user tap. If we render the
@@ -36,6 +56,9 @@ function openInViewer(blob) {
  * Returns 'shared' | 'cancelled' | 'unsupported'.
  */
 export async function shareFile(blob, filename, title = '') {
+  if (isNative) {
+    try { return await nativeShare(blob, filename, title); } catch (err) { console.error('native share failed', err); return 'unsupported'; }
+  }
   const file = new File([blob], filename, { type: blob.type });
   if (!(navigator.canShare && navigator.canShare({ files: [file] }))) return 'unsupported';
   try {
@@ -53,6 +76,12 @@ export async function shareFile(blob, filename, title = '') {
  * Returns true when something was handed to the user.
  */
 export async function saveFile(blob, filename, title = '') {
+  if (isNative) {
+    // "Save" in the app = the share sheet, which offers Save to Drive / Files / WhatsApp.
+    const r = await shareFile(blob, filename, title);
+    if (r === 'unsupported') toast.error('Could not open the share sheet. Please try again.');
+    return r !== 'unsupported';
+  }
   if (isIOS()) {
     const r = await shareFile(blob, filename, title);
     if (r === 'shared' || r === 'cancelled') return true;
