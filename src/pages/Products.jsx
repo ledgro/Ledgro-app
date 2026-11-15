@@ -1,4 +1,6 @@
 import { sheetStyle } from '../hooks/useKeyboardInset';
+import ImageCropSheet from '../components/ImageCropSheet';
+import PhotoPreview from '../components/PhotoPreview';
 import FieldError, { errRing } from '../components/FieldError';
 import { toast } from 'sonner';
 import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
@@ -113,6 +115,8 @@ export default function Products() {
   const [convert, setConvert] = useState(false);
   const [photo, setPhoto] = useState(null); // data URL shown in the form
   const [photoDirty, setPhotoDirty] = useState(false);
+  const [cropFile, setCropFile] = useState(null); // picked photo waiting to be cropped
+  const [viewPhoto, setViewPhoto] = useState(false);
   const [view, setView] = useState('list');
   const [exporting, setExporting] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -647,14 +651,16 @@ export default function Products() {
                         const f = e.target.files?.[0];
                         e.target.value = '';
                         if (!f) return;
-                        try { setPhoto(await compressImage(f)); setPhotoDirty(true); setDirty(true); } catch (err) { toast.error(err.message || 'Could not use that photo.'); }
+                        setCropFile(f);
                       };
                       const btn = 'flex-1 cursor-pointer rounded-xl bg-slate-100 px-3 py-3 text-center text-sm font-bold text-slate-700 active:scale-95 transition-transform';
                       return (
                         <div className="flex items-center gap-3">
-                          <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-slate-100 flex items-center justify-center">
+                          <button type="button" disabled={!photo} onClick={() => setViewPhoto(true)} aria-label={photo ? 'View photo' : 'No photo yet'} className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-slate-100 flex items-center justify-center">
                             {photo ? <img src={photo} alt="" className="h-full w-full object-cover" /> : <Camera size={28} className="text-slate-400" />}
-                          </div>
+                          </button>
+                          {cropFile && <ImageCropSheet file={cropFile} onCancel={() => setCropFile(null)} onDone={async (f) => { setCropFile(null); try { setPhoto(await compressImage(f)); setPhotoDirty(true); setDirty(true); } catch (err) { toast.error(err.message || 'Could not use that photo.'); } }} />}
+                          {viewPhoto && photo && <PhotoPreview src={photo} onClose={() => setViewPhoto(false)} />}
                           <div className="flex min-w-0 flex-1 flex-col gap-2">
                             <div className="flex gap-2">
                               <label className={btn}>Take photo<input type="file" accept="image/*" capture="environment" className="sr-only" onChange={pick} /></label>
@@ -662,7 +668,7 @@ export default function Products() {
                             </div>
                             {photo
                               ? <button type="button" onClick={() => { setPhoto(null); setPhotoDirty(true); setDirty(true); }} className="text-left text-sm font-bold text-red-600">Remove photo</button>
-                              : <p className="text-xs text-slate-500">Cropped to a square and shrunk automatically.</p>}
+                              : <p className="text-xs text-slate-500">You can move, zoom and rotate it after picking. Saved as a square.</p>}
                           </div>
                         </div>
                       );
