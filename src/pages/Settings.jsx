@@ -1,3 +1,4 @@
+import { BarChart3 } from 'lucide-react';
 import { normalizePhone } from '../lib/phone';
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
@@ -329,6 +330,7 @@ export default function Settings() {
             ['/products', 'Products', Package],
             ['/expenses', 'Expenses', Receipt],
             ['/transfers', 'Stock transfers', ArrowLeftRight],
+            ['/reports', 'Reports', BarChart3],
             ['/members', 'Members', Users],
             ...(isOwner ? [['/activity', 'Activity log', History]] : []),
           ].map(([to, label, Icon]) => (
