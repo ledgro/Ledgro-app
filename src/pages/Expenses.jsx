@@ -1,4 +1,5 @@
 import { sheetStyle } from '../hooks/useKeyboardInset';
+import FieldError, { errRing } from '../components/FieldError';
 import { toast } from 'sonner';
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -40,6 +41,7 @@ export default function Expenses() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [amount, setAmount] = useState('');
+  const [amountErr, setAmountErr] = useState('');
 
   useBodyLock(isOpen);
   const [description, setDescription] = useState('');
@@ -95,9 +97,10 @@ export default function Expenses() {
     e.preventDefault();
     const parsedAmount = Math.round(parseFloat(amount) * 100);
     if (!shopId || !parsedAmount || parsedAmount <= 0) {
-      toast.error("Enter a valid amount.");
+      setAmountErr(amount === '' ? 'Enter how much you spent in rupees, e.g. 250.' : 'Amount must be more than 0, e.g. 250.');
       return;
     }
+    setAmountErr('');
 
     if (!navigator.onLine) {
       toast.error('You are offline. Reconnect and try again. Nothing was saved.');
@@ -306,7 +309,7 @@ export default function Expenses() {
                   {editing ? 'Edit Expense' : 'Add Expense'}
                 </Drawer.Title>
 
-              <form onSubmit={handleAddExpense} className="space-y-6">
+              <form noValidate onSubmit={handleAddExpense} className="space-y-6">
                 <div>
                   <label htmlFor="expense-amount" className="block text-sm font-semibold text-slate-700 mb-1">Amount *</label>
                   <div className="relative">
@@ -317,14 +320,15 @@ export default function Expenses() {
                       id="expense-amount"
                       type="number"
                       inputMode="decimal"
-                      required
                       min="0"
                       step="0.01"
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value.slice(0, 10))}
-                      className="block w-full pl-8 pr-4 py-4 border-2 border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-0 text-xl font-bold"
+                      aria-invalid={!!amountErr}
+                      onChange={(e) => { setAmount(e.target.value.slice(0, 10)); setAmountErr(''); }}
+                      className={'block w-full pl-8 pr-4 py-4 border-2 border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-0 text-xl font-bold' + errRing(amountErr)}
                     />
                   </div>
+                  <FieldError>{amountErr}</FieldError>
                 </div>
 
                 <div>
