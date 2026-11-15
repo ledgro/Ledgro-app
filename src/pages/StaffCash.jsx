@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import FieldError, { errRing } from '../components/FieldError';
 import { useNavigate } from 'react-router-dom';
 import { Drawer } from 'vaul';
 import { toast } from 'sonner';
@@ -64,15 +65,19 @@ export default function StaffCash({ embedded = false }) {
     setOpen(true);
   };
 
+  const [fe, setFe] = useState({});
   const save = async () => {
     if (saving) return;
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
     const staff = cleanStaff(f.staff);
     const rupees = parseFloat(f.amount);
     const monthly = Math.round((parseFloat(f.monthly) || 0) * 100);
-    if (!staff) { toast.error('Enter the staff name.'); return; }
+    const errs = {};
+    if (!staff) errs.staff = 'Enter the staff name.';
+    if (!Number.isFinite(rupees) || rupees <= 0) errs.amount = f.amount === '' ? 'Enter the amount in rupees.' : 'Amount must be more than 0.';
+    if (Object.keys(errs).length) { setFe(errs); return; }
+    setFe({});
     if (!editing && f.kind === 'repay' && f.via === 'salary' && !isAdmin) { toast.error('Only an admin can record a deduction from salary.'); return; }
-    if (!Number.isFinite(rupees) || rupees <= 0) { toast.error('Enter a valid amount.'); return; }
     setSaving(true);
     try {
       const batch = writeBatch(db);
@@ -235,7 +240,8 @@ export default function StaffCash({ embedded = false }) {
               {!editing && <p className="text-xs font-semibold text-slate-500">{kind.hint}</p>}
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Staff name</label>
-                <input className={field} value={f.staff} maxLength={40} disabled={!!editing} onChange={(e) => setF((p) => ({ ...p, staff: e.target.value }))} />
+                <input className={field + errRing(fe.staff)} value={f.staff} maxLength={40} disabled={!!editing} aria-invalid={!!fe.staff} onChange={(e) => { setF((p) => ({ ...p, staff: e.target.value })); setFe((p) => ({ ...p, staff: '' })); }} />
+                <FieldError>{fe.staff}</FieldError>
                 {!editing && names.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {names.slice(0, 8).map((n) => <button key={n} type="button" onClick={() => setF((p) => ({ ...p, staff: n }))} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700">{n}</button>)}
@@ -246,8 +252,9 @@ export default function StaffCash({ embedded = false }) {
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Amount</label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-500">₹</span>
-                  <input className={cn(field, 'pl-8 font-bold')} type="number" inputMode="decimal" value={f.amount} onChange={(e) => setF((p) => ({ ...p, amount: e.target.value.slice(0, 9) }))} />
+                  <input className={cn(field, 'pl-8 font-bold') + errRing(fe.amount)} type="number" inputMode="decimal" value={f.amount} aria-invalid={!!fe.amount} onChange={(e) => { setF((p) => ({ ...p, amount: e.target.value.slice(0, 9) })); setFe((p) => ({ ...p, amount: '' })); }} />
                 </div>
+                <FieldError>{fe.amount}</FieldError>
               </div>
               {f.kind !== 'repay' && (!editing || editing.kind === 'advance' || editing.kind === 'debt') && (
                 <div>

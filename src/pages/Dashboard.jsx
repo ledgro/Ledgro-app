@@ -1,4 +1,5 @@
 import Masked from '../components/Masked';
+import FieldError, { errRing } from '../components/FieldError';
 import { sheetStyle } from '../hooks/useKeyboardInset';
 import { toast } from 'sonner';
 import { useState, useEffect, useCallback, useDeferredValue } from 'react';
@@ -74,6 +75,7 @@ export default function Dashboard() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   });
   const [isCloseDrawerOpen, setIsCloseDrawerOpen] = useState(false);
+  const [countErr, setCountErr] = useState('');
   const [isClosingRecord, setIsClosingRecord] = useState(false);
   const [savedCount, setSavedCount] = useState(null); // today's saved cash count, shown so a save is never in doubt
 
@@ -162,9 +164,10 @@ export default function Dashboard() {
 
     const parsedActual = parseFloat(actualCashCounted);
     if (isNaN(parsedActual) || parsedActual < 0) {
-      toast.error("Please enter a valid positive amount.");
+      setCountErr(actualCashCounted === '' ? 'Enter the cash you counted in the drawer.' : 'Counted cash must be a number, 0 or more.');
       return;
     }
+    setCountErr('');
 
     setIsClosingRecord(true);
 
@@ -380,10 +383,12 @@ export default function Dashboard() {
                        <input
                          type="number" inputMode="decimal"
                          value={actualCashCounted}
-                         onChange={e => setActualCashCounted(e.target.value)}
-                         className="w-full pl-8 pr-4 h-14 border border-slate-200 rounded-xl font-bold text-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                         aria-invalid={!!countErr}
+                         onChange={e => { setActualCashCounted(e.target.value); setCountErr(''); }}
+                         className={'w-full pl-8 pr-4 h-14 border border-slate-200 rounded-xl font-bold text-lg focus:ring-2 focus:ring-blue-500 outline-none' + errRing(countErr)}
                        />
                      </div>
+                     <FieldError>{countErr}</FieldError>
                    </div>
 
                    {actualCashCounted !== '' && !isNaN(parseFloat(actualCashCounted)) && (
