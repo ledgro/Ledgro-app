@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import FieldError, { errRing } from '../components/FieldError';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, KeyRound, Eye, EyeOff } from 'lucide-react';
@@ -50,6 +51,8 @@ const SignIn = () => {
   const [password, setPassword] = useState('');
   const [pwMode, setPwMode] = useState('signin'); // 'signin' | 'create' (an invite code makes it a staff account, no code makes it an owner account)
   const [joinCode, setJoinCode] = useState('');
+  const [fe, setFe] = useState({});
+  const clr = (k) => setFe((p) => (p[k] ? { ...p, [k]: '' } : p));
   const [showCode, setShowCode] = useState(false);
 
   useEffect(() => {
@@ -118,12 +121,19 @@ const SignIn = () => {
   const handleSignIn = () => runSignIn(signInWithGoogle);
   const handlePasswordSignIn = (e) => {
     e.preventDefault();
-    if (!identifier.trim() || !password) { setError('Enter your username and password.'); return; }
     const joining = pwMode === 'create' && joinCode.trim() !== '';
-    if (pwMode === 'create' && !joining && !isEmail(identifier)) { setError('Enter your email address.'); return; }
+    const errs = {};
+    if (!identifier.trim()) errs.id = pwMode === 'signin' ? 'Enter your username or email.' : joining ? 'Choose a username.' : 'Enter your email address.';
+    else if (pwMode === 'create' && !joining && !isEmail(identifier)) errs.id = 'This is not an email address. It needs an @ and a domain.';
+    if (!password) errs.pw = pwMode === 'signin' ? 'Enter your password.' : 'Choose a password with 8 or more characters.';
+    if (joining) {
+      const c = joinCode.trim();
+      if (c.length < 8 || c.length > 20) errs.code = 'The invite code is 8 to 20 characters. Check it with your admin.';
+    }
+    if (Object.keys(errs).length) { setFe(errs); setError(''); return; }
+    setFe({});
     if (joining) {
       const code = joinCode.trim().toUpperCase();
-      if (code.length < 8 || code.length > 20) { setError('Enter the invite code from your admin.'); return; }
       try { sessionStorage.setItem('ledgro_join_code', code); } catch { /* storage blocked */ }
     }
     runSignIn(() => signInWithPassword(identifier, password, { create: pwMode !== 'signin' }));
@@ -256,27 +266,28 @@ const SignIn = () => {
                     <KeyRound size={18} className="text-slate-500 flex-shrink-0" aria-hidden="true" />
                     <input
                       type="text" autoCapitalize="characters" autoCorrect="off" spellCheck={false} maxLength={20}
-                      value={joinCode} onChange={(e) => setJoinCode(e.target.value)} placeholder="Shop invite code"
+                      value={joinCode} onChange={(e) => { setJoinCode(e.target.value); clr('code'); }} placeholder="Shop invite code"
                       aria-label="Shop invite code"
                       className="field-input uppercase tracking-wider placeholder:normal-case placeholder:tracking-normal"
                     />
                   </div>
                 )}
-                <div className="field-wrap">
+                <div className={"field-wrap" + (fe.id ? " field-err" : "")}>
                   <Mail size={18} className="text-slate-500 flex-shrink-0" aria-hidden="true" />
                   <input maxLength={100}
                     type="text" autoCapitalize="none" autoCorrect="off" autoComplete="username" spellCheck={false}
-                    value={identifier} onChange={(e) => setIdentifier(e.target.value)}
+                    value={identifier} onChange={(e) => { setIdentifier(e.target.value); clr('id'); }} aria-invalid={!!fe.id}
                     aria-label={pwMode === 'signin' ? 'Username or email' : 'Email or username'}
                     placeholder={pwMode === 'signin' ? 'Username or email' : joinCode.trim() ? 'Choose a username' : 'Email'}
                     className="field-input"
                   />
                 </div>
-                <div className="field-wrap">
+                <FieldError>{fe.id}</FieldError>
+                <div className={"field-wrap" + (fe.pw ? " field-err" : "")}>
                   <Lock size={18} className="text-slate-500 flex-shrink-0" aria-hidden="true" />
                   <input
                     type={showPass ? 'text' : 'password'} maxLength={100} autoComplete={pwMode === 'signin' ? 'current-password' : 'new-password'}
-                    value={password} onChange={(e) => setPassword(e.target.value)}
+                    value={password} onChange={(e) => { setPassword(e.target.value); clr('pw'); }} aria-invalid={!!fe.pw}
                     aria-label="Password"
                     placeholder={pwMode === 'signin' ? 'Password' : 'Choose a password (8+ characters)'}
                     className="field-input"
@@ -285,6 +296,7 @@ const SignIn = () => {
                     {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                <FieldError>{fe.pw}</FieldError>
                 <button type="submit" disabled={isSigningIn} className="w-full h-12 rounded-full bg-blue-600 text-white font-bold disabled:opacity-50 active:scale-[0.98]">
                   {isSigningIn ? 'Please wait...' : pwMode === 'signin' ? 'Sign in' : joinCode.trim() ? 'Join the shop' : 'Create account'}
                 </button>

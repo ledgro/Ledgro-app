@@ -25,13 +25,13 @@ export default function Welcome() {
   const [step, setStep] = useState(0);
   useEffect(() => () => { try { sessionStorage.removeItem('ledgro_show_welcome'); } catch { /* storage blocked */ } }, []);
   const [saving, setSaving] = useState(false);
-  const [a, setA] = useState({ name: '', phone: '', address: '', tagline: '', cutoff: 270 });
+  const [a, setA] = useState({ name: (user?.displayName || '').trim().slice(0, 30), phone: '', address: '', tagline: '', cutoff: 270 });
 
   const [theme, setTheme] = useState(getThemePref());
   const questions = [
-    { icon: User, title: 'What is your name?', hint: 'Shown on your Home screen and to your team. You can change it later in Profile.',
+    { key: 'name', icon: User, title: 'What is your name?', hint: 'Filled in from your Google account. Change it if you like. Shown on your Home screen and to your team.',
       body: <input type="text" maxLength={30} autoComplete="given-name" value={a.name} onChange={(e) => setA((p) => ({ ...p, name: e.target.value }))} placeholder="Your first name" className={input} /> },
-    { icon: Moon, title: 'Dark or light?', hint: 'Dark is easier on the eyes in a shop. You can change it any time in Profile.',
+    { key: 'theme', icon: Moon, title: 'Dark or light?', hint: 'Dark is easier on the eyes in a shop. You can change it any time in Profile.',
       body: (
         <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Theme">
           {[['dark', 'Dark', Moon], ['light', 'Light', Sun], ['auto', 'Auto', Smartphone]].map(([v, label, I]) => (
@@ -42,11 +42,11 @@ export default function Welcome() {
           ))}
         </div>
       ) },
-    { icon: Phone, title: 'What phone number should customers see?', hint: 'Printed at the top of every receipt. You can leave it empty.',
+    { key: 'phone', icon: Phone, title: 'What phone number should customers see?', hint: 'Printed at the top of every receipt. You can leave it empty.',
       body: <input type="tel" inputMode="tel" maxLength={30} value={a.phone} onChange={(e) => setA((p) => ({ ...p, phone: e.target.value }))} onBlur={() => setA((p) => ({ ...p, phone: normalizePhone(p.phone) }))} placeholder="Shop phone number" className={input} /> },
-    { icon: MapPin, title: 'Where is your shop?', hint: 'The address printed under the shop name.',
+    { key: 'address', icon: MapPin, title: 'Where is your shop?', hint: 'The address printed under the shop name.',
       body: <input type="text" maxLength={200} value={a.address} onChange={(e) => setA((p) => ({ ...p, address: e.target.value }))} placeholder="Street, town" className={input} /> },
-    { icon: ReceiptText, title: 'What should the bottom of the receipt say?', hint: 'One line, like a thank you or your exchange rule.',
+    { key: 'tagline', icon: ReceiptText, title: 'What should the bottom of the receipt say?', hint: 'One line, like a thank you or your exchange rule.',
       body: (
         <div className="space-y-3">
           <input type="text" maxLength={100} value={a.tagline} onChange={(e) => setA((p) => ({ ...p, tagline: e.target.value }))} placeholder="Receipt footer" className={input} />
@@ -57,7 +57,7 @@ export default function Welcome() {
           </div>
         </div>
       ) },
-    { icon: Clock, title: 'Does your shop work past midnight?', hint: 'Sales after midnight count for the day you opened. You can change it later in Settings.',
+    { key: 'cutoff', icon: Clock, title: 'Does your shop work past midnight?', hint: 'Sales after midnight count for the day you opened. You can change it later in Settings.',
       body: (
         <div className="space-y-2">
           {DAY_ENDS.map(([v, l]) => (
@@ -69,12 +69,12 @@ export default function Welcome() {
   ];
   const total = questions.length + 1; // the last screen is the next steps
 
-  const save = async () => {
+  const save = async (src = a) => {
     const data = {};
-    if (a.phone.trim()) data.phone = a.phone.trim();
-    if (a.address.trim()) data.address = a.address.trim();
-    if (a.tagline.trim()) data.tagline = a.tagline.trim();
-    if (a.cutoff !== 270) data.dayCutoffMin = a.cutoff;
+    if (src.phone.trim()) data.phone = src.phone.trim();
+    if (src.address.trim()) data.address = src.address.trim();
+    if (src.tagline.trim()) data.tagline = src.tagline.trim();
+    if (src.cutoff !== 270) data.dayCutoffMin = src.cutoff;
     if (Object.keys(data).length === 0) return true;
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return false; }
     setSaving(true);
@@ -90,8 +90,19 @@ export default function Welcome() {
     }
   };
 
+  const RESETS = { name: { name: '' }, theme: {}, phone: { phone: '' }, address: { address: '' }, tagline: { tagline: '' }, cutoff: { cutoff: 270 } };
+  // Skip only this question: its answer is dropped and the next one opens.
+  const skip = async () => {
+    setA((p) => ({ ...p, ...RESETS[questions[step]?.key] }));
+    if (step === questions.length - 1) {
+      const keep = { ...a, ...RESETS[questions[step]?.key] };
+      if (keep.phone.trim() || keep.address.trim() || keep.tagline.trim()) { if (!(await save(keep))) return; }
+    }
+    setStep((s) => s + 1);
+  };
+
   const next = async () => {
-    if (step === 0 && a.name.trim() && navigator.onLine) { try { await saveMyName(shopId, user, a.name); } catch (err) { console.warn('Could not save name', err); } }
+    if (questions[step]?.key === 'name' && a.name.trim() && navigator.onLine) { try { await saveMyName(shopId, user, a.name); } catch (err) { console.warn('Could not save name', err); } }
     if (step === questions.length - 1) { if (!(await save())) return; }
     setStep((s) => s + 1);
   };
@@ -108,7 +119,10 @@ export default function Welcome() {
   return (
     <div className="flex min-h-[100dvh] flex-col bg-slate-50 px-4 pb-safe pt-8">
       <div className="mx-auto w-full max-w-md flex-1">
-        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">Step {Math.min(step + 1, total)} of {total}</p>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Step {Math.min(step + 1, total)} of {total}</p>
+          {q && <button type="button" onClick={() => navigate('/dashboard', { replace: true })} disabled={saving} className="py-1 text-xs font-bold text-slate-500">Skip setup</button>}
+        </div>
         <div className="mb-6 flex gap-1.5" aria-hidden="true">
           {Array.from({ length: total }, (_, i) => <span key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? 'bg-blue-600' : 'bg-slate-200'}`} />)}
         </div>
@@ -137,7 +151,7 @@ export default function Welcome() {
         <div className="mx-auto flex w-full max-w-md items-center gap-3 py-4">
           {step > 0 && <button type="button" onClick={() => setStep((s) => s - 1)} disabled={saving} className="h-14 rounded-xl bg-white px-5 font-bold text-slate-600 border border-slate-200">Back</button>}
           <button type="button" onClick={next} disabled={saving} className="h-14 flex-1 rounded-xl bg-blue-600 font-bold text-white active:bg-blue-700 disabled:opacity-50">{saving ? 'Saving...' : 'Next'}</button>
-          <button type="button" onClick={() => navigate('/dashboard', { replace: true })} disabled={saving} className="h-14 px-3 text-sm font-bold text-slate-500">Skip</button>
+          <button type="button" onClick={skip} disabled={saving} className="h-14 px-3 text-sm font-bold text-slate-500">Skip</button>
         </div>
       )}
     </div>

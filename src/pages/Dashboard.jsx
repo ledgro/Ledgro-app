@@ -1,4 +1,5 @@
 import Masked from '../components/Masked';
+import FieldError, { errRing } from '../components/FieldError';
 import { sheetStyle } from '../hooks/useKeyboardInset';
 import { toast } from 'sonner';
 import { useState, useEffect, useCallback, useDeferredValue } from 'react';
@@ -75,6 +76,7 @@ export default function Dashboard() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   });
   const [isCloseDrawerOpen, setIsCloseDrawerOpen] = useState(false);
+  const [countErr, setCountErr] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [isClosingRecord, setIsClosingRecord] = useState(false);
   const [savedCount, setSavedCount] = useState(null); // today's saved cash count, shown so a save is never in doubt
@@ -164,9 +166,10 @@ export default function Dashboard() {
 
     const parsedActual = parseFloat(actualCashCounted);
     if (isNaN(parsedActual) || parsedActual < 0) {
-      toast.error("Please enter a valid positive amount.");
+      setCountErr(actualCashCounted === '' ? 'Enter the cash you counted in the drawer.' : 'Counted cash must be a number, 0 or more.');
       return;
     }
+    setCountErr('');
 
     setIsClosingRecord(true);
 
@@ -250,7 +253,7 @@ export default function Dashboard() {
             <Link to="/pnl" aria-label="Open statistics" className="press relative block overflow-hidden rounded-3xl hero-card p-6 text-white shadow-lg">
               <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-400/30 blur-3xl" />
               <div className="relative">
-                <p className="text-xs font-bold uppercase tracking-wider text-blue-100/80">Today's net earnings</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-white/90">Today's net earnings</p>
                 <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
                   <h2 className={cn('text-4xl font-black tabular-nums', stats.netEarnings >= 0 ? 'text-white' : 'text-rose-300')}>
                     {mask(formatCurrency(stats.netEarnings))}
@@ -264,7 +267,7 @@ export default function Dashboard() {
                 <div className="mt-5 grid grid-cols-3 gap-2">
                   {[['Sales', mask(formatCurrency(stats.sales))], ['Expenses', mask(formatCurrency(stats.expenses))], ['Bills', hidden ? '•••' : String(stats.billCount)]].map(([l, v]) => (
                     <div key={l} className="min-w-0 rounded-2xl bg-white/10 px-3 py-2.5 backdrop-blur-sm">
-                      <p className="text-[0.65rem] font-bold uppercase tracking-wider text-blue-100/80">{l}</p>
+                      <p className="text-[0.65rem] font-bold uppercase tracking-wider text-white/90">{l}</p>
                       <p className="truncate text-base font-black tabular-nums">{v}</p>
                     </div>
                   ))}
@@ -274,13 +277,13 @@ export default function Dashboard() {
                   return wk.length > 0 && (
                     <div className={cn('mt-4', hidden && 'opacity-40')} aria-hidden="true">
                       <div className="flex h-10 items-end gap-1.5">
-                        {wk.map((n, i) => <div key={i} className={cn('flex-1 rounded-t-md', i === wk.length - 1 ? 'bg-white' : 'bg-white/35')} style={{ height: `${Math.max(6, (Math.abs(n) / max) * 100)}%` }} />)}
+                        {wk.map((n, i) => <div key={i} className={cn('flex-1 rounded-t-md', n < 0 ? 'bg-rose-300' : i === wk.length - 1 ? 'bg-white' : 'bg-white/35')} style={{ height: `${Math.max(6, (Math.abs(n) / max) * 100)}%` }} />)}
                       </div>
-                      <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wider text-blue-100/70">Last 7 days</p>
+                      <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wider text-white/90">Last 7 days</p>
                     </div>
                   );
                 })()}
-                <p className="mt-4 flex items-center justify-end gap-1 text-xs font-bold text-blue-100/80">Full details <ChevronRight size={14} aria-hidden="true" /></p>
+                <p className="mt-4 flex items-center justify-end gap-1 text-xs font-bold text-white/90">Full details <ChevronRight size={14} aria-hidden="true" /></p>
               </div>
             </Link>
 
@@ -293,7 +296,7 @@ export default function Dashboard() {
               <button type="button" onClick={() => setIsCloseDrawerOpen(true)} className="press flex w-full items-center gap-3 p-4 text-left">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-500/15 text-green-600"><Banknote size={20} aria-hidden="true" /></span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-xs font-bold uppercase tracking-wider text-slate-500">Cash in drawer</span>
+                  <span className="block text-xs font-bold uppercase tracking-wider text-slate-500">Expected cash in drawer</span>
                   <span className="block text-[0.7rem] font-semibold text-slate-500">Count it &amp; see how it adds up</span>
                 </span>
                 <span className="text-xl font-black tabular-nums text-slate-900">{mask(formatCurrency(stats.expectedCash))}</span>
@@ -382,10 +385,12 @@ export default function Dashboard() {
                        <input
                          type="number" inputMode="decimal"
                          value={actualCashCounted}
-                         onChange={e => setActualCashCounted(e.target.value)}
-                         className="w-full pl-8 pr-4 h-14 border border-slate-200 rounded-xl font-bold text-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                         aria-invalid={!!countErr}
+                         onChange={e => { setActualCashCounted(e.target.value); setCountErr(''); }}
+                         className={'w-full pl-8 pr-4 h-14 border border-slate-200 rounded-xl font-bold text-lg focus:ring-2 focus:ring-blue-500 outline-none' + errRing(countErr)}
                        />
                      </div>
+                     <FieldError>{countErr}</FieldError>
                    </div>
 
                    {actualCashCounted !== '' && !isNaN(parseFloat(actualCashCounted)) && (

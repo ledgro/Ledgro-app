@@ -42,6 +42,19 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Version from the tag (or the run number for a manual run)
+        run: |
+          set -eu
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then NAME="${GITHUB_REF_NAME#v}"; else NAME="0.0.${GITHUB_RUN_NUMBER}"; fi
+          echo "APP_VERSION=$NAME" >> "$GITHUB_ENV"
+
+      - name: Build the web app and copy it into the Android project
+        run: |
+          set -eu
+          npm ci
+          npm run build
+          npx cap sync android
+
       - name: Decode signing key (outside the workspace)
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -57,19 +70,6 @@ jobs:
         run: |
           set -eu
           keytool -list -v -keystore "$RUNNER_TEMP/ledgro.keystore" -alias ledgro -storepass "$KSP" | grep -E 'SHA1:|SHA256:' | sed 's/^ *//' | tee -a "$GITHUB_STEP_SUMMARY"
-
-      - name: Version from the tag (or the run number for a manual run)
-        run: |
-          set -eu
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then NAME="${GITHUB_REF_NAME#v}"; else NAME="0.0.${GITHUB_RUN_NUMBER}"; fi
-          echo "APP_VERSION=$NAME" >> "$GITHUB_ENV"
-
-      - name: Build the web app and copy it into the Android project
-        run: |
-          set -eu
-          npm ci
-          npm run build
-          npx cap sync android
 
       - name: Firebase config (for Google sign-in)
         env:

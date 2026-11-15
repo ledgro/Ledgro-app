@@ -1,4 +1,5 @@
 import { sheetStyle } from '../hooks/useKeyboardInset';
+import FieldError, { errRing } from '../components/FieldError';
 import { toast } from 'sonner';
 import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -94,6 +95,8 @@ export default function Products() {
 
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
+  const [fe, setFe] = useState({}); // inline field errors: { name, price, cost, stock }
+  const clearFe = (k) => setFe((p) => (p[k] ? { ...p, [k]: '' } : p));
   const [unit, setUnit] = useState('piece');
   const [stockCount, setStockCount] = useState('');
   const [lowStockAlert, setLowStockAlert] = useState('');
@@ -227,22 +230,21 @@ export default function Products() {
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
-    if (!shopId || !name.trim() || !price) return;
+    if (!shopId) return;
+    const errs = {};
+    if (!name.trim()) errs.name = 'Enter the product name.';
+    const unitPrice = parseFloat(price);
+    if (price === '' ) errs.price = 'Enter the selling price in rupees.';
+    else if (isNaN(unitPrice) || unitPrice < 0) errs.price = 'Selling price must be a number, 0 or more.';
+    const stockNum = stockCount !== '' ? parseFloat(stockCount) : null;
+    const costNum = costPrice !== '' ? parseFloat(costPrice) : null;
+    if (costNum !== null && (isNaN(costNum) || costNum < 0)) errs.cost = 'Cost price must be a number, 0 or more. Leave it empty if you do not know it.';
+    if (stockNum !== null && (isNaN(stockNum) || stockNum < 0)) errs.stock = 'Stock must be a number, 0 or more.';
+    if (Object.keys(errs).length) { setFe(errs); toast.error(Object.values(errs)[0]); return; }
+    setFe({});
 
     sessionGuard.assertValidSession(user.uid);
 
-    const unitPrice = parseFloat(price);
-    if (isNaN(unitPrice) || unitPrice < 0) {
-      toast.error("Please enter a valid price");
-      return;
-    }
-
-    const stockNum = stockCount !== '' ? parseFloat(stockCount) : null;
-    const costNum = costPrice !== '' ? parseFloat(costPrice) : null;
-    if (costNum !== null && (isNaN(costNum) || costNum < 0)) {
-      toast.error('Please enter a valid cost price');
-      return;
-    }
     const alertNum = lowStockAlert !== '' ? parseFloat(lowStockAlert) : null;
 
     if (stockNum !== null && (isNaN(stockNum) || stockNum < 0)) {
@@ -623,7 +625,7 @@ export default function Products() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 pb-6 relative">
-              <form id="product-form" onSubmit={handleSaveProduct} onChange={() => setDirty(true)} className="space-y-6">
+              <form id="product-form" noValidate onSubmit={handleSaveProduct} onChange={() => setDirty(true)} className="space-y-6">
 
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Product Info</h3>
@@ -631,10 +633,11 @@ export default function Products() {
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Product Name *</label>
                     <input
-                      type="text" required value={name} onChange={(e) => setName(e.target.value)} maxLength={99}
-                      className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
+                      type="text" value={name} onChange={(e) => { setName(e.target.value); clearFe('name'); }} maxLength={99} aria-invalid={!!fe.name}
+                      className={'w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900' + errRing(fe.name)}
                       autoFocus
                     />
+                    <FieldError>{fe.name}</FieldError>
                   </div>
 
                   <div>
@@ -701,10 +704,11 @@ export default function Products() {
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₹</span>
                       <input
-                        type="number" inputMode="decimal" step="0.01" required value={price} onChange={(e) => setPrice(e.target.value.slice(0, 10))} maxLength={99}
-                        className="w-full pl-8 pr-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold text-slate-900"
+                        type="number" inputMode="decimal" step="0.01" value={price} onChange={(e) => { setPrice(e.target.value.slice(0, 10)); clearFe('price'); }} maxLength={99} aria-invalid={!!fe.price}
+                        className={'w-full pl-8 pr-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold text-slate-900' + errRing(fe.price)}
                       />
                     </div>
+                    <FieldError>{fe.price}</FieldError>
                     <p className="text-xs font-semibold text-slate-500 mt-1">Past bills will not be affected</p>
                   </div>
 
@@ -741,10 +745,11 @@ export default function Products() {
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Cost price (optional)</label>
                     <input
-                      type="number" inputMode="decimal" step="0.01" min="0" value={costPrice} onChange={(e) => setCostPrice(e.target.value.slice(0, 10))}
-                      className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
+                      type="number" inputMode="decimal" step="0.01" min="0" value={costPrice} onChange={(e) => { setCostPrice(e.target.value.slice(0, 10)); clearFe('cost'); }} aria-invalid={!!fe.cost}
+                      className={'w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900' + errRing(fe.cost)}
                       placeholder="What you paid per piece"
                     />
+                    <FieldError>{fe.cost}</FieldError>
                   </div>
 
                   {!hasVariants && (
@@ -752,14 +757,15 @@ export default function Products() {
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Stock Count</label>
                     <div className="flex gap-2">
                        <input
-                         type="number" inputMode="decimal" step="0.01" value={stockCount} onChange={(e) => setStockCount(e.target.value.slice(0, 10))} maxLength={10}
-                         className="flex-1 px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
+                         type="number" inputMode="decimal" step="0.01" value={stockCount} onChange={(e) => { setStockCount(e.target.value.slice(0, 10)); clearFe('stock'); }} maxLength={10} aria-invalid={!!fe.stock}
+                         className={'flex-1 px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900' + errRing(fe.stock)}
                          placeholder="Current exact count"
                        />
                        <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
                           <button type="button" onClick={() => setStockCount(prev => String(Math.max(0, (parseFloat(prev||0) - 1))))} className="w-10 h-10 flex items-center justify-center font-black text-slate-600 bg-white rounded-lg shadow-sm">-</button>
                           <button type="button" onClick={() => setStockCount(prev => String((parseFloat(prev||0) + 1)))} className="w-10 h-10 flex items-center justify-center font-black text-slate-600 bg-white rounded-lg shadow-sm">+</button>
                        </div>
+                    <FieldError>{fe.stock}</FieldError>
                     </div>
                   </div>
                   )}

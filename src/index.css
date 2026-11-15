@@ -241,5 +241,7 @@ html[data-kb="1"] .kb-slim button { height: 2.75rem; }
 
 /* Light mode: soft sky glow at the top and a brighter hero card, so it matches the dark look. */
 .page-bg { background: radial-gradient(120% 42% at 85% -10%, rgb(147 197 253 / 0.5), transparent 62%), #f8fafc; }
-.hero-card { background: linear-gradient(135deg, #14b8a6 0%, #0d9488 55%, #0f766e 100%); }
+.hero-card { background: linear-gradient(135deg, #0f766e 0%, #0f766e 55%, #115e59 100%); }
 [data-theme="dark"] .hero-card { background: linear-gradient(135deg, #04201f 0%, #0a3d3a 50%, #0f766e 100%); }
+
+.field-wrap.field-err { box-shadow: 0 0 0 2px #ef4444; }

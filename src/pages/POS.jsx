@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import FieldError, { errRing } from '../components/FieldError';
 import { useReducer, useState, useMemo, useEffect, useRef } from 'react';
 import { logActivity } from '../lib/audit';
 import { useAuth } from '../context/AuthContext';
@@ -51,6 +52,7 @@ export default function POS() {
   const [receiptFiles, setReceiptFiles] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState(() => (localStorage.getItem('ledgro_defaultPayment') === 'upi' ? 'upi' : 'cash')); // 'cash' | 'upi' | 'split'
   const [splitCash, setSplitCash] = useState('');
+  const [splitErr, setSplitErr] = useState('');
   const [finalTotal, setFinalTotal] = useState(''); // typed final bill total; anything below the total becomes a discount
   const [tendered, setTendered] = useState(''); // cash handed over, for the change line only. Never saved.
   const [isPayOpen, setIsPayOpen] = useState(false);
@@ -223,9 +225,10 @@ export default function POS() {
 
     const cashPaise = paymentMethod === 'split' ? Math.round((parseFloat(splitCash) || 0) * 100) : 0;
     if (paymentMethod === 'split' && (cashPaise <= 0 || cashPaise >= billTotal)) {
-      toast.error('Enter a cash amount between 0 and the bill total.');
+      setSplitErr(cashPaise <= 0 ? 'Enter the cash part. It must be more than 0.' : 'The cash part must be less than the bill total. Use Cash for the full amount.');
       return;
     }
+    setSplitErr('');
 
     const catalogItems = useCatalogStore.getState().items;
     const catalogMap = new Map(catalogItems.filter((c) => c.id).map((c) => [c.id, c]));
@@ -785,9 +788,10 @@ export default function POS() {
                     <label className="block text-xs font-bold text-slate-500 mb-1">Cash received</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₹</span>
-                      <input type="number" inputMode="decimal" value={splitCash} onChange={(e) => setSplitCash(e.target.value)} autoFocus
-                        className="w-full pl-7 pr-3 h-12 border border-green-200 bg-green-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 font-bold text-green-700" />
+                      <input type="number" inputMode="decimal" value={splitCash} onChange={(e) => { setSplitCash(e.target.value); setSplitErr(''); }} autoFocus aria-invalid={!!splitErr}
+                        className={'w-full pl-7 pr-3 h-12 border border-green-200 bg-green-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 font-bold text-green-700' + errRing(splitErr)} />
                     </div>
+                    <FieldError>{splitErr}</FieldError>
                   </div>
                   <div className="flex-1">
                     <label className="block text-xs font-bold text-slate-500 mb-1">UPI remaining</label>
