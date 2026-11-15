@@ -232,14 +232,14 @@ export default function Products() {
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
     if (!shopId) return;
     const errs = {};
-    if (!name.trim()) errs.name = 'Enter the product name, e.g. "Sports shoe black".';
+    if (!name.trim()) errs.name = 'Enter the product name.';
     const unitPrice = parseFloat(price);
-    if (price === '' ) errs.price = 'Enter the selling price in rupees, e.g. 499.';
-    else if (isNaN(unitPrice) || unitPrice < 0) errs.price = 'Selling price must be a number, 0 or more, e.g. 499.';
+    if (price === '' ) errs.price = 'Enter the selling price in rupees.';
+    else if (isNaN(unitPrice) || unitPrice < 0) errs.price = 'Selling price must be a number, 0 or more.';
     const stockNum = stockCount !== '' ? parseFloat(stockCount) : null;
     const costNum = costPrice !== '' ? parseFloat(costPrice) : null;
     if (costNum !== null && (isNaN(costNum) || costNum < 0)) errs.cost = 'Cost price must be a number, 0 or more. Leave it empty if you do not know it.';
-    if (stockNum !== null && (isNaN(stockNum) || stockNum < 0)) errs.stock = 'Stock must be a number, 0 or more, e.g. 12.';
+    if (stockNum !== null && (isNaN(stockNum) || stockNum < 0)) errs.stock = 'Stock must be a number, 0 or more.';
     if (Object.keys(errs).length) { setFe(errs); toast.error(Object.values(errs)[0]); return; }
     setFe({});
 

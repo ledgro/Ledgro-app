@@ -97,7 +97,7 @@ export default function Expenses() {
     e.preventDefault();
     const parsedAmount = Math.round(parseFloat(amount) * 100);
     if (!shopId || !parsedAmount || parsedAmount <= 0) {
-      setAmountErr(amount === '' ? 'Enter how much you spent in rupees, e.g. 250.' : 'Amount must be more than 0, e.g. 250.');
+      setAmountErr(amount === '' ? 'Enter how much you spent in rupees.' : 'Amount must be more than 0.');
       return;
     }
     setAmountErr('');

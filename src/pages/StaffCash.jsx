@@ -73,8 +73,8 @@ export default function StaffCash({ embedded = false }) {
     const rupees = parseFloat(f.amount);
     const monthly = Math.round((parseFloat(f.monthly) || 0) * 100);
     const errs = {};
-    if (!staff) errs.staff = 'Enter the staff name, e.g. Anu.';
-    if (!Number.isFinite(rupees) || rupees <= 0) errs.amount = f.amount === '' ? 'Enter the amount in rupees, e.g. 500.' : 'Amount must be more than 0, e.g. 500.';
+    if (!staff) errs.staff = 'Enter the staff name.';
+    if (!Number.isFinite(rupees) || rupees <= 0) errs.amount = f.amount === '' ? 'Enter the amount in rupees.' : 'Amount must be more than 0.';
     if (Object.keys(errs).length) { setFe(errs); return; }
     setFe({});
     if (!editing && f.kind === 'repay' && f.via === 'salary' && !isAdmin) { toast.error('Only an admin can record a deduction from salary.'); return; }

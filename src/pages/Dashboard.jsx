@@ -164,7 +164,7 @@ export default function Dashboard() {
 
     const parsedActual = parseFloat(actualCashCounted);
     if (isNaN(parsedActual) || parsedActual < 0) {
-      setCountErr(actualCashCounted === '' ? 'Enter the cash you counted in the drawer, e.g. 3250.' : 'Counted cash must be a number, 0 or more, e.g. 3250.');
+      setCountErr(actualCashCounted === '' ? 'Enter the cash you counted in the drawer.' : 'Counted cash must be a number, 0 or more.');
       return;
     }
     setCountErr('');
