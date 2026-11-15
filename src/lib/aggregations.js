@@ -45,6 +45,9 @@ export async function computeDailyAggregations(shopId) {
     staffCashFailed, // true: expected cash is missing the staff-cash entries, so it must not be trusted
     upiInBank: todayUpi,
     netEarnings: todayNet,
+    sales: t.rev,
+    expenses: t.exp,
+    billCount: t.bills,
     vsYesterday: percentDiff,
     cashSplit: todayCash,
     upiSplit: todayUpi,
