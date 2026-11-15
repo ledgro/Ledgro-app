@@ -19,20 +19,8 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
-  /* Accent: calm teal. Every blue-* class in the app resolves to this palette, so it is changed in one place. */
-  --color-blue-50: #f0fdfa;
-  --color-blue-100: #ccfbf1;
-  --color-blue-200: #99f6e4;
-  --color-blue-300: #5eead4;
-  --color-blue-400: #2dd4bf;
-  --color-blue-500: #14b8a6;
-  --color-blue-600: #0d9488;
-  --color-blue-700: #0f766e;
-  --color-blue-800: #115e59;
-  --color-blue-900: #134e4a;
-  --color-blue-950: #042f2e;
-  --color-primary: #0d9488;
-  --color-primary-dark: #0f766e;
+  --color-primary: #2563EB;
+  --color-primary-dark: #1D4ED8;
   --color-success: #10B981;
   --radius-card: 12px;
   --radius-sheet: 24px;
@@ -235,13 +223,13 @@ html[data-kb="1"] .kb-slim button { height: 2.75rem; }
 
 /* Sign-in fields: icon on the left, one rounded box. */
 .field-wrap { display: flex; align-items: center; gap: 0.6rem; height: 3rem; padding: 0 0.9rem; border-radius: 0.9rem; background: #fff; border: 1px solid rgb(226 232 240); }
-.field-wrap:focus-within { box-shadow: 0 0 0 2px #14b8a6; }
+.field-wrap:focus-within { box-shadow: 0 0 0 2px #3b82f6; }
 [data-theme="dark"] .field-wrap { background: rgb(255 255 255 / 0.06); border-color: rgb(255 255 255 / 0.1); }
 .field-input { flex: 1; min-width: 0; height: 100%; background: transparent; border: 0; outline: none; font-weight: 600; font-size: 0.95rem; }
 
 /* Light mode: soft sky glow at the top and a brighter hero card, so it matches the dark look. */
 .page-bg { background: radial-gradient(120% 42% at 85% -10%, rgb(147 197 253 / 0.5), transparent 62%), #f8fafc; }
-.hero-card { background: linear-gradient(135deg, #0f766e 0%, #0f766e 55%, #115e59 100%); }
-[data-theme="dark"] .hero-card { background: linear-gradient(135deg, #04201f 0%, #0a3d3a 50%, #0f766e 100%); }
+.hero-card { background: color-mix(in srgb, #2563eb 5%, #ffffff); border: 1px solid #e2e8f0; }
+[data-theme="dark"] .hero-card { background: color-mix(in srgb, #3b82f6 6%, #0f172a); border: 1px solid #1e293b; }
 
 .field-wrap.field-err { box-shadow: 0 0 0 2px #ef4444; }

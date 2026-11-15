@@ -250,24 +250,23 @@ export default function Dashboard() {
         ) : (
           <>
             <Reveal i={0}>
-            <Link to="/pnl" aria-label="Open statistics" className="press relative block overflow-hidden rounded-3xl hero-card p-6 text-white shadow-lg">
-              <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-400/30 blur-3xl" />
+            <Link to="/pnl" aria-label="Open statistics" className="press relative block overflow-hidden rounded-3xl hero-card p-6 text-slate-900 shadow-sm">
               <div className="relative">
-                <p className="text-xs font-bold uppercase tracking-wider text-white/90">Today's net earnings</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Today's net earnings</p>
                 <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
-                  <h2 className={cn('text-4xl font-black tabular-nums', stats.netEarnings >= 0 ? 'text-white' : 'text-rose-300')}>
+                  <h2 className={cn('text-4xl font-black tabular-nums', stats.netEarnings >= 0 ? 'text-slate-900' : 'text-rose-500')}>
                     {mask(formatCurrency(stats.netEarnings))}
                   </h2>
                   {stats.vsYesterday !== 0 && (
-                    <span className={cn('mb-1 rounded-full bg-white/15 px-2 py-0.5 text-xs font-bold', hidden && 'blur-sm select-none')}>
+                    <span className={cn('mb-1 rounded-full bg-blue-500/10 text-blue-700 px-2 py-0.5 text-xs font-bold', hidden && 'blur-sm select-none')}>
                       {stats.vsYesterday > 0 ? '↑' : '↓'} {Math.abs(stats.vsYesterday).toFixed(0)}% vs yesterday
                     </span>
                   )}
                 </div>
                 <div className="mt-5 grid grid-cols-3 gap-2">
                   {[['Sales', mask(formatCurrency(stats.sales))], ['Expenses', mask(formatCurrency(stats.expenses))], ['Bills', hidden ? '•••' : String(stats.billCount)]].map(([l, v]) => (
-                    <div key={l} className="min-w-0 rounded-2xl bg-white/10 px-3 py-2.5 backdrop-blur-sm">
-                      <p className="text-[0.65rem] font-bold uppercase tracking-wider text-white/90">{l}</p>
+                    <div key={l} className="min-w-0 rounded-2xl bg-slate-500/10 px-3 py-2.5 backdrop-blur-sm">
+                      <p className="text-[0.65rem] font-bold uppercase tracking-wider text-slate-500">{l}</p>
                       <p className="truncate text-base font-black tabular-nums">{v}</p>
                     </div>
                   ))}
@@ -277,13 +276,13 @@ export default function Dashboard() {
                   return wk.length > 0 && (
                     <div className={cn('mt-4', hidden && 'opacity-40')} aria-hidden="true">
                       <div className="flex h-10 items-end gap-1.5">
-                        {wk.map((n, i) => <div key={i} className={cn('flex-1 rounded-t-md', n < 0 ? 'bg-rose-300' : i === wk.length - 1 ? 'bg-white' : 'bg-white/35')} style={{ height: `${Math.max(6, (Math.abs(n) / max) * 100)}%` }} />)}
+                        {wk.map((n, i) => <div key={i} className={cn('flex-1 rounded-t-md', n < 0 ? 'bg-rose-400' : i === wk.length - 1 ? 'bg-blue-600' : 'bg-blue-600/25')} style={{ height: `${Math.max(6, (Math.abs(n) / max) * 100)}%` }} />)}
                       </div>
-                      <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wider text-white/90">Last 7 days</p>
+                      <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wider text-slate-500">Last 7 days</p>
                     </div>
                   );
                 })()}
-                <p className="mt-4 flex items-center justify-end gap-1 text-xs font-bold text-white/90">Full details <ChevronRight size={14} aria-hidden="true" /></p>
+                <p className="mt-4 flex items-center justify-end gap-1 text-xs font-bold text-slate-500">Full details <ChevronRight size={14} aria-hidden="true" /></p>
               </div>
             </Link>
 
