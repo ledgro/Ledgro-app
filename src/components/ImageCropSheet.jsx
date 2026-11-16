@@ -10,12 +10,13 @@ async function cropToFile(url, area, rotation, name) {
   const rad = (rotation * Math.PI) / 180;
   const sin = Math.abs(Math.sin(rad)); const cos = Math.abs(Math.cos(rad));
   const bw = img.width * cos + img.height * sin; const bh = img.width * sin + img.height * cos;
-  const full = document.createElement('canvas'); full.width = bw; full.height = bh;
-  const fx = full.getContext('2d');
-  fx.translate(bw / 2, bh / 2); fx.rotate(rad); fx.drawImage(img, -img.width / 2, -img.height / 2);
-  const out = document.createElement('canvas'); out.width = area.width; out.height = area.height;
-  out.getContext('2d').drawImage(full, area.x, area.y, area.width, area.height, 0, 0, area.width, area.height);
-  full.width = 0; full.height = 0;
+  // Draw only the chosen square, already scaled down (the final photo is at most 400 px), so a 12 MP photo never becomes a huge canvas.
+  const k = Math.min(1, 1024 / area.width);
+  const out = document.createElement('canvas'); out.width = Math.round(area.width * k); out.height = Math.round(area.height * k);
+  const ox = out.getContext('2d');
+  ox.imageSmoothingQuality = 'high';
+  ox.scale(k, k); ox.translate(-area.x, -area.y); ox.translate(bw / 2, bh / 2); ox.rotate(rad);
+  ox.drawImage(img, -img.width / 2, -img.height / 2);
   const blob = await new Promise((r) => out.toBlob(r, 'image/jpeg', 0.92));
   out.width = 0; out.height = 0;
   return new File([blob], name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });

@@ -66,7 +66,11 @@ function ProductColourCard({ entry, onEdit }) {
     try {
       const img = await compressImage(f);
       await saveImage(shopId, imageKey(rep), img, user.uid);
-      await setFlag(true);
+      try { await setFlag(true); } catch (flagErr) {
+        // Photo saved but the products were not marked: undo the photo so nothing is half-done.
+        try { await removeImage(shopId, imageKey(rep)); } catch { /* ignore */ }
+        throw flagErr;
+      }
     } catch (err) {
       console.error(err);
       toast.error(`Could not save the photo (${err?.code || err?.message || 'unknown'}).`);
