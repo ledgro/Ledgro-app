@@ -10,12 +10,12 @@
 
 ## Overview
 
-Ledgro is a point-of-sale and bookkeeping app built for small footwear shops. One person bills at the counter, the owner sees the day's numbers, and staff each have their own sign-in. It runs as a web app (installable PWA) and as a signed Android app.
+Ledgro is a point-of-sale and bookkeeping app for footwear shops: billing, ledger, expenses, products, stock and staff accounts. It runs as a web app (installable PWA) and as a signed Android app.
 
 Live app: <https://ledgro-app.pages.dev>
 
 > [!NOTE]
-> Billing needs an internet connection by design. A bill is only shown as saved after the server has accepted it, so the till and the ledger never disagree.
+> Billing needs an internet connection by design. A bill is only shown as saved after the server has accepted it.
 
 ---
 
@@ -38,7 +38,7 @@ Live app: <https://ledgro-app.pages.dev>
 <summary><b>Billing</b></summary>
 <br>
 
-- **Fast checkout** with Cash, UPI or Split payments, and a final-total override for discounts.
+- Checkout with Cash, UPI or Split payments, and a final-total override for discounts.
 - **Processing and success screens**, then the bill preview. The bill is real and server-confirmed before success shows.
 - **Share or save the receipt** as PNG or PDF. In the Android app this opens the phone's own share sheet.
 - **Hold and resume** a cart, and edit or void a past bill.
@@ -108,7 +108,7 @@ Ledgro does not talk to printers directly. Install the free **RawBT** app, pair 
 
 ## Security
 
-Short version: sign-in is required, every shop's data is separated by database rules, and bills cannot be silently rewritten. Read [SECURITY.md](SECURITY.md) for what is protected, what is not, and how to report a problem.
+Sign-in is required and Firestore rules separate each shop's data. [SECURITY.md](SECURITY.md) lists what the rules and the app do, what they do not, and how to report a problem.
 
 ---
 
