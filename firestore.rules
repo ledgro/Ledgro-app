@@ -132,6 +132,7 @@ service cloud.firestore {
         // Listing is only for the whole-shop delete, which must find every counter to remove it.
         allow list: if isSoleAdmin(shopId) && request.query.limit <= 100;
         allow create: if isMember(shopId)
+          && series.matches('^[0-9]{4}(-R)?$') // 2627 or 2627-R: no junk counter documents
           && request.resource.data.keys().hasOnly(['last'])
           && request.resource.data.last == 1;
         allow update: if isMember(shopId)

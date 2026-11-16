@@ -94,7 +94,7 @@ Live app: <https://ledgro-app.pages.dev>
 
 ## Install
 
-**Android:** download the latest signed APK from the [Releases page](https://github.com/ledgro/Ledgro-app/releases/latest). Android may show a Play Protect scan prompt for apps installed outside the Play Store. Choose "Install without scanning" if you trust the source.
+**Android:** download the latest signed APK from the [Releases page](https://github.com/ledgro/Ledgro-app/releases/latest). Android may show a Play Protect prompt for apps installed outside the Play Store. Only install an APK from this repository's Releases page. Each build prints its signing SHA-256 fingerprint in the build run's summary (Actions tab), so you can compare it with the app's certificate.
 
 **Web or iPhone:** open <https://ledgro-app.pages.dev> in the browser and use "Add to Home Screen".
 
