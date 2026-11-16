@@ -70,7 +70,7 @@ export const privacySections = [
     blocks: [
       { p: `Only to run Ledgro for you:` },
       { ul: [
-        'to sign you in and keep you signed in for up to 3 days',
+        'to sign you in and keep you signed in (up to 3 days on the website; the Android app stays signed in until you sign out)',
         'to save your records and show them to you and your team',
         'to calculate totals and reports',
         'to keep each shop separate and secure, and to find and fix errors',
@@ -132,7 +132,7 @@ export const privacySections = [
       { ul: [
         'Data is encrypted in transit, and encrypted at rest by Google.',
         'Database rules let only signed in members read or change their shop\'s data, and limit what each role can do.',
-        'Sessions end after 3 days. Invite codes work once.',
+        'On the website, sessions end after 3 days. In the Android app you stay signed in until you sign out. Invite codes work once.',
       ] },
       { p: `No online service is perfectly secure. Use a screen lock, protect your Google account, and remove members who no longer need access. If a personal data breach affects you, we will tell you and the authorities as the law requires.` },
     ],
