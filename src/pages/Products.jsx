@@ -464,7 +464,13 @@ export default function Products() {
       // The picture goes too, unless another size of the same colour still uses it.
       const key = imageKey(editingItem);
       const shared = catalogItems.some((i) => i.id !== editingItem.id && !i.deleted && imageKey(i) === key);
-      if (editingItem.hasImage && !shared) { try { await removeImage(shopId, key); } catch (e) { console.warn('Picture not removed', e); } }
+      let photoLeft = false;
+      if (editingItem.hasImage && !shared) { try { await removeImage(shopId, key); } catch (e) { console.warn('Picture not removed', e); photoLeft = true; } }
+      // Older photos were saved under the bare group id: remove that one too when nothing else in the group is left.
+      if (editingItem.groupId && !catalogItems.some((i) => i.id !== editingItem.id && !i.deleted && i.groupId === editingItem.groupId)) {
+        try { await removeImage(shopId, editingItem.groupId); } catch (e) { console.warn('Old picture not removed', e); }
+      }
+      if (photoLeft) toast.warning('Product deleted, but its photo could not be removed. It will be cleaned up later.');
 
       removeCatalogItem(editingItem.id);
       toast.success('Product deleted');

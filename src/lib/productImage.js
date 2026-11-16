@@ -94,3 +94,20 @@ export async function removeImage(shopId, key) {
   cache.set(`${shopId}/${key}`, Promise.resolve(null));
   bump();
 }
+
+/** Re-draws a JPEG data URL on a canvas: drops any EXIF (GPS, camera, time) and caps the size. Returns null if it is not a readable image. */
+export async function reencodeDataUrl(dataUrl) {
+  try {
+    const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl; });
+    const side = Math.min(im.naturalWidth, im.naturalHeight);
+    if (!side) return null;
+    const size = Math.min(MAX_SIDE, side);
+    const c = document.createElement('canvas'); c.width = size; c.height = size;
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, size, size);
+    x.drawImage(im, (im.naturalWidth - side) / 2, (im.naturalHeight - side) / 2, side, side, 0, 0, size, size);
+    let q = 0.72; let out = c.toDataURL('image/jpeg', q);
+    while (out.length > MAX_IMAGE_CHARS && q > 0.3) { q -= 0.1; out = c.toDataURL('image/jpeg', q); }
+    c.width = 0; c.height = 0;
+    return out.length <= MAX_IMAGE_CHARS ? out : null;
+  } catch { return null; }
+}

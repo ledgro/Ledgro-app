@@ -6,7 +6,7 @@ import { db } from '../firebase';
 import { sheetStyle } from '../hooks/useKeyboardInset';
 import { saveFile } from '../lib/shareFile';
 import { buildCatalogCsv, buildCatalogBackup, parseCatalogFile, planImport } from '../lib/catalogTransfer';
-import { loadItemImage, saveImage, imageKey } from '../lib/productImage';
+import { loadItemImage, saveImage, imageKey, reencodeDataUrl } from '../lib/productImage';
 
 const day = () => new Date().toISOString().slice(0, 10);
 const slug = (s) => String(s || 'shop').replace(/[^\w-]+/g, '-');
@@ -79,7 +79,7 @@ export default function CatalogTransferSheet({ open, onClose, items, shopId, sho
         const key = imageKey(d);
         if (!d._image || saved.has(key)) continue;
         saved.add(key);
-        try { await saveImage(shopId, key, d._image, uid); } catch (err) { console.error(err); }
+        try { const clean = await reencodeDataUrl(d._image); if (clean) await saveImage(shopId, key, clean, uid); } catch (err) { console.error(err); }
       }
       flush();
       toast.success(`${done.length} product${done.length === 1 ? '' : 's'} imported`);
