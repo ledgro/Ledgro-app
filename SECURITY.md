@@ -12,6 +12,7 @@ Useful in a report: the screen or request involved, the steps, and what you expe
 - **Sign-in is required.** Google sign-in, or username and password. The website signs people out after 3 days. The Android app stays signed in until you sign out.
 - **Each shop's data is separate.** Firestore rules only let members of a shop read or write that shop's data, and rules limit what each role can do.
 - **Bills keep a trail.** Invoice numbers must be the next number in sequence and are saved with the bill in one step. Voids, returns, discounts, payment changes, deletions, and price and stock edits are written to an activity log that nobody can edit. Only the owner can read it.
+- **App Check is on.** The app sends a reCAPTCHA Enterprise token with every database request, and enforcement is switched on in Firebase, so scripts outside the app are turned away.
 - **Input is checked on the server.** The rules check the shape and size of what is written, and list queries are limited in size.
 - **Data in transit and at rest is encrypted** by the hosting and database provider.
 - **Photos are cleaned.** Product photos are redrawn and saved as small images, so location and camera data from the phone are not kept.
@@ -23,7 +24,7 @@ Useful in a report: the screen or request involved, the steps, and what you expe
 We would rather say this plainly:
 
 - **Staff can do a lot by design.** A member can change most of the shop's records. The activity log shows the owner what changed, but the rules do not stop it. Examples: a refunded amount on a bill and the day totals behind the Dashboard are not recomputed by the rules.
-- **App Check is not enforced.** Requests to the database are limited by sign-in and rules, not by proof that they come from the official app.
+- **App Check checks the app, not the person.** It turns away scripts that call the database directly, but a signed-in member using the real app is still limited only by the rules above.
 - **Billing needs the internet.** It also reads the server's clock, so changing the phone's clock does not change a bill's time.
 - **Anyone with a shop's invite code can join once.** Keep codes private, and remove members you no longer trust.
 
