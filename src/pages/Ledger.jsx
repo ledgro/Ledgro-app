@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { useState, useEffect, useCallback, useMemo, useDeferredValue, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { logActivity } from '../lib/audit';
+import { useInView } from 'react-intersection-observer';
 import { collection, query, where, getDocs, getDoc, getDocFromServer, orderBy, limit, startAfter, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
@@ -26,7 +27,7 @@ import { exchangeTotals, replacementItems, netStockDeltas, flooredStockChange } 
 import { reserveBillNo } from '../lib/billNumber';
 import { confirm } from '../lib/confirm';
 
-const PAGE = 10; // bills per page; "Load more" fetches the next 10
+const PAGE = 20; // bills per page; the next 20 load as you scroll to the bottom
 
 const hapticOn = () => localStorage.getItem('ledgro_haptic') !== 'false';
 
@@ -48,6 +49,7 @@ export default function Ledger() {
 
   const [bills, setBills] = useState([]);
   const lastDoc = useRef(null);
+  const { ref, inView } = useInView();
   const [hasMore, setHasMore] = useState(true);
   // '' = newest first across all days; otherwise one business day (yyyy-MM-dd)
   const [day, setDay] = useState('');
@@ -144,6 +146,12 @@ export default function Ledger() {
       fetchBills();
     }
   }, [shopId, fetchBills]);
+
+  useEffect(() => {
+    if (inView && hasMore && !loading && bills.length > 0) {
+      fetchBills(true);
+    }
+  }, [inView, hasMore, loading, bills.length, fetchBills]);
 
   /** Only restock/bump catalog docs that still exist and actually track stock. */
   const addCatalogAdjustments = async (batch, items, { sign }) => {
@@ -706,10 +714,8 @@ export default function Ledger() {
         )}
 
         {hasMore && bills.length > 0 && (
-           <div className="py-6 text-center">
-             <button type="button" onClick={() => fetchBills(true)} disabled={loading} className="glass-btn press h-12 rounded-full px-8 text-sm font-bold text-blue-600 disabled:opacity-60">
-               {loading ? 'Loading...' : 'Load 10 more bills'}
-             </button>
+           <div ref={ref} className="py-8 text-center text-slate-500 font-semibold text-sm">
+             {loading ? 'Loading more...' : 'Scroll for more'}
            </div>
         )}
       </main>
