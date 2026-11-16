@@ -6,6 +6,17 @@ import { VitePWA } from 'vite-plugin-pwa'
 export default defineConfig({
   build: {
     sourcemap: false,
+    rollupOptions: {
+      output: {
+        // Vendor code changes rarely: its own files stay cached across app updates.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/node_modules\/(@?firebase|idb)\//.test(id)) return 'firebase';
+          if (/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(id)) return 'react';
+          return undefined;
+        },
+      },
+    },
   },
   base: '/',
   plugins: [
