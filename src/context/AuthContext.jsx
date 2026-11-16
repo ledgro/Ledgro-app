@@ -160,7 +160,8 @@ export const AuthProvider = ({ children }) => {
 
       if (currentUser) {
         const loginTime = localStorage.getItem('lastLoginTime');
-        if (loginTime && Date.now() - parseInt(loginTime) > SESSION_DURATION) {
+        // The 3-day sign-out is for the website only. The installed app stays signed in until the person signs out.
+        if (!isNative && loginTime && Date.now() - parseInt(loginTime) > SESSION_DURATION) {
           firebaseSignOut(auth);
           localStorage.removeItem('lastLoginTime');
           return;
