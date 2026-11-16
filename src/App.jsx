@@ -1,4 +1,3 @@
-import Reports from './pages/Reports';
 import { installNativeBack } from './lib/nativeBack';
 import { createHashRouter, RouterProvider, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -8,6 +7,7 @@ import { motion, MotionConfig } from 'framer-motion';
 const SignIn = lazy(() => import('./pages/SignIn'));
 const ShopSetup = lazy(() => import('./pages/ShopSetup'));
 const Welcome = lazy(() => import('./pages/Welcome'));
+const Reports = lazy(() => import('./pages/Reports'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const POS = lazy(() => import('./pages/POS'));
 const Ledger = lazy(() => import('./pages/Ledger'));

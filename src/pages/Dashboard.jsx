@@ -209,7 +209,7 @@ export default function Dashboard() {
   return (
     <div className="page-bg h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
 
-      <header className="sticky top-0 z-30 flex items-center justify-between px-4 pb-2 pt-4 backdrop-blur-md">
+      <header className="sticky top-0 z-30 flex items-center justify-between px-4 pb-2 pt-4">
         <div className="flex min-w-0 items-center gap-3">
           <span aria-hidden="true" className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-lg font-black text-white">
             {displayName.charAt(0).toUpperCase()}
@@ -265,7 +265,7 @@ export default function Dashboard() {
                 </div>
                 <div className="mt-5 grid grid-cols-3 gap-2">
                   {[['Sales', mask(formatCurrency(stats.sales))], ['Expenses', mask(formatCurrency(stats.expenses))], ['Bills', hidden ? '•••' : String(stats.billCount)]].map(([l, v]) => (
-                    <div key={l} className="min-w-0 rounded-2xl bg-slate-500/10 px-3 py-2.5 backdrop-blur-sm">
+                    <div key={l} className="min-w-0 rounded-2xl bg-slate-500/10 px-3 py-2.5">
                       <p className="text-[0.65rem] font-bold uppercase tracking-wider text-slate-500">{l}</p>
                       <p className="truncate text-base font-black tabular-nums">{v}</p>
                     </div>

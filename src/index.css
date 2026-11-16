@@ -210,8 +210,8 @@ html[data-kb="1"] .kb-slim button { height: 2.75rem; }
 [data-theme="dark"] { --toast-bg: rgb(20 30 50 / 0.92); --toast-fg: #f1f5f9; --toast-bd: rgb(255 255 255 / 0.1); --toast-shadow: 0 12px 32px rgb(0 0 0 / 0.5); }
 
 /* Shared screen chrome: frosted sticky header, pill inputs, list entrance. */
-.glass-header { background: rgb(248 250 252 / 0.78); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
-[data-theme="dark"] .glass-header { background: rgb(5 10 22 / 0.7); }
+.glass-header { background: rgb(248 250 252 / 0.92); } /* no blur: blur behind a sticky bar makes scrolling stutter on phones */
+[data-theme="dark"] .glass-header { background: rgb(5 10 22 / 0.92); }
 .glass-input { background: #fff; border: 1px solid rgb(226 232 240); }
 [data-theme="dark"] .glass-input { background: rgb(255 255 255 / 0.06); border-color: rgb(255 255 255 / 0.1); }
 .rise-list > * { animation: rise 0.55s var(--ease-ios) both; }
