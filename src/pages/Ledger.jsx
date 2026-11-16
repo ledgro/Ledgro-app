@@ -3,9 +3,9 @@ import { toast } from 'sonner';
 import { useState, useEffect, useCallback, useMemo, useDeferredValue, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { logActivity } from '../lib/audit';
+import { useInView } from 'react-intersection-observer';
 import { collection, query, where, getDocs, getDoc, getDocFromServer, orderBy, limit, startAfter, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase';
-import { useInView } from 'react-intersection-observer';
 import BottomNav from '../components/BottomNav';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCcw, Search, ArrowLeftRight, Pencil, X, XCircle, Banknote, Smartphone, Wallet, ReceiptText, CalendarDays, ChevronLeft, ChevronRight, Undo2, Plus } from 'lucide-react';
@@ -27,7 +27,7 @@ import { exchangeTotals, replacementItems, netStockDeltas, flooredStockChange } 
 import { reserveBillNo } from '../lib/billNumber';
 import { confirm } from '../lib/confirm';
 
-const PAGE = 30;
+const PAGE = 20; // bills per page; the next 20 load as you scroll to the bottom
 
 const hapticOn = () => localStorage.getItem('ledgro_haptic') !== 'false';
 
@@ -49,6 +49,7 @@ export default function Ledger() {
 
   const [bills, setBills] = useState([]);
   const lastDoc = useRef(null);
+  const { ref, inView } = useInView();
   const [hasMore, setHasMore] = useState(true);
   // '' = newest first across all days; otherwise one business day (yyyy-MM-dd)
   const [day, setDay] = useState('');
@@ -83,7 +84,6 @@ export default function Ledger() {
   const [exchangeLines, setExchangeLines] = useState([]);
 
   useBodyLock(!!selectedBill || isReturnDrawerOpen);
-  const { ref, inView } = useInView();
   const ledgerListRef = useRef(null);
 
   const shiftDay = (delta) => {
@@ -629,7 +629,7 @@ export default function Ledger() {
           <div className="glass-card mb-5 rounded-3xl p-4">
             <div className="flex items-end justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{day ? dayLabel : 'Loaded bills'}</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{day ? dayLabel : 'Loaded bills'}{hasMore ? ' · loaded so far' : ''}</p>
                 <p className="mt-1 text-3xl font-black tabular-nums text-slate-900">{formatCurrency(summary.total)}</p>
               </div>
               <p className="pb-1 text-sm font-bold text-slate-500">{summary.count} {summary.count === 1 ? 'bill' : 'bills'}</p>
@@ -678,8 +678,9 @@ export default function Ledger() {
                     const method = bill.payment?.method === 'split' ? 'split' : (bill.refundMethod || bill.paymentMethod || bill.payment?.method || 'cash');
                     const Icon = isReturn ? Undo2 : method === 'upi' ? Smartphone : method === 'split' ? Wallet : Banknote;
                     const tone = bill.isVoided ? 'bg-slate-500/15 text-slate-500' : isReturn ? 'bg-orange-500/15 text-orange-500' : method === 'upi' ? 'bg-blue-500/15 text-blue-500' : method === 'split' ? 'bg-purple-500/15 text-purple-500' : 'bg-green-500/15 text-green-600';
-                    const names = (bill.items || []).map((i) => i.name).filter(Boolean);
-                    const itemsText = names.length ? `${names.slice(0, 2).join(', ')}${names.length > 2 ? ` +${names.length - 2}` : ''}` : `${bill.items?.length || 0} items`;
+                    const lines = (bill.items || []).filter((i) => i.name);
+                    const shown = lines.slice(0, 3);
+                    const more = lines.length - shown.length;
                     const title = isReturn ? (bill.exchangeOf ? 'Exchange' : 'Return') : (bill.billNo ? `Bill #${bill.billNo}` : 'Bill');
                     return (
                       <button type="button" key={bill.id} onClick={() => { setSelectedBill(bill); setReturnItems({}); setRefundEdits({}); }}
@@ -691,7 +692,13 @@ export default function Ledger() {
                             {bill.isVoided && <span className="rounded bg-slate-500/20 px-1.5 py-0.5 text-[0.6rem] font-black uppercase tracking-wider text-slate-500">Voided</span>}
                             {!isReturn && bill.exchangeOf && <span className="rounded bg-blue-500/15 px-1.5 py-0.5 text-[0.6rem] font-black uppercase tracking-wider text-blue-500">Exchange</span>}
                           </span>
-                          <span className="mt-0.5 block truncate text-xs font-medium text-slate-500">{time} · {itemsText}</span>
+                          <span className="mt-0.5 block text-xs font-medium text-slate-500">{time}{lines.length ? ` · ${lines.length} ${lines.length === 1 ? 'item' : 'items'}` : ''}</span>
+                          {shown.length > 0 && (
+                            <span className="mt-1 block space-y-0.5">
+                              {shown.map((i, k) => <span key={k} className="flex gap-1.5 text-xs text-slate-600"><span className="truncate">{i.name}</span><span className="shrink-0 font-bold text-slate-500">×{i.qty}</span></span>)}
+                              {more > 0 && <span className="block text-xs font-bold text-blue-600">+{more} more</span>}
+                            </span>
+                          )}
                         </span>
                         <span className="flex-shrink-0 text-right">
                           <span className={cn('block text-base font-black tabular-nums', bill.isVoided ? 'text-slate-500 line-through' : isReturn ? 'text-red-500' : 'text-slate-900')}>{formatCurrency(bill.grandTotal)}</span>
