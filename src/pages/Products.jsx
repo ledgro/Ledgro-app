@@ -1,4 +1,5 @@
 import { sheetStyle } from '../hooks/useKeyboardInset';
+import { logActivity } from '../lib/audit';
 import ImageCropSheet from '../components/ImageCropSheet';
 import PhotoPreview from '../components/PhotoPreview';
 import FieldError, { errRing } from '../components/FieldError';
@@ -333,7 +334,14 @@ export default function Products() {
            updatedStockForState = null;
         }
 
-        await updateDoc(docRef, payload);
+        // Price and stock changes are written to the activity log together with the edit itself.
+        const wb = writeBatch(db);
+        wb.update(docRef, payload);
+        const oldPrice = Number(editingItem.lastUsedPrice) || 0;
+        const newPrice = Number(basePayload.lastUsedPrice) || 0;
+        if (oldPrice !== newPrice) logActivity(wb, shopId, user.uid, { action: 'price_change', amount: newPrice, note: `${editingItem.name}: ${formatCurrency(oldPrice)} to ${formatCurrency(newPrice)}` });
+        if (stockNum !== null && editingItem.stockCount != null && stockNum !== editingItem.stockCount) logActivity(wb, shopId, user.uid, { action: 'stock_change', amount: 0, note: `${editingItem.name}: ${editingItem.stockCount} to ${stockNum} pairs` });
+        await wb.commit();
 
         addCatalogItem({
           ...editingItem,
