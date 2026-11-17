@@ -293,11 +293,7 @@ export const AuthProvider = ({ children }) => {
     if (signingIn.current) return; // a second tap while one is open breaks Firebase's popup handler
     signingIn.current = true;
     try {
-      try {
-        await setPersistence(auth, indexedDBLocalPersistence);
-      } catch (err) {
-        console.warn('IndexedDB persistence unavailable:', err);
-      }
+      // No await before the popup: Safari blocks a popup that does not open straight from the tap. Persistence is set once in firebase.js.
       if (isNative) await signInWithCredential(auth, await nativeGoogleCredential());
       else await signInWithPopup(auth, googleProvider);
     } catch (error) {
