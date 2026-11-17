@@ -21,6 +21,8 @@ jobs:
     # a manual run from any other branch could reach the service-account secret
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # Waits for the required reviewer set on this GitHub Environment (Settings > Environments). Until a reviewer is added there, it runs without waiting.
+    environment: production-rules
     permissions:
       contents: read
     steps:
