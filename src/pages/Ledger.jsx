@@ -181,7 +181,7 @@ export default function Ledger() {
     return b.creatorId === user?.uid && age <= 60 * 60 * 1000;
   };
   const canEditBill = (b) => {
-    if (!b || b.type !== 'sale' || b.isVoided || b.exchangeOf || (b.returnedAmt || 0) > 0) return false;
+    if (!b || (b.type && b.type !== 'sale') || b.isVoided || b.exchangeOf || (b.returnedAmt || 0) > 0) return false;
     return inChangeWindow(b);
   };
 
@@ -784,7 +784,7 @@ export default function Ledger() {
                     )
                   )}
 
-                  {!selectedBill.isVoided && selectedBill.type === 'sale' && !canEditBill(selectedBill) && (
+                  {!selectedBill.isVoided && (!selectedBill.type || selectedBill.type === 'sale') && !canEditBill(selectedBill) && (
                     <p className="mb-3 rounded-xl bg-slate-500/10 px-3 py-3 text-center text-xs font-bold leading-5 text-slate-500">
                       {selectedBill.exchangeOf ? 'This bill came from an exchange, so it cannot be edited or voided.'
                         : (selectedBill.returnedAmt || 0) > 0 ? 'Items were already returned on this bill, so it cannot be edited or voided.'
