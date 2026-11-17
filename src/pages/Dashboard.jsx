@@ -209,9 +209,9 @@ export default function Dashboard() {
   return (
     <div className="page-bg h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
 
-      <header className="sticky top-0 z-30 flex items-center justify-between px-4 pb-2 pt-4">
+      <header className="flex items-center justify-between px-4 pb-1 pt-4">
         <div className="flex min-w-0 items-center gap-3">
-          <span aria-hidden="true" className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-lg font-black text-white">
+          <span aria-hidden="true" className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-base font-black text-white">
             {displayName.charAt(0).toUpperCase()}
           </span>
           <div className="min-w-0">
@@ -221,12 +221,12 @@ export default function Dashboard() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={!hidden} onClick={() => setHidden((h) => !h)} className="glass-btn press">
+        <div className="flex items-center">
+          <button type="button" aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={!hidden} onClick={() => setHidden((h) => !h)} className="press flex h-10 w-10 items-center justify-center rounded-full text-slate-500 active:bg-slate-200/70">
             {hidden ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
-          <button type="button" aria-label="Refresh Dashboard" onClick={() => fetchDashboardData()} className="glass-btn press"><RefreshCcw size={16} /></button>
-          <button type="button" aria-label="Search" onClick={() => setSearchOpen(true)} className="glass-btn press"><SearchIcon size={18} /></button>
+          <button type="button" aria-label="Refresh Dashboard" onClick={() => fetchDashboardData()} className="press flex h-10 w-10 items-center justify-center rounded-full text-slate-500 active:bg-slate-200/70"><RefreshCcw size={16} /></button>
+          <button type="button" aria-label="Search" onClick={() => setSearchOpen(true)} className="press flex h-10 w-10 items-center justify-center rounded-full text-slate-500 active:bg-slate-200/70"><SearchIcon size={18} /></button>
         </div>
       </header>
 
