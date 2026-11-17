@@ -1,11 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { House, RotateCcwClock, ChartNoAxesCombined, User, Plus } from 'lucide-react';
+import { House, ReceiptText, ChartNoAxesCombined, User, Plus } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const ITEMS = [
   { path: '/dashboard', label: 'Home', icon: House },
-  { path: '/ledger', label: 'History', icon: RotateCcwClock },
+  { path: '/ledger', label: 'History', icon: ReceiptText },
   { path: '/pnl', label: 'Statistics', icon: ChartNoAxesCombined },
   { path: '/settings', label: 'Profile', icon: User },
 ];
