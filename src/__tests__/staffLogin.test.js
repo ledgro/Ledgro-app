@@ -23,3 +23,25 @@ describe('staff login helpers', () => {
     expect(isStaffEmail('a@gmail.com')).toBe(false);
   });
 });
+
+import { emailTypo, cooldownLeft, verifyMessage, COOLDOWN_MS } from '../lib/verifyEmail';
+
+describe('verification email helpers', () => {
+  it('flags common address typos', () => {
+    expect(emailTypo('a@gmial.com')).toEqual({ fix: 'a@gmail.com' });
+    expect(emailTypo('a@gamil.com')).toEqual({ fix: 'a@gmail.com' });
+    expect(emailTypo('a@gmail.dom')).toEqual({ fix: null });
+    expect(emailTypo('a@shop.con')).toEqual({ fix: null });
+    expect(emailTypo('a@gmail.com')).toBeNull();
+    expect(emailTypo('a@company.co.in')).toBeNull();
+  });
+  it('cooldown counts down to zero', () => {
+    expect(cooldownLeft(1000 + COOLDOWN_MS / 2, 1000)).toBe(30);
+    expect(cooldownLeft(1000 + COOLDOWN_MS, 1000)).toBe(0);
+    expect(cooldownLeft(Date.now(), 0)).toBe(0);
+  });
+  it('keeps the error code in unknown messages and explains throttling', () => {
+    expect(verifyMessage({ code: 'auth/too-many-requests' })).toMatch(/Too many emails/);
+    expect(verifyMessage({ code: 'auth/weird' })).toMatch(/auth\/weird/);
+  });
+});
