@@ -71,7 +71,7 @@ html, body, .overflow-y-auto, .overflow-auto { overscroll-behavior: none; }
   --color-gray-900: #f1f5f9;
 }
 [data-theme="dark"] .bg-white { background: linear-gradient(145deg, rgb(255 255 255 / 0.06), rgb(255 255 255 / 0.015)), #0d1526; }
-[data-theme="dark"] .page-bg { background: radial-gradient(120% 55% at 85% -8%, rgb(37 99 235 / 0.38), transparent 62%), radial-gradient(90% 40% at 0% 100%, rgb(29 78 216 / 0.18), transparent 70%), #050a16; }
+[data-theme="dark"] .page-bg { background: radial-gradient(110% 45% at 0% 0%, rgb(37 99 235 / 0.45), transparent 68%), #050a16; }
 .glass-card { background: #fff; border: 1px solid rgb(226 232 240); box-shadow: 0 1px 2px rgb(15 23 42 / 0.05); }
 [data-theme="dark"] .glass-card { background: linear-gradient(145deg, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.02)), #0d1526; border-color: rgb(255 255 255 / 0.08); box-shadow: none; }
 .glass-btn, .glass-btn-flat { display: inline-flex; align-items: center; justify-content: center; background: #fff; border: 1px solid rgb(226 232 240); color: #475569; }
@@ -222,13 +222,13 @@ html[data-kb="1"] .kb-slim button { height: 2.75rem; }
 @media (prefers-reduced-motion: reduce) { .rise-list > * { animation: none; } }
 
 /* Sign-in fields: icon on the left, one rounded box. */
-.field-wrap { display: flex; align-items: center; gap: 0.6rem; height: 3rem; padding: 0 0.9rem; border-radius: 0.9rem; background: #fff; border: 1px solid rgb(226 232 240); }
+.field-wrap { display: flex; align-items: center; gap: 0.6rem; height: 3.25rem; padding: 0 1rem; border-radius: 1.1rem; background: #fff; border: 1px solid rgb(226 232 240); }
 .field-wrap:focus-within { box-shadow: 0 0 0 2px #3b82f6; }
 [data-theme="dark"] .field-wrap { background: rgb(255 255 255 / 0.06); border-color: rgb(255 255 255 / 0.1); }
 .field-input { flex: 1; min-width: 0; height: 100%; background: transparent; border: 0; outline: none; font-weight: 600; font-size: 0.95rem; }
 
 /* Light mode: soft sky glow at the top and a brighter hero card, so it matches the dark look. */
-.page-bg { background: radial-gradient(120% 42% at 85% -10%, rgb(147 197 253 / 0.5), transparent 62%), #f8fafc; }
+.page-bg { background: radial-gradient(110% 38% at 0% 0%, rgb(191 219 254 / 0.7), transparent 68%), #f8fafc; }
 .hero-card { background: color-mix(in srgb, #2563eb 5%, #ffffff); border: 1px solid #e2e8f0; }
 [data-theme="dark"] .hero-card { background: color-mix(in srgb, #3b82f6 6%, #0f172a); border: 1px solid #1e293b; }
 
