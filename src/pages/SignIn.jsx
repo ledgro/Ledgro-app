@@ -7,6 +7,7 @@ import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { POLICY_VERSION } from '../lib/constants';
 import { isEmail } from '../lib/staffLogin';
+import { emailTypo } from '../lib/verifyEmail';
 import { isNative } from '../lib/native';
 
 const SignIn = () => {
@@ -52,6 +53,7 @@ const SignIn = () => {
   const [pwMode, setPwMode] = useState('signin'); // 'signin' | 'create' (an invite code makes it a staff account, no code makes it an owner account)
   const [joinCode, setJoinCode] = useState('');
   const [fe, setFe] = useState({});
+  const [confirmedEmail, setConfirmedEmail] = useState(''); // the address the person already confirmed at sign-up
   const clr = (k) => setFe((p) => (p[k] ? { ...p, [k]: '' } : p));
   const [showCode, setShowCode] = useState(false);
 
@@ -125,6 +127,11 @@ const SignIn = () => {
     const errs = {};
     if (!identifier.trim()) errs.id = pwMode === 'signin' ? 'Enter your username or email.' : joining ? 'Choose a username.' : 'Enter your email address.';
     else if (pwMode === 'create' && !joining && !isEmail(identifier)) errs.id = 'This is not an email address. It needs an @ and a domain.';
+    else if (pwMode === 'create' && !joining) {
+      const typo = emailTypo(identifier);
+      if (typo) errs.id = typo.fix ? `Is that right? Did you mean ${typo.fix}?` : 'That ending looks like a typo (.com, .in ...). Check the email.';
+      else if (confirmedEmail !== identifier.trim().toLowerCase()) { setConfirmedEmail(identifier.trim().toLowerCase()); errs.id = `We will email a link to ${identifier.trim()}. Tap Create account again if that is right.`; }
+    }
     if (!password) errs.pw = pwMode === 'signin' ? 'Enter your password.' : 'Choose a password with 8 or more characters.';
     if (joining) {
       const c = joinCode.trim();
@@ -250,6 +257,7 @@ const SignIn = () => {
               )}
               {isSigningIn ? (lang === 'en' ? 'Signing in...' : 'സൈൻ ഇൻ ചെയ്യുന്നു...') : (lang === 'en' ? 'Continue with Google' : 'Google വഴി തുടരുക')} {/* TODO: native speaker review */}
             </button>
+            <p className="-mt-1 text-center text-xs font-semibold text-slate-500">{lang === 'en' ? 'No email check needed with Google.' : 'Google ഉപയോഗിച്ചാൽ ഇമെയിൽ പരിശോധന വേണ്ട.'} {/* TODO: native speaker review */}</p>
             <div className="flex items-center gap-3 py-1" aria-hidden="true">
               <span className="h-px flex-1 bg-slate-200" />
               <span className="text-sm font-semibold text-slate-500">{lang === 'en' ? 'or' : 'അല്ലെങ്കിൽ'}</span>

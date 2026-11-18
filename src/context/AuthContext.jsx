@@ -10,6 +10,7 @@ import { setDayCutoff } from '../lib/statsMath';
 import SplashScreen from '../components/SplashScreen';
 import { syncMyProfile, useMemberNames } from '../lib/memberNames';
 import { setLogContext } from '../lib/errorLog';
+import { markSent, markFailed, clearVerifyState, verifyMessage, VERIFY_CONTINUE_URL } from '../lib/verifyEmail';
 import { toLoginEmail, isEmail, isStaffEmail, usernameError, passwordError, authMessage, usesPassword } from '../lib/staffLogin';
 
 import { isNative } from '../lib/native';
@@ -330,7 +331,10 @@ export const AuthProvider = ({ children }) => {
         if (pErr) throw Object.assign(new Error(pErr), { userFacing: true });
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         // a real email gets a verification link (staff usernames have no mailbox and join with an invite code instead)
-        if (isEmail(identifier)) { try { await sendEmailVerification(cred.user); } catch (err) { console.warn('Verification email not sent', err); } }
+        if (isEmail(identifier)) {
+          clearVerifyState();
+          try { await sendEmailVerification(cred.user, { url: VERIFY_CONTINUE_URL }); markSent(); } catch (err) { console.warn('Verification email not sent', err.code, err); markFailed(err.code); }
+        }
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
@@ -343,13 +347,21 @@ export const AuthProvider = ({ children }) => {
   // Verification email: resend, and re-check after the link was tapped (refreshes the sign-in token too, so shop rules see it).
   const resendVerification = useCallback(async () => {
     if (!auth.currentUser) return;
-    try { await sendEmailVerification(auth.currentUser); } catch (error) { throw Object.assign(new Error(authMessage(error)), { userFacing: true }); }
+    try { await sendEmailVerification(auth.currentUser, { url: VERIFY_CONTINUE_URL }); markSent(); } catch (error) { console.warn('Verification email not sent', error.code, error); markFailed(error.code); throw Object.assign(new Error(verifyMessage(error)), { userFacing: true, code: error.code }); }
+  }, []);
+  /** Wrong email at sign-up: remove the unverified account so the person can start again. */
+  const startOver = useCallback(async () => {
+    const u = auth.currentUser;
+    clearVerifyState();
+    if (u && !u.emailVerified) { try { await deleteUser(u); return; } catch (err) { console.warn('Could not delete the unverified account', err.code); } }
+    await firebaseSignOut(auth);
   }, []);
   const checkVerified = useCallback(async () => {
     if (!auth.currentUser) return false;
     await auth.currentUser.reload();
-    await auth.currentUser.getIdToken(true);
-    return auth.currentUser.emailVerified;
+    if (!auth.currentUser.emailVerified) return false;
+    await auth.currentUser.getIdToken(true); // only now: shop rules read the verified flag from the token
+    return true;
   }, []);
 
   // A signed-in password user changes their own password: the old one is asked again, as Firebase requires.
@@ -569,13 +581,14 @@ export const AuthProvider = ({ children }) => {
     changePassword,
     addEmail,
     resendVerification,
+    startOver,
     checkVerified,
     signOut,
     beginVoluntaryExit,
     deleteAccount,
     reauthWithGoogle,
     deleteShopData,
-  }), [user, hasShop, shopId, shopAdminId, isAdminRole, shopName, shopProfile, loading, signInWithGoogle, signInWithPassword, changePassword, addEmail, resendVerification, checkVerified, signOut, beginVoluntaryExit, deleteAccount, deleteShopData, reauthWithGoogle]);
+  }), [user, hasShop, shopId, shopAdminId, isAdminRole, shopName, shopProfile, loading, signInWithGoogle, signInWithPassword, changePassword, addEmail, resendVerification, startOver, checkVerified, signOut, beginVoluntaryExit, deleteAccount, deleteShopData, reauthWithGoogle]);
 
   if (loading) {
     return <AuthContext.Provider value={value}><SplashScreen /></AuthContext.Provider>;

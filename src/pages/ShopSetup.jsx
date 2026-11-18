@@ -7,9 +7,10 @@ import { isStaffEmail, usesPassword } from '../lib/staffLogin';
 import { toast } from 'sonner';
 import AddEmailForm from '../components/AddEmailForm';
 import { syncMyProfile } from '../lib/memberNames';
+import { cooldownLeft, lastSendFailure, verifyMessage } from '../lib/verifyEmail';
 
 const ShopSetup = () => {
-  const { user, setHasShop, setShopId, resendVerification, checkVerified, signOut, deleteAccount, reauthWithGoogle } = useAuth();
+  const { user, setHasShop, setShopId, resendVerification, startOver, checkVerified, signOut, deleteAccount, reauthWithGoogle } = useAuth();
   const [delOpen, setDelOpen] = useState(false);
   const [delPw, setDelPw] = useState('');
   const [delWord, setDelWord] = useState('');
@@ -36,17 +37,44 @@ const ShopSetup = () => {
   const staffAccount = isStaffEmail(user?.email);
   const needsVerify = !verified && !user?.emailVerified && !staffAccount;
 
-  const recheck = async () => {
-    setError('');
+  const [wait, setWait] = useState(() => cooldownLeft());
+  const [failedCode, setFailedCode] = useState(() => lastSendFailure());
+  useEffect(() => {
+    if (wait <= 0) return undefined;
+    const t = setTimeout(() => setWait(cooldownLeft()), 1000);
+    return () => clearTimeout(t);
+  }, [wait]);
+
+  const checking = useRef(false);
+  const recheck = async (quiet = false) => {
+    if (checking.current) return;
+    checking.current = true;
+    if (!quiet) setError('');
     try {
       if (await checkVerified()) setVerified(true);
-      else setError('Not verified yet. Open the link in the email we sent, then tap this again.');
-    } catch { setError('Could not check. Try again.'); }
+      else if (!quiet) setError('Not verified yet. Open the link in the email we sent, then tap this again.');
+    } catch (err) {
+      console.warn('Verification check failed', err.code, err);
+      if (!quiet) setError(err?.code === 'auth/too-many-requests' ? 'Checking too often. Wait a minute and tap again.' : verifyMessage(err));
+    } finally { checking.current = false; }
   };
   const resend = async () => {
+    if (cooldownLeft() > 0) { setWait(cooldownLeft()); return; }
     setError('');
-    try { await resendVerification(); setSent(true); } catch (err) { setError(err.message || 'Could not send the email.'); }
+    try { await resendVerification(); setSent(true); setFailedCode(''); } catch (err) { setError(err.message || 'Could not send the email.'); setFailedCode(err.code || 'unknown'); }
+    setWait(cooldownLeft());
   };
+  const redo = async () => { try { await startOver(); } catch (err) { setError(verifyMessage(err)); } };
+
+  // Check by itself when the person comes back from the email, and every 10 seconds while this screen is open.
+  useEffect(() => {
+    if (!needsVerify) return undefined;
+    const onVisible = () => { if (document.visibilityState === 'visible') recheck(true); };
+    document.addEventListener('visibilitychange', onVisible);
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') recheck(true); }, 10000);
+    return () => { document.removeEventListener('visibilitychange', onVisible); clearInterval(timer); };
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsVerify]);
 
   // A new staff member registered with an invite code on the sign-in screen: join with it straight away.
   const autoJoined = useRef(false);
@@ -214,10 +242,15 @@ const ShopSetup = () => {
               ) : (
                 <>
                   <p className="text-base font-bold text-slate-900">Verify your email</p>
-                  <p className="text-sm font-medium text-slate-600">We sent a link to {user?.email}. Open it, then come back and tap the button.</p>
-                  <button type="button" onClick={recheck} className="w-full h-12 rounded-xl bg-blue-600 text-white font-bold active:scale-[0.98]">I have verified</button>
-                  <button type="button" onClick={resend} className="w-full text-sm font-bold text-blue-600 py-1">{sent ? 'Sent. Check your inbox and spam.' : 'Send the email again'}</button>
-                  {error && <div className="text-sm text-red-600 font-medium">{error}</div>}
+                  {failedCode && !sent
+                    ? <p className="text-sm font-medium text-red-600">We could not send the email to {user?.email} ({failedCode}). Tap "Send the email again" below, or continue with Google.</p>
+                    : <p className="text-sm font-medium text-slate-600">We sent a link to {user?.email}. Open it, then come back. This page checks by itself.</p>}
+                  <button type="button" onClick={() => recheck(false)} className="w-full h-12 rounded-xl bg-blue-600 text-white font-bold active:scale-[0.98]">I have verified</button>
+                  <button type="button" onClick={resend} disabled={wait > 0} className="w-full text-sm font-bold text-blue-600 py-1 disabled:text-slate-400">
+                    {wait > 0 ? `Send again in ${wait}s` : sent ? 'Sent. Check inbox and spam. Send again' : 'Send the email again'}
+                  </button>
+                  {error && <div role="alert" className="text-sm text-red-600 font-medium">{error}</div>}
+                  <button type="button" onClick={redo} className="w-full text-xs font-bold text-slate-500 py-1">Wrong email? Start over</button>
                 </>
               )}
             </div>
