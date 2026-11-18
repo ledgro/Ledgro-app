@@ -198,25 +198,25 @@ export default function Expenses() {
 
   return (
     <div className="h-[100dvh] overflow-y-auto bg-gray-50 page-bg flex flex-col overflow-x-hidden">
-      <header className="sticky top-0 z-30 glass-header px-4 py-3 flex justify-between items-center">
-        <h1 className="text-xl font-bold text-gray-900">Expenses</h1>
+      <header className="px-5 pt-5 pb-1 flex items-center justify-between">
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Expenses</h1>
         {tab === 'expenses' && <button
           aria-label="New Expense"
           onClick={() => setIsOpen(true)}
-          className="bg-gray-900 hover:bg-gray-800 active:scale-95 transition-all text-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 shadow-sm"
+          className="bg-blue-600 active:scale-95 transition-all text-white h-11 px-4 rounded-full text-sm font-bold flex items-center gap-1.5"
         >
           <Plus size={16} /> New
         </button>}
       </header>
 
-      <div role="tablist" aria-label="Expense type" className="grid grid-cols-2 gap-2 px-4 pt-3">
+      <div role="tablist" aria-label="Expense type" className="grid grid-cols-2 gap-2 px-5 pt-3">
         {[['expenses', 'Shop expenses'], ['staff', 'Staff cash']].map(([k, l]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setParams(k === 'staff' ? { tab: 'staff' } : {}, { replace: true })}
             className={`press h-11 rounded-full text-sm font-bold ${tab === k ? 'bg-blue-600 text-white shadow-md' : 'glass-btn-flat text-slate-600'}`}>{l}</button>
         ))}
       </div>
 
-      {tab === 'staff' ? <main className="p-4 flex-1 pb-nav"><StaffCash embedded /></main> : <main className="p-4 flex-1 pb-nav">
+      {tab === 'staff' ? <main className="p-4 flex-1 pb-nav"><StaffCash embedded /></main> : <main className="px-5 py-3 flex-1 pb-nav">
         {loading ? (
           <div className="space-y-4">
             <Skeleton className="h-20 rounded-2xl" />
@@ -236,13 +236,12 @@ export default function Expenses() {
             <p className="text-gray-500 font-medium">No expenses recorded yet.</p>
           </div>
         ) : (
-          <div className="space-y-3 relative">
+          <div className="divide-y divide-slate-200/80 relative">
             {owedToStaff > 0 && (
               <div className="rounded-2xl bg-amber-50 border border-amber-200 p-3 text-sm font-semibold text-amber-800">
                 Owed to staff: ₹{(owedToStaff / 100).toLocaleString('en-IN')}. Paid from their own pocket. When you repay, edit the entry and set Drawer Cash or Bank / UPI.
               </div>
             )}
-            <div className="absolute left-[39px] top-6 bottom-6 w-[2px] bg-slate-100 -z-10 rounded-full" />
 
             {expenses.map(expense => {
               const cat = CATEGORIES.find(c => c.id === expense.category);
@@ -264,8 +263,8 @@ export default function Expenses() {
                       </button>
                     ) : null}
                   >
-                  <div className={`p-4 flex items-center gap-4 border border-slate-100 rounded-3xl shadow-sm ${canEdit(expense) ? 'cursor-pointer' : ''}`}>
-                  <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm shrink-0">
+                  <div className={`py-3 flex items-center gap-3 ${canEdit(expense) ? 'cursor-pointer' : ''}`}>
+                  <div className="w-11 h-11 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
                     <Icon size={20} strokeWidth={2.5} />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -277,7 +276,7 @@ export default function Expenses() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-black text-slate-900 text-lg">₹{(expense.amount / 100).toLocaleString('en-IN')}</p>
+                    <p className="font-extrabold text-slate-900 text-base tabular-nums">₹{(expense.amount / 100).toLocaleString('en-IN')}</p>
                   </div>
 
                   </div>
