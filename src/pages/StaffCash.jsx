@@ -171,7 +171,7 @@ export default function StaffCash({ embedded = false }) {
               </div>
               <div className="text-right">
                 <p className={cn('text-lg font-black tabular-nums', p.owed > 0 ? 'text-red-600' : 'text-green-700')}>{formatCurrency(Math.abs(p.owed))}</p>
-                <p className="text-[0.7rem] font-semibold text-slate-500">{p.owed > 0 ? 'owes' : p.owed < 0 ? 'overpaid' : 'settled'}</p>
+                <p className="text-xs font-semibold text-slate-500">{p.owed > 0 ? 'owes' : p.owed < 0 ? 'overpaid' : 'settled'}</p>
               </div>
               <ChevronDown size={18} className={cn('text-slate-400 transition-transform', openStaff === p.key && 'rotate-180')} />
             </button>
@@ -224,7 +224,7 @@ export default function StaffCash({ embedded = false }) {
       <Drawer.Root handleOnly repositionInputs={false} open={open} onOpenChange={(o) => !saving && setOpen(o)}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
-          <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[20px] mt-24 max-h-[85vh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none overflow-hidden">
+          <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[20px] mt-24 max-h-[85dvh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none overflow-hidden">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between">
               <Drawer.Title className="font-bold text-slate-900 text-xl">{editing ? 'Edit entry' : 'Cash taken by staff'}</Drawer.Title>
               <button type="button" aria-label="Close" onClick={() => !saving && setOpen(false)} className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full text-slate-500">✕</button>

@@ -169,7 +169,7 @@ export default function PLScreen() {
                   transition={{ type: 'spring', stiffness: 140, damping: 22, delay: i * 0.04 }}
                   className={cn('w-full rounded-xl transition-colors duration-500', i === idx ? 'bg-blue-600' : 'bar-idle')}
                 />
-                <span className={cn('text-[0.65rem] font-semibold', i === idx ? 'text-slate-900' : 'text-slate-500')}>{b.label}</span>
+                <span className={cn('text-xs font-semibold', i === idx ? 'text-slate-900' : 'text-slate-500')}>{b.label}</span>
               </button>
             ))}
           </div>

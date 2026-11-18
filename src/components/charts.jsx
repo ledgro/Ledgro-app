@@ -44,7 +44,7 @@ export function Donut({ segments, center, sub, size = 150, label }) {
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
         <span className="text-2xl font-black tabular-nums text-slate-900">{center}</span>
-        {sub && <span className="text-[0.65rem] font-semibold text-slate-500">{sub}</span>}
+        {sub && <span className="text-xs font-semibold text-slate-500">{sub}</span>}
       </div>
     </div>
   );
@@ -91,7 +91,7 @@ export function Trend({ values, labels, color = '#22c55e', active }) {
       <div className="relative -mt-20 h-20 pointer-events-none" aria-hidden="true">
         {a && <span className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white" style={{ left: `${(a[0] / W) * 100}%`, top: `${(a[1] / H) * 100}%`, background: color }} />}
       </div>
-      <div className="mt-2 flex justify-between text-[0.65rem] font-semibold text-slate-500">
+      <div className="mt-2 flex justify-between text-xs font-semibold text-slate-500">
         {labels.map((l, i) => <span key={l + i} className={i === active ? 'text-slate-900' : ''}>{l}</span>)}
       </div>
     </div>

@@ -101,7 +101,7 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose })
     <Drawer.Root handleOnly repositionInputs={false} open onOpenChange={(o) => { if (!o && !busy) onClose(); }}>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
-        <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[20px] mt-24 max-h-[85vh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none overflow-hidden">
+        <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[20px] mt-24 max-h-[85dvh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none overflow-hidden">
           <div className="p-4 flex-shrink-0 border-b border-slate-100 flex items-center justify-between">
             <Drawer.Title className="font-bold text-slate-900 text-xl truncate">{entry.name}{entry.colour ? ` - ${entry.colour}` : ''}</Drawer.Title>
             <button aria-label="Close" onClick={() => !busy && onClose()} className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full text-slate-500">✕</button>

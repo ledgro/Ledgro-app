@@ -630,7 +630,7 @@ export default function Products() {
       <Drawer.Root handleOnly repositionInputs={false} open={isDrawerOpen} onOpenChange={(o) => (o ? setIsDrawerOpen(true) : requestClose())}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
-          <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[20px] mt-24 max-h-[85vh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none overflow-hidden">
+          <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[20px] mt-24 max-h-[85dvh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none overflow-hidden">
             <div className="p-4 bg-white rounded-t-[20px] flex-shrink-0 border-b border-slate-100 flex items-center justify-between">
               <Drawer.Title className="font-bold text-slate-900 text-xl flex items-center gap-2">
                 {editingItem ? <Edit2 size={20} className="text-blue-600" /> : <PackagePlus size={20} className="text-blue-600" />}

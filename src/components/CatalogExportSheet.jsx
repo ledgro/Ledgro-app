@@ -37,7 +37,7 @@ export default function CatalogExportSheet({ open, onClose, items, busy, onExpor
     <Drawer.Root handleOnly repositionInputs={false} open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-[60] bg-black/40" />
-        <Drawer.Content style={sheetStyle} aria-describedby={undefined} className="fixed bottom-0 left-0 right-0 z-[61] flex max-h-[85vh] flex-col rounded-t-[24px] bg-white focus:outline-none">
+        <Drawer.Content style={sheetStyle} aria-describedby={undefined} className="fixed bottom-0 left-0 right-0 z-[61] flex max-h-[85dvh] flex-col rounded-t-[24px] bg-white focus:outline-none">
           <div className="flex-1 space-y-6 overflow-y-auto p-5">
             <Drawer.Title className="text-xl font-black text-slate-900">Export catalog PDF</Drawer.Title>
 

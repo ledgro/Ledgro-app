@@ -233,3 +233,8 @@ html[data-kb="1"] .kb-slim button { height: 2.75rem; }
 [data-theme="dark"] .hero-card { background: color-mix(in srgb, #3b82f6 6%, #0f172a); border: 1px solid #1e293b; }
 
 .field-wrap.field-err { box-shadow: 0 0 0 2px #ef4444; }
+
+/* Tablets and laptops: keep the app a phone-width column in the middle instead of stretching it. */
+#root { max-width: 44rem; margin-inline: auto; }
+html { background: #f8fafc; }
+[data-theme="dark"] html, html[data-theme="dark"] { background: #050a16; }
