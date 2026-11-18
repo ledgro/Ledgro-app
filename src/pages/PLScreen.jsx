@@ -141,13 +141,13 @@ export default function PLScreen() {
 
   return (
     <div className="page-bg h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
-      <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 glass-header">
+      <header className="px-5 pt-5 pb-1 flex items-center gap-3">
         <Link to="/dashboard" aria-label="Back" className="glass-btn"><ChevronLeft size={20} /></Link>
-        <h1 className="text-lg font-bold text-slate-900">Statistics</h1>
+        <h1 className="flex-1 text-2xl font-extrabold tracking-tight text-slate-900">Statistics</h1>
         <button type="button" onClick={handleExportPDF} disabled={loading || isExporting} aria-label="Download PDF" className="glass-btn disabled:opacity-50"><Download size={18} /></button>
       </header>
 
-      <main className="space-y-4 px-4 pb-4">
+      <main className="space-y-6 px-5 pb-4 pt-2">
         <div role="tablist" aria-label="Period" className="grid grid-cols-3 gap-2">
           {TABS.map(([k, l]) => (
             <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setSel(-1); }}
@@ -155,10 +155,10 @@ export default function PLScreen() {
           ))}
         </div>
 
-        <section aria-label="Sales chart" className="glass-card rounded-3xl p-5">
-          <p className="text-center text-3xl font-black tabular-nums text-slate-900">{loading ? '...' : formatCurrency(sales)}</p>
-          <p className="mt-1 text-center text-xs text-slate-500">{bucket.full}</p>
-          <div className="mt-5 flex h-44 items-end gap-2" role="group" aria-label="Net sales by period">
+        <section aria-label="Sales chart">
+          <p className="text-[2.5rem] font-extrabold leading-tight tracking-tight tabular-nums text-slate-900">{loading ? '...' : formatCurrency(sales)}</p>
+          <p className="text-sm font-semibold text-slate-500">{bucket.full}</p>
+          <div className="mt-4 flex h-32 items-end gap-2" role="group" aria-label="Net sales by period">
             {buckets.map((b, i) => (
               <button key={b.label + i} type="button" onClick={() => setSel(i)} aria-label={`${b.full}: ${formatCurrency(totals[i].rev)}`} aria-pressed={i === idx}
                 className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
@@ -173,57 +173,57 @@ export default function PLScreen() {
               </button>
             ))}
           </div>
-          <p className="mt-4 text-center text-xs text-slate-500">{failed ? 'Could not load. Check your connection.' : 'Tap any bar to view details'}</p>
+          <p className="mt-3 text-xs text-slate-500">{failed ? 'Could not load. Check your connection.' : 'Tap any bar to view details'}</p>
         </section>
 
         {!loading && (
           <>
 
-            <section aria-label="Breakdown" className="glass-card grid grid-cols-2 gap-4 rounded-3xl p-5">
+            <section aria-label="Breakdown" className="grid grid-cols-2 gap-4">
               <div>
-                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">Expenses</p>
+                <p className="mb-3 text-base font-extrabold text-slate-900">Expenses</p>
                 <div className="flex justify-center"><Donut size={132} segments={catSegs} center={catSegs[0] ? shareOf(catSegs[0].value) : '-'} sub={catSegs[0]?.label} label="Expenses by category" /></div>
                 <Legend rows={catSegs.length ? catSegs.map((x) => ({ label: x.label, color: x.color, pct: shareOf(x.value) })) : [{ label: 'No expenses', color: '#94a3b8', pct: '-' }]} />
               </div>
               <div>
-                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">Payments</p>
+                <p className="mb-3 text-base font-extrabold text-slate-900">Payments</p>
                 <div className="flex justify-center"><Donut size={132} segments={paySegs} center={payShare(cash)} sub="cash" label="Cash and UPI split" /></div>
                 <Legend rows={paySegs.map((x) => ({ label: x.label, color: x.color, pct: payShare(x.value) }))} />
               </div>
             </section>
 
-            <section aria-label="Profit trend" className="glass-card rounded-3xl p-5">
+            <section aria-label="Profit trend">
               <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Net profit trend</p>
+                <p className="text-base font-extrabold text-slate-900">Net profit trend</p>
                 <span className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-black text-white tabular-nums">{formatCurrency(net)}</span>
               </div>
               <Trend values={totals.map((t) => t.rev - t.exp)} labels={buckets.map((b) => b.label)} active={idx} />
             </section>
 
-            <section className="glass-card rounded-3xl p-5">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Net profit</p>
+            <section>
+              <p className="text-base font-extrabold text-slate-900">Net profit</p>
               <p className={cn('mt-1 text-3xl font-black tabular-nums', net >= 0 ? 'text-emerald-500' : 'text-red-500')}>{formatCurrency(net)}</p>
               <p className="mt-1 text-xs text-slate-500">{margin == null ? 'No sales in this period' : `${margin.toFixed(1)}% margin on net sales`}</p>
             </section>
 
-            <section className="glass-card rounded-3xl p-5">
-              <h3 className="mb-1 text-xs font-bold uppercase tracking-wider text-slate-500">Income</h3>
+            <section>
+              <h3 className="mb-1 text-base font-extrabold text-slate-900">Income</h3>
               <Row label="Cash sales" value={cash} sub={pct(cash)} />
               <Row label="UPI sales" value={upi} sub={pct(upi)} />
               <Row strong label="Net sales" value={sales} sub="after returns" />
             </section>
 
             <section aria-label="Expenses">
-              <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">Expenses</h3>
-              <ul className="space-y-2">
+              <h3 className="mb-1 text-base font-extrabold text-slate-900">Expenses</h3>
+              <ul className="divide-y divide-slate-200/80">
                 {cats.map(([cat, amt]) => (
-                  <li key={cat} className="glass-card flex items-center justify-between rounded-2xl px-4 py-3">
+                  <li key={cat} className="flex items-center justify-between py-3">
                     <span><span className="block text-sm font-bold capitalize text-slate-900">{sanitizeText(cat).replace(/_/g, ' ')}</span>
                       <span className="block text-xs text-slate-500">Total: {formatCurrency(amt)}</span></span>
                     <span className="rounded-lg bg-red-500/15 px-2 py-1 text-xs font-bold text-red-500">{pct(amt)}</span>
                   </li>
                 ))}
-                {cats.length === 0 && <li className="glass-card rounded-2xl px-4 py-3 text-sm italic text-slate-500">No expenses recorded</li>}
+                {cats.length === 0 && <li className="py-3 text-sm italic text-slate-500">No expenses recorded</li>}
               </ul>
               <div className="mt-2 flex justify-between px-1 text-sm font-black text-slate-900"><span>Total expenses</span><span className="tabular-nums">{formatCurrency(exp)}</span></div>
             </section>

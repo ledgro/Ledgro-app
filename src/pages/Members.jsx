@@ -194,13 +194,13 @@ export default function Members() {
 
   return (
     <div className="page-bg h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
-      <header className="sticky top-0 z-30 glass-header px-4 py-3 flex justify-between items-center">
-        <h1 className="text-xl font-bold text-slate-900">Shop Members</h1>
+      <header className="px-5 pt-5 pb-1 flex items-center justify-between">
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Shop Members</h1>
       </header>
 
-<main className="p-4 space-y-6">
+<main className="px-5 py-3 space-y-6">
         {isCreator && (
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-center">
+          <div className="text-center">
             {inviteCode ? (
               <div className="space-y-3">
                 <p className="text-sm font-medium text-slate-500">Share this code with the new member</p>
@@ -226,16 +226,16 @@ export default function Members() {
         )}
 
         <div>
-          <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 px-1">Active Members</h2>
+          <h2 className="text-base font-extrabold text-slate-900 mb-1">Active Members</h2>
           {loading ? (
             showLoader ? <ListSkeleton rows={3} /> : null
           ) : (
-            <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm divide-y divide-slate-50">
+            <div className="divide-y divide-slate-200/80">
               {members.map(member => (
-                <div key={member.uid} className="flex justify-between items-center p-4">
+                <div key={member.uid} className="flex justify-between items-center py-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">
-                      {nameOf(member.uid).charAt(0)}
+                    <div className="w-11 h-11 bg-gradient-to-br from-blue-400 to-blue-700 text-white rounded-full flex items-center justify-center font-extrabold">
+                      {nameOf(member.uid).charAt(0).toUpperCase()}
                     </div>
                     <div>
                       <p className="font-semibold text-slate-900">{nameOf(member.uid)}</p>
