@@ -635,8 +635,8 @@ export default function Ledger() {
               <p className="pb-1 text-sm font-bold text-slate-500">{summary.count} {summary.count === 1 ? 'bill' : 'bills'}</p>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <div className="rounded-2xl bg-green-500/10 px-3 py-2"><p className="flex items-center gap-1 text-[0.7rem] font-bold uppercase tracking-wider text-green-600"><Banknote size={13} aria-hidden="true" />Cash</p><p className="text-base font-black tabular-nums text-slate-900">{formatCurrency(summary.cash)}</p></div>
-              <div className="rounded-2xl bg-blue-500/10 px-3 py-2"><p className="flex items-center gap-1 text-[0.7rem] font-bold uppercase tracking-wider text-blue-500"><Smartphone size={13} aria-hidden="true" />UPI</p><p className="text-base font-black tabular-nums text-slate-900">{formatCurrency(summary.upi)}</p></div>
+              <div className="rounded-2xl bg-green-500/10 px-3 py-2"><p className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-green-600"><Banknote size={13} aria-hidden="true" />Cash</p><p className="text-base font-black tabular-nums text-slate-900">{formatCurrency(summary.cash)}</p></div>
+              <div className="rounded-2xl bg-blue-500/10 px-3 py-2"><p className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-blue-500"><Smartphone size={13} aria-hidden="true" />UPI</p><p className="text-base font-black tabular-nums text-slate-900">{formatCurrency(summary.upi)}</p></div>
             </div>
           </div>
         )}
@@ -689,8 +689,8 @@ export default function Ledger() {
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center gap-2">
                             <span className="truncate text-sm font-black text-slate-900">{title}</span>
-                            {bill.isVoided && <span className="rounded bg-slate-500/20 px-1.5 py-0.5 text-[0.6rem] font-black uppercase tracking-wider text-slate-500">Voided</span>}
-                            {!isReturn && bill.exchangeOf && <span className="rounded bg-blue-500/15 px-1.5 py-0.5 text-[0.6rem] font-black uppercase tracking-wider text-blue-500">Exchange</span>}
+                            {bill.isVoided && <span className="rounded bg-slate-500/20 px-1.5 py-0.5 text-xs font-black uppercase tracking-wider text-slate-500">Voided</span>}
+                            {!isReturn && bill.exchangeOf && <span className="rounded bg-blue-500/15 px-1.5 py-0.5 text-xs font-black uppercase tracking-wider text-blue-500">Exchange</span>}
                           </span>
                           <span className="mt-0.5 block text-xs font-medium text-slate-500">{time}{lines.length ? ` · ${lines.length} ${lines.length === 1 ? 'item' : 'items'}` : ''}</span>
                           {shown.length > 0 && (
@@ -702,7 +702,7 @@ export default function Ledger() {
                         </span>
                         <span className="flex-shrink-0 text-right">
                           <span className={cn('block text-base font-black tabular-nums', bill.isVoided ? 'text-slate-500 line-through' : isReturn ? 'text-red-500' : 'text-slate-900')}>{formatCurrency(bill.grandTotal)}</span>
-                          <span className="block text-[0.65rem] font-bold uppercase tracking-wider text-slate-500">{method}</span>
+                          <span className="block text-xs font-bold uppercase tracking-wider text-slate-500">{method}</span>
                         </span>
                       </button>
                     );
@@ -723,7 +723,7 @@ export default function Ledger() {
       <Drawer.Root handleOnly repositionInputs={false} open={!!selectedBill && !isReturnDrawerOpen} onOpenChange={(open) => { if (!open) { setSelectedBill(null); setEditingPayment(false); } }}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
-          <Drawer.Content style={sheetStyle} className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 h-[85vh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none overflow-hidden">
+          <Drawer.Content style={sheetStyle} className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 h-[85dvh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none overflow-hidden">
             <div className="p-4 bg-slate-50 flex-1 overflow-y-auto pb-safe">
               <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-slate-200 mb-6" />
 
@@ -833,7 +833,7 @@ export default function Ledger() {
       <Drawer.Root handleOnly repositionInputs={false} open={isReturnDrawerOpen} onOpenChange={(open) => { setIsReturnDrawerOpen(open); if(!open) setSelectedBill(null); }}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
-          <Drawer.Content style={sheetStyle} className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 h-[90vh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none overflow-hidden">
+          <Drawer.Content style={sheetStyle} className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 h-[90dvh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none overflow-hidden">
              <div className="p-4 bg-slate-50 flex-1 overflow-y-auto pb-safe">
                <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-slate-200 mb-6" />
                <h2 className="text-2xl font-black text-slate-900 mb-2">Process Return</h2>

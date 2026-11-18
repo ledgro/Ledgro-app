@@ -221,7 +221,7 @@ export default function Dashboard() {
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold text-slate-500">{greeting}</p>
           <p className="truncate text-xl font-extrabold leading-tight tracking-tight text-slate-900">{displayName}</p>
-          <p className="flex items-center gap-1 truncate text-[0.7rem] font-bold text-blue-600">
+          <p className="flex items-center gap-1 truncate text-xs font-bold text-blue-600">
             {syncStatus.online
               ? <><Cloud size={11} aria-hidden="true" /> {shopName ? `${shopName} · ` : ''}{isAdmin ? 'Owner' : 'Staff'}</>
               : <><CloudOff size={11} className="text-amber-500" aria-hidden="true" /> <span className="text-amber-600">Offline: reconnect to bill or save</span></>}
@@ -283,7 +283,7 @@ export default function Dashboard() {
                     <div className="flex h-20 items-end gap-2.5">
                       {wk.map((n, i) => <div key={i} className={cn('flex-1 rounded-md', n < 0 ? 'bg-rose-400' : i === wk.length - 1 ? 'bg-blue-600' : 'bg-blue-600/25')} style={{ height: `${Math.max(6, (Math.abs(n) / max) * 100)}%` }} />)}
                     </div>
-                    <div className="mt-1 flex gap-2.5 text-[0.65rem] font-bold text-slate-500">
+                    <div className="mt-1 flex gap-2.5 text-xs font-bold text-slate-500">
                       {wk.map((_, i) => <span key={i} className="flex-1 text-center">{names[(today - (wk.length - 1 - i) + 14) % 7]}</span>)}
                     </div>
                   </div>
@@ -326,7 +326,7 @@ export default function Dashboard() {
       <Drawer.Root handleOnly repositionInputs={false} open={isCloseDrawerOpen} onOpenChange={setIsCloseDrawerOpen}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
-          <Drawer.Content style={sheetStyle} className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 fixed bottom-0 left-0 right-0 z-[61] h-[85vh]">
+          <Drawer.Content style={sheetStyle} className="bg-slate-50 flex flex-col rounded-t-[24px] mt-24 fixed bottom-0 left-0 right-0 z-[61] h-[85dvh]">
             <div className="p-4 bg-slate-50 flex-1 overflow-y-auto rounded-t-[24px] pb-safe">
                <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-slate-200 mb-6" />
                <h2 className="text-2xl font-black text-slate-900 mb-6 text-center">Cash Count</h2>

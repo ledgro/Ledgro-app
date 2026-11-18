@@ -121,7 +121,7 @@ function ProductColourCard({ entry, onEdit }) {
           <button key={it.id} type="button" onClick={() => onEdit(entry)}
             className={cn('min-w-[3.5rem] rounded-xl border border-slate-200 px-3 py-2 text-center active:scale-95 transition-transform', it.stockCount != null && it.stockCount <= 0 && 'opacity-50')}>
             <span className={cn('block text-sm font-bold text-slate-900', it.stockCount != null && it.stockCount <= 0 && 'line-through')}>{sizeLabelOf(it)}</span>
-            <span className={cn('mt-0.5 block text-[0.7rem] font-semibold', tone(it))}>{it.stockCount == null ? '-' : it.stockCount <= 0 ? 'Out' : it.stockCount}</span>
+            <span className={cn('mt-0.5 block text-xs font-semibold', tone(it))}>{it.stockCount == null ? '-' : it.stockCount <= 0 ? 'Out' : it.stockCount}</span>
           </button>
         ))}
       </div>

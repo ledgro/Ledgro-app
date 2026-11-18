@@ -1,3 +1,6 @@
+import { SystemBars, SystemBarsStyle } from '@capacitor/core';
+import { isNative } from './native';
+
 const KEY = 'ledgro-theme';
 const mq = () => (typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null);
 
@@ -9,6 +12,8 @@ export function applyTheme(pref = getThemePref()) {
   const dark = pref === 'dark' || (pref === 'auto' && !!mq()?.matches);
   document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0B1220' : '#F8FAFC');
+  // In the Android app the status/navigation bar icons follow the app theme, not the phone's.
+  if (isNative) SystemBars.setStyle({ style: dark ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => {});
 }
 
 export function setThemePref(pref) {

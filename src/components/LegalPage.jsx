@@ -26,7 +26,7 @@ export default function LegalPage({ title, updated, version, intro, keyPoints, s
   const jump = (i) => document.getElementById(`sec-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-dvh bg-slate-50 flex flex-col">
       <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 py-3 flex justify-between items-center shadow-subtle">
         <div className="flex items-center gap-2 min-w-0">
           <Link to="/login" aria-label="Back" className="p-1 -ml-1 text-slate-500 hover:text-slate-900 rounded-full hover:bg-slate-100 transition-colors">

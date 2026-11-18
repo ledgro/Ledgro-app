@@ -493,7 +493,7 @@ export default function POS() {
 
   if (checkoutSuccess) {
     return (
-      <div className="page-bg min-h-screen flex flex-col items-center justify-start gap-4 p-4 pb-10">
+      <div className="page-bg min-h-dvh flex flex-col items-center justify-start gap-4 p-4 pb-10">
         <Receipt ref={receiptRef} billData={lastBill} />
 
         <div className="glass-card rounded-3xl p-8 text-center max-w-sm w-full z-10">
