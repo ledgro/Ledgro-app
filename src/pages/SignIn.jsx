@@ -260,7 +260,11 @@ const SignIn = () => {
                 {lang === 'en' ? 'Continue with email or username' : 'ഇമെയിൽ അല്ലെങ്കിൽ യൂസർനെയിം ഉപയോഗിച്ച് തുടരുക'} {/* TODO: native speaker review */}
               </button>
             ) : (
-              <form onSubmit={handlePasswordSignIn} className="glass-card space-y-3 rounded-3xl p-4">
+              <form onSubmit={handlePasswordSignIn} className="space-y-3">
+                <div className="pb-1 text-center">
+                  <h2 className="text-2xl font-extrabold tracking-tight text-slate-900">{pwMode === 'signin' ? 'Sign in' : 'Sign up'}</h2>
+                  <p className="text-sm font-medium text-slate-500">{pwMode === 'signin' ? 'Welcome back' : "Let's create your account"}</p>
+                </div>
                 {pwMode === 'create' && showCode && (
                   <div className="field-wrap">
                     <KeyRound size={18} className="text-slate-500 flex-shrink-0" aria-hidden="true" />
