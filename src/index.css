@@ -234,7 +234,8 @@ html[data-kb="1"] .kb-slim button { height: 2.75rem; }
 
 .field-wrap.field-err { box-shadow: 0 0 0 2px #ef4444; }
 
-/* Tablets and laptops: keep the app a phone-width column in the middle instead of stretching it. */
+/* Tablets and laptops: keep the app a narrow column in the middle (44rem) instead of stretching it; bottom sheets match. */
 #root { max-width: 44rem; margin-inline: auto; }
+[data-vaul-drawer] { max-width: 44rem; margin-inline: auto; }
 html { background: #f8fafc; }
-[data-theme="dark"] html, html[data-theme="dark"] { background: #050a16; }
+html[data-theme="dark"] { background: #050a16; }
