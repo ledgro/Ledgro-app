@@ -18,13 +18,13 @@ const ACTIONS = [
 
 export function QuickActions() {
   return (
-    <div className="grid grid-cols-4 gap-2" role="group" aria-label="Quick actions">
+    <div className="grid grid-cols-4 gap-2.5" role="group" aria-label="Quick actions">
       {ACTIONS.map(({ to, label, Icon }) => (
         <Link key={to} to={to} className="press flex flex-col items-center gap-2">
-          <span className="glass-card flex h-16 w-16 items-center justify-center rounded-2xl text-blue-600">
-            <Icon size={24} aria-hidden="true" />
+          <span className="flex h-[3.4rem] w-full items-center justify-center rounded-[1.25rem] border border-slate-200 bg-white text-blue-600 dark:border-white/10 dark:bg-white/5">
+            <Icon size={22} aria-hidden="true" />
           </span>
-          <span className="text-xs font-bold text-slate-700">{label}</span>
+          <span className="text-xs font-semibold text-slate-500">{label}</span>
         </Link>
       ))}
     </div>
@@ -43,9 +43,9 @@ export function LowStock({ shopId }) {
   );
   if (low.length === 0) return null;
   return (
-    <section aria-label="Low stock" className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+    <section aria-label="Low stock">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+        <h3 className="flex items-center gap-1.5 text-base font-extrabold text-slate-900">
           <AlertCircle size={14} className="text-red-500" aria-hidden="true" /> Low stock
         </h3>
         <Link to="/products" className="text-xs font-semibold text-blue-600">See all</Link>
@@ -93,13 +93,13 @@ export function LatestActivity({ shopId, mask }) {
   return (
     <section aria-label="Latest transactions">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-base font-black text-slate-900">Latest transactions</h3>
+        <h3 className="text-base font-extrabold text-slate-900">Latest transactions</h3>
         <Link to="/ledger" className="flex items-center text-xs font-semibold text-blue-600">View all <ChevronRight size={14} aria-hidden="true" /></Link>
       </div>
-      {rows.length === 0 && <p className="glass-card rounded-2xl px-4 py-6 text-center text-sm text-slate-500">No bills or expenses yet. Tap + to make your first bill.</p>}
-      <ul className="space-y-2">
+      {rows.length === 0 && <p className="py-6 text-center text-sm text-slate-500">No bills or expenses yet. Tap + to make your first bill.</p>}
+      <ul className="divide-y divide-slate-200/80">
         {rows.map((r) => (
-          <li key={r.id} className="glass-card flex items-center gap-3 rounded-2xl px-4 py-3">
+          <li key={r.id} className="flex items-center gap-3 py-3">
             <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${r.out ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
               {r.out ? <ArrowUpRight size={18} aria-hidden="true" /> : <ArrowDownLeft size={18} aria-hidden="true" />}
             </span>

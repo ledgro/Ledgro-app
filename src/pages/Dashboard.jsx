@@ -27,6 +27,9 @@ export default function Dashboard() {
   const { user, shopId, shopName, isAdmin } = useAuth();
   const displayName = useMyName(shopId, user, shopName);
   const [loading, setLoading] = useState(true);
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const initials = (displayName || '?').trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join('') || '?';
   const [syncStatus, setSyncStatus] = useState({ online: navigator.onLine, pending: false, lastSynced: 'Just now' });
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
 
@@ -209,28 +212,26 @@ export default function Dashboard() {
   return (
     <div className="page-bg h-[100dvh] overflow-y-auto bg-slate-50 flex flex-col pb-nav">
 
-      <header className="flex items-center justify-between px-4 pb-1 pt-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <span aria-hidden="true" className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-base font-black text-white">
-            {displayName.charAt(0).toUpperCase()}
+      <header className="flex items-center gap-3 px-5 pb-1 pt-5">
+        <span aria-hidden="true" className="flex-shrink-0 rounded-full bg-[conic-gradient(from_200deg,#60a5fa,#1d4ed8,#93c5fd,#60a5fa)] p-[3px]">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full border-[3px] border-slate-50 bg-gradient-to-br from-blue-400 to-blue-700 text-base font-black text-white dark:border-slate-900">
+            {initials}
           </span>
-          <div className="min-w-0">
-            <p className="truncate text-base font-bold text-slate-900">Hello, {displayName.split(' ')[0]}</p>
-            <p className="flex items-center gap-1 text-xs font-semibold text-slate-500">
-              {syncStatus.online ? <><Cloud size={12} className="text-blue-500" /> Online</> : <><CloudOff size={12} className="text-amber-500" /> <span className="text-amber-600">Offline: reconnect to bill or save</span></>}
-            </p>
-          </div>
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold text-slate-500">{greeting}</p>
+          <p className="truncate text-xl font-extrabold leading-tight tracking-tight text-slate-900">{displayName}</p>
+          <p className="flex items-center gap-1 truncate text-[0.7rem] font-bold text-blue-600">
+            {syncStatus.online
+              ? <><Cloud size={11} aria-hidden="true" /> {shopName ? `${shopName} · ` : ''}{isAdmin ? 'Owner' : 'Staff'}</>
+              : <><CloudOff size={11} className="text-amber-500" aria-hidden="true" /> <span className="text-amber-600">Offline: reconnect to bill or save</span></>}
+          </p>
         </div>
-        <div className="flex items-center">
-          <button type="button" aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={!hidden} onClick={() => setHidden((h) => !h)} className="press flex h-10 w-10 items-center justify-center rounded-full text-slate-500 active:bg-slate-200/70">
-            {hidden ? <EyeOff size={18} /> : <Eye size={18} />}
-          </button>
-          <button type="button" aria-label="Refresh Dashboard" onClick={() => fetchDashboardData()} className="press flex h-10 w-10 items-center justify-center rounded-full text-slate-500 active:bg-slate-200/70"><RefreshCcw size={16} /></button>
-          <button type="button" aria-label="Search" onClick={() => setSearchOpen(true)} className="press flex h-10 w-10 items-center justify-center rounded-full text-slate-500 active:bg-slate-200/70"><SearchIcon size={18} /></button>
-        </div>
+        <button type="button" aria-label="Refresh" onClick={() => fetchDashboardData()} className="press flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600"><RefreshCcw size={17} /></button>
+        <button type="button" aria-label="Search" onClick={() => setSearchOpen(true)} className="press flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600"><SearchIcon size={19} /></button>
       </header>
 
-      <main className="p-4 space-y-4">
+      <main className="space-y-6 px-5 pb-6 pt-3">
 
         {/* iOS Prompt */}
         {showIOSPrompt && (
@@ -250,68 +251,69 @@ export default function Dashboard() {
         ) : (
           <>
             <Reveal i={0}>
-            <Link to="/pnl" aria-label="Open statistics" className="press relative block overflow-hidden rounded-3xl hero-card p-6 text-slate-900 shadow-sm">
-              <div className="relative">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Today's net earnings</p>
-                <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
-                  <h2 className={cn('text-4xl font-black tabular-nums', stats.netEarnings >= 0 ? 'text-slate-900' : 'text-rose-500')}>
-                    {mask(formatCurrency(stats.netEarnings))}
-                  </h2>
-                  {stats.vsYesterday !== 0 && (
-                    <span className={cn('mb-1 rounded-full bg-blue-500/10 text-blue-700 px-2 py-0.5 text-xs font-bold', hidden && 'blur-sm select-none')}>
-                      {stats.vsYesterday > 0 ? '↑' : '↓'} {Math.abs(stats.vsYesterday).toFixed(0)}% vs yesterday
-                    </span>
-                  )}
-                </div>
-                <div className="mt-5 grid grid-cols-3 gap-2">
-                  {[['Sales', mask(formatCurrency(stats.sales))], ['Expenses', mask(formatCurrency(stats.expenses))], ['Bills', hidden ? '•••' : String(stats.billCount)]].map(([l, v]) => (
-                    <div key={l} className="min-w-0 rounded-2xl bg-slate-500/10 px-3 py-2.5">
-                      <p className="text-[0.65rem] font-bold uppercase tracking-wider text-slate-500">{l}</p>
-                      <p className="truncate text-base font-black tabular-nums">{v}</p>
-                    </div>
-                  ))}
-                </div>
-                {(() => {
-                  const wk = stats.weekData || []; const max = Math.max(1, ...wk.map((n) => Math.abs(n)));
-                  return wk.length > 0 && (
-                    <div className={cn('mt-4', hidden && 'opacity-40')} aria-hidden="true">
-                      <div className="flex h-10 items-end gap-1.5">
-                        {wk.map((n, i) => <div key={i} className={cn('flex-1 rounded-t-md', n < 0 ? 'bg-rose-400' : i === wk.length - 1 ? 'bg-blue-600' : 'bg-blue-600/25')} style={{ height: `${Math.max(6, (Math.abs(n) / max) * 100)}%` }} />)}
-                      </div>
-                      <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wider text-slate-500">Last 7 days</p>
-                    </div>
-                  );
-                })()}
-                <p className="mt-4 flex items-center justify-end gap-1 text-xs font-bold text-slate-500">Full details <ChevronRight size={14} aria-hidden="true" /></p>
+            <section aria-label="Today">
+              <p className="text-sm font-semibold text-slate-500">Today's sales</p>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-[2.75rem] font-extrabold leading-tight tracking-tight tabular-nums text-slate-900">{mask(formatCurrency(stats.sales))}</h2>
+                <button type="button" aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={!hidden} onClick={() => setHidden((h) => !h)} className="press flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-slate-500 active:bg-slate-200/70">
+                  {hidden ? <EyeOff size={22} /> : <Eye size={22} />}
+                </button>
               </div>
-            </Link>
-
+              <p className="flex flex-wrap items-center gap-x-3 text-sm font-semibold text-slate-500">
+                <span>Net {mask(formatCurrency(stats.netEarnings))}</span>
+                <span>Expenses {mask(formatCurrency(stats.expenses))}</span>
+                <span>{hidden ? '•••' : stats.billCount} bills</span>
+                {stats.vsYesterday !== 0 && <span className={cn('font-bold', stats.vsYesterday > 0 ? 'text-blue-600' : 'text-rose-500', hidden && 'blur-sm select-none')}>{stats.vsYesterday > 0 ? '▲' : '▼'} {Math.abs(stats.vsYesterday).toFixed(0)}% vs yesterday</span>}
+              </p>
+            </section>
             </Reveal>
-
             <Reveal i={1}><QuickActions /></Reveal>
 
             <Reveal i={2}>
-            <div className="glass-card divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-100 shadow-sm">
-              <button type="button" onClick={() => setIsCloseDrawerOpen(true)} className="press flex w-full items-center gap-3 p-4 text-left">
+            {(() => {
+              const wk = stats.weekData || []; const max = Math.max(1, ...wk.map((n) => Math.abs(n)));
+              const names = ['S', 'M', 'T', 'W', 'T', 'F', 'S']; const today = new Date().getDay();
+              return wk.length > 0 && (
+                <section aria-label="Last 7 days">
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="text-base font-extrabold text-slate-900">Last 7 days</h3>
+                    <Link to="/pnl" className="flex items-center text-xs font-bold text-blue-600">Full details <ChevronRight size={14} aria-hidden="true" /></Link>
+                  </div>
+                  <div className={cn(hidden && 'opacity-40')} aria-hidden="true">
+                    <div className="flex h-20 items-end gap-2.5">
+                      {wk.map((n, i) => <div key={i} className={cn('flex-1 rounded-md', n < 0 ? 'bg-rose-400' : i === wk.length - 1 ? 'bg-blue-600' : 'bg-blue-600/25')} style={{ height: `${Math.max(6, (Math.abs(n) / max) * 100)}%` }} />)}
+                    </div>
+                    <div className="mt-1 flex gap-2.5 text-[0.65rem] font-bold text-slate-500">
+                      {wk.map((_, i) => <span key={i} className="flex-1 text-center">{names[(today - (wk.length - 1 - i) + 14) % 7]}</span>)}
+                    </div>
+                  </div>
+                </section>
+              );
+            })()}
+            </Reveal>
+            <Reveal i={2}>
+            <section aria-label="Money"><h3 className="mb-1 text-base font-extrabold text-slate-900">Money</h3>
+            <div className="divide-y divide-slate-200/80">
+              <button type="button" onClick={() => setIsCloseDrawerOpen(true)} className="press flex w-full items-center gap-3 py-3 text-left">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-500/15 text-green-600"><Banknote size={20} aria-hidden="true" /></span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-xs font-bold uppercase tracking-wider text-slate-500">Expected cash in drawer</span>
-                  <span className="block text-[0.7rem] font-semibold text-slate-500">Count it &amp; see how it adds up</span>
+                  <span className="block text-sm font-bold text-slate-900">Cash in drawer</span>
+                  <span className="block text-xs font-medium text-slate-500">Tap to count it</span>
                 </span>
-                <span className="text-xl font-black tabular-nums text-slate-900">{mask(formatCurrency(stats.expectedCash))}</span>
+                <span className="text-base font-extrabold tabular-nums text-slate-900">{mask(formatCurrency(stats.expectedCash))}</span>
                 <ChevronRight size={16} className="shrink-0 text-slate-400" aria-hidden="true" />
               </button>
-              <Link to="/pnl" className="press flex items-center gap-3 p-4">
+              <Link to="/pnl" className="press flex items-center gap-3 py-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-blue-600"><Smartphone size={20} aria-hidden="true" /></span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-xs font-bold uppercase tracking-wider text-slate-500">UPI in bank</span>
-                  <span className="block text-[0.7rem] font-semibold text-slate-500">Open statistics</span>
+                  <span className="block text-sm font-bold text-slate-900">UPI in bank</span>
+                  <span className="block text-xs font-medium text-slate-500">Open statistics</span>
                 </span>
-                <span className="text-xl font-black tabular-nums text-slate-900">{mask(formatCurrency(stats.upiInBank))}</span>
+                <span className="text-base font-extrabold tabular-nums text-slate-900">{mask(formatCurrency(stats.upiInBank))}</span>
                 <ChevronRight size={16} className="shrink-0 text-slate-400" aria-hidden="true" />
               </Link>
             </div>
-
+            </section>
             </Reveal>
 
             <Reveal i={3}><LowStock shopId={shopId} /></Reveal>
@@ -320,16 +322,6 @@ export default function Dashboard() {
           </>
         )}
       </main>
-
-      <div className="px-4 mt-2">
-         <button
-           onClick={() => setIsCloseDrawerOpen(true)}
-           disabled={loading}
-           className="w-full bg-slate-900 text-white font-bold h-14 rounded-xl shadow-sm active:scale-95 transition-transform"
-         >
-           Count Cash
-         </button>
-      </div>
 
       <Drawer.Root handleOnly repositionInputs={false} open={isCloseDrawerOpen} onOpenChange={setIsCloseDrawerOpen}>
         <Drawer.Portal>
