@@ -168,7 +168,7 @@ export default function Settings() {
   const handleRecalculate = async () => {
     if (!shopId || recalculating) return;
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
-    if (!(await confirm({ title: 'Recalculate totals?', message: 'Daily totals are rebuilt from the last 90 days of bills and expenses. This replaces the stored totals and can take a while.', confirmText: 'Recalculate' }))) return;
+    if (!(await confirm({ title: 'Recalculate totals?', message: 'Daily totals are rebuilt from the last 90 days of bills and expenses. This replaces the stored totals and can take a while. Run it after closing the shop: a sale made while it runs can be missing from the totals.', confirmText: 'Recalculate' }))) return;
     setRecalculating(true);
     try {
       const r = await rebuildStats(shopId, 90);
@@ -453,10 +453,12 @@ export default function Settings() {
                 </div>
               </div>
             )}
-            <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 h-12">
-              <span className="text-sm font-bold text-slate-700">Export data</span>
-              <ExportMenu label="Export PDF" onPick={handleExportData} className="text-xs font-black uppercase bg-slate-900 text-white px-3 py-1.5 rounded-full active:scale-95" />
-            </div>
+            {isAdmin && (
+              <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 h-12">
+                <span className="text-sm font-bold text-slate-700">Export data</span>
+                <ExportMenu label="Export PDF" onPick={handleExportData} className="text-xs font-black uppercase bg-slate-900 text-white px-3 py-1.5 rounded-full active:scale-95" />
+              </div>
+            )}
             {isOwner && (
               <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 h-12">
                 <span className="text-sm font-bold text-slate-700">Business day starts</span>
@@ -470,9 +472,11 @@ export default function Settings() {
                 {recalculating ? 'Recalculating...' : 'Recalculate totals (last 90 days)'}
               </button>
             )}
-            <button onClick={handleBackupJson} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors text-sm">
-              Backup file (JSON)
-            </button>
+            {isAdmin && (
+              <button onClick={handleBackupJson} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors text-sm">
+                Download bills & expenses (JSON)
+              </button>
+            )}
             <button onClick={handleClearCache} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors text-sm">
               Clear App Cache & Reload
             </button>
@@ -511,7 +515,7 @@ export default function Settings() {
 
            <div className="space-y-2">
              <p className="text-xs font-semibold text-red-600">Danger Zone</p>
-             {shopId && (
+             {shopId && isOwner && (
                <button
                  onClick={handleDeleteShopData}
                  disabled={isDeletingAccount}

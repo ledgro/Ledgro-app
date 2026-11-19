@@ -15,7 +15,7 @@ import { ListSkeleton } from '../components/Skeleton';
 import { useShowLoader } from '../hooks/useShowLoader';
 
 const PAGE = 50;
-const LABELS = { void: 'Voided bill', payment_change: 'Payment changed', return: 'Return', discount: 'Discount given', expense_delete: 'Expense deleted', expense_paid: 'Expense marked paid', import: 'Products imported', staff_edit: 'Staff entry edited', staff_delete: 'Staff entry deleted', staff_settle: 'Staff settled up', staff_loan_close: 'Staff loan closed', price_change: 'Price changed', stock_change: 'Stock changed' };
+const LABELS = { void: 'Voided bill', payment_change: 'Payment changed', return: 'Return', discount: 'Discount given', expense_delete: 'Expense deleted', expense_paid: 'Expense marked paid', member_invite: 'Invite created', member_remove: 'Member removed', member_role: 'Role changed', owner_transfer: 'Ownership transferred', import: 'Products imported', staff_edit: 'Staff entry edited', staff_delete: 'Staff entry deleted', staff_settle: 'Staff settled up', staff_loan_close: 'Staff loan closed', price_change: 'Price changed', stock_change: 'Stock changed' };
 
 /** Owner only: who voided, changed, discounted or deleted what. Entries cannot be edited. */
 export default function ActivityLog() {

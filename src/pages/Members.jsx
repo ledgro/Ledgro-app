@@ -1,12 +1,17 @@
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, doc, getDoc, setDoc, deleteDoc, updateDoc, onSnapshot, deleteField, limit, query, Timestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, deleteDoc, updateDoc, onSnapshot, deleteField, limit, query, Timestamp, writeBatch } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
+import { Drawer } from 'vaul';
+import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
+import { logActivity } from '../lib/audit';
+import { sheetStyle } from '../hooks/useKeyboardInset';
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { ListSkeleton } from '../components/Skeleton';
 import { useShowLoader } from '../hooks/useShowLoader';
-import { Trash2, UserPlus, LogOut, ArrowUpCircle, ShieldCheck, ShieldOff } from 'lucide-react';
+import { Trash2, UserPlus, LogOut, ArrowUpCircle, ShieldCheck, ShieldOff, MoreVertical } from 'lucide-react';
 import { broadcastSessionTerminated } from '../lib/sessionBroadcast';
 import { deleteShopCascade, flushPendingWrites } from '../lib/firestoreUtils';
 import { useNameOf, useMemberNames } from '../lib/memberNames';
@@ -19,6 +24,9 @@ export default function Members() {
   const showLoader = useShowLoader(loading);
   const [inviteCode, setInviteCode] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [menuUid, setMenuUid] = useState(null); // whose action menu is open
+  const navigate = useNavigate();
 
   const nameOf = useNameOf(shopId, user?.uid);
   const isCreator = user?.uid === shopAdminId;
@@ -38,9 +46,11 @@ export default function Members() {
         memberList.sort((a, b) => (a.uid === user.uid ? -1 : b.uid === user.uid ? 1 : 0));
         setMembers(memberList);
       }
+      setLoadError(false);
       setLoading(false);
     }, (error) => {
       console.error('Members snapshot error:', error);
+      setLoadError(true);
       setLoading(false);
     });
 
@@ -81,19 +91,22 @@ export default function Members() {
         throw new Error("Could not generate a unique invite code after multiple attempts.");
       }
 
-      const expiresAtMs = Date.now() + (30 * 60 * 1000);
-      const expiresAt = Timestamp.fromMillis(expiresAtMs);
-      await setDoc(inviteRef, {
+      // Server time, like sales: the rules check the invite against the server clock, not this phone's.
+      const expiresAt = Timestamp.fromMillis((await serverNow()).getTime() + (30 * 60 * 1000));
+      const batch = writeBatch(db);
+      batch.set(inviteRef, {
         shopId,
         expiresAt,
         claimedBy: null,
         claimedAt: null,
         createdBy: user.uid
       });
+      logActivity(batch, shopId, user.uid, { action: 'member_invite', note: 'invite code created' });
+      await batch.commit();
       setInviteCode(code);
     } catch (error) {
       console.error(error);
-      toast.error("Failed to generate invite code");
+      toast.error(error?.message === 'CLOCK' ? CLOCK_MSG : "Failed to generate invite code");
     } finally {
       setIsGenerating(false);
     }
@@ -104,10 +117,10 @@ export default function Members() {
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
     if (await confirm({ title: 'Remove member?', message: 'They lose access to this shop.', confirmText: 'Remove', danger: true })) {
       try {
-        const shopRef = doc(db, 'shops', shopId);
-        await updateDoc(shopRef, {
-           [`members.${targetUid}`]: deleteField()
-        });
+        const batch = writeBatch(db);
+        batch.update(doc(db, 'shops', shopId), { [`members.${targetUid}`]: deleteField() });
+        logActivity(batch, shopId, user.uid, { action: 'member_remove', note: `removed ${nameOf(targetUid)}`.slice(0, 200) });
+        await batch.commit();
         toast.success("Member removed successfully.");
       } catch (_err) {
         console.error(_err);
@@ -124,7 +137,10 @@ export default function Members() {
       : 'Make this admin a regular member?';
     if (!(await confirm({ title: 'Change role?', message: msg, confirmText: 'Change' }))) return;
     try {
-      await updateDoc(doc(db, 'shops', shopId), { [`members.${targetUid}`]: role });
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'shops', shopId), { [`members.${targetUid}`]: role });
+      logActivity(batch, shopId, user.uid, { action: 'member_role', note: `${nameOf(targetUid)} is now ${role}`.slice(0, 200) });
+      await batch.commit();
       toast.success(role === 'admin' ? 'Now an admin.' : 'Now a member.');
     } catch (err) {
       console.error(err);
@@ -135,14 +151,16 @@ export default function Members() {
   const handleMakeAdmin = async (targetUid) => {
      if (!isCreator || targetUid === user?.uid) return;
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
-     if (await confirm({ title: 'Transfer admin?', message: 'This member becomes the admin. You become a regular member.', confirmText: 'Transfer', danger: true })) {
+     if (await confirm({ title: 'Transfer ownership?', message: 'This member becomes the owner and you become a regular member. Only do this if they can sign in with Google or an email, because a staff username account has no recovery if its password is lost.', confirmText: 'Transfer', danger: true })) {
         try {
-           const shopRef = doc(db, 'shops', shopId);
-           await updateDoc(shopRef, {
+           const batch = writeBatch(db);
+           batch.update(doc(db, 'shops', shopId), {
               [`members.${targetUid}`]: 'admin',
               [`members.${user.uid}`]: 'member',
               ownerId: targetUid
            });
+           logActivity(batch, shopId, user.uid, { action: 'owner_transfer', note: `to ${nameOf(targetUid)}`.slice(0, 200) });
+           await batch.commit();
            toast("Admin transferred successfully.");
         } catch (_err) {
            console.error(_err);
@@ -163,10 +181,13 @@ export default function Members() {
       return;
     }
 
-    const msg = isCreator
-      ? 'You are the only member. This permanently deletes the shop and ALL its bills. Continue?'
-      : 'Are you sure you want to leave this shop?';
-    if (!(await confirm({ title: isCreator ? 'Delete shop?' : 'Leave shop?', message: msg, confirmText: isCreator ? 'Delete shop' : 'Leave', danger: true }))) return;
+    if (isCreator) {
+      // Deleting a whole shop needs a fresh sign-in and typing DELETE: that flow lives in Settings.
+      toast('To delete the shop, use Settings > Delete shop data. It asks you to sign in again and type DELETE.');
+      navigate('/settings');
+      return;
+    }
+    if (!(await confirm({ title: 'Leave shop?', message: 'Are you sure you want to leave this shop?', confirmText: 'Leave', danger: true }))) return;
 
     // Queued offline bills would be lost once access is gone.
     if (!(await flushPendingWrites())) {
@@ -229,42 +250,24 @@ export default function Members() {
           <h2 className="text-base font-extrabold text-slate-900 mb-1">Active Members</h2>
           {loading ? (
             showLoader ? <ListSkeleton rows={3} /> : null
+          ) : loadError ? (
+            <p role="alert" className="py-4 text-sm font-medium text-red-600">Could not load the members. Check your connection, then reopen this page.</p>
           ) : (
             <div className="divide-y divide-slate-200/80">
               {members.map(member => (
                 <div key={member.uid} className="flex justify-between items-center py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 bg-gradient-to-br from-blue-400 to-blue-700 text-white rounded-full flex items-center justify-center font-extrabold">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="w-11 h-11 flex-shrink-0 bg-gradient-to-br from-blue-400 to-blue-700 text-white rounded-full flex items-center justify-center font-extrabold">
                       {nameOf(member.uid).charAt(0).toUpperCase()}
                     </div>
-                    <div>
-                      <p className="font-semibold text-slate-900">{nameOf(member.uid)}</p>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-900">{nameOf(member.uid)}</p>
                       <p className="text-xs text-slate-500">{member.role}</p>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    {isCreator && member.uid !== user.uid && (
-                      <>
-                        {member.role === 'Admin' ? (
-                          member.uid !== shopAdminId && (
-                            <button onClick={() => handleSetRole(member.uid, 'member')} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors" title="Make member" aria-label="Make member">
-                              <ShieldOff size={18} />
-                            </button>
-                          )
-                        ) : (
-                          <button onClick={() => handleSetRole(member.uid, 'admin')} className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors" title="Make admin" aria-label="Make admin">
-                            <ShieldCheck size={18} />
-                          </button>
-                        )}
-                        <button onClick={() => handleMakeAdmin(member.uid)} className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-colors" title="Transfer ownership" aria-label="Transfer ownership">
-                          <ArrowUpCircle size={18} />
-                        </button>
-                        <button onClick={() => handleRemoveMember(member.uid)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors" title="Remove Member">
-                          <Trash2 size={18} />
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  {isCreator && member.uid !== user.uid && (
+                    <button type="button" aria-label={`Actions for ${nameOf(member.uid)}`} onClick={() => setMenuUid(member.uid)} className="press flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-slate-500 active:bg-slate-200/70"><MoreVertical size={20} /></button>
+                  )}
                 </div>
               ))}
             </div>
@@ -276,6 +279,32 @@ export default function Members() {
         </button>
 
       </main>
+      <Drawer.Root handleOnly repositionInputs={false} open={!!menuUid} onOpenChange={(o) => { if (!o) setMenuUid(null); }}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
+          <Drawer.Content style={sheetStyle} aria-describedby={undefined} className="bg-white flex flex-col rounded-t-[20px] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none">
+            <div className="p-4 pb-safe">
+              <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-gray-300" />
+              <Drawer.Title className="mb-2 truncate text-lg font-extrabold text-slate-900">{menuUid ? nameOf(menuUid) : ''}</Drawer.Title>
+              {(() => {
+                const m = members.find((x) => x.uid === menuUid);
+                if (!m) return null;
+                const act = (fn) => () => { setMenuUid(null); fn(); };
+                const row = 'press flex h-14 w-full items-center gap-3 rounded-xl px-2 text-left text-base font-bold active:bg-slate-100';
+                return (
+                  <div className="divide-y divide-slate-100">
+                    {m.role === 'Admin'
+                      ? m.uid !== shopAdminId && <button type="button" onClick={act(() => handleSetRole(m.uid, 'member'))} className={`${row} text-slate-800`}><ShieldOff size={20} /> Make regular member</button>
+                      : <button type="button" onClick={act(() => handleSetRole(m.uid, 'admin'))} className={`${row} text-slate-800`}><ShieldCheck size={20} className="text-green-600" /> Make admin</button>}
+                    <button type="button" onClick={act(() => handleMakeAdmin(m.uid))} className={`${row} text-slate-800`}><ArrowUpCircle size={20} className="text-blue-600" /> Transfer ownership to them</button>
+                    <button type="button" onClick={act(() => handleRemoveMember(m.uid))} className={`${row} text-red-600`}><Trash2 size={20} /> Remove from shop</button>
+                  </div>
+                );
+              })()}
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
       <BottomNav />
     </div>
   );

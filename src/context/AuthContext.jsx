@@ -504,14 +504,6 @@ export const AuthProvider = ({ children }) => {
 
     voluntaryExitRef.current = true;
 
-    if (shopId) {
-      try {
-        await deleteDoc(doc(db, `shops/${shopId}/memberProfiles/${uid}`));
-      } catch (err) {
-        console.warn('Failed to delete member name', err);
-      }
-    }
-
     try {
       if (shopId) {
         const shopDocRef = doc(db, 'shops', shopId);
@@ -529,6 +521,8 @@ export const AuthProvider = ({ children }) => {
               throw new Error('You are the only Admin. You must promote another member to Admin before deleting your account to prevent locking the shop.');
             }
           } else {
+            // Only after the checks above passed, so a refused delete never leaves history showing a placeholder name.
+            try { await deleteDoc(doc(db, `shops/${shopId}/memberProfiles/${uid}`)); } catch (err) { console.warn('Failed to delete member name', err); }
             const update = { [`members.${uid}`]: deleteField() };
             // never leave the shop pointing at an owner who no longer exists
             if (shopData.ownerId === uid && otherAdmins.length > 0) update.ownerId = otherAdmins[0];
