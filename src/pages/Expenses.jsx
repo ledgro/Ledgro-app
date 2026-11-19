@@ -7,7 +7,7 @@ import StaffCash from './StaffCash';
 import { useAuth } from '../context/AuthContext';
 import { collection, query, orderBy, getDocs, serverTimestamp, writeBatch, doc, limit, startAfter, where, Timestamp } from 'firebase/firestore';
 import { writeStats } from '../lib/dayStats';
-import { bizDayKey, toDate, expenseDelta, negate } from '../lib/statsMath';
+import { expenseEntries, negate } from '../lib/statsMath';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
 import { db } from '../firebase';
 import { Drawer } from 'vaul';
@@ -52,10 +52,35 @@ export default function Expenses() {
   const [editing, setEditing] = useState(null);
 
   /** Owner any time; the person who added it within 24 hours. Rules enforce the same on save. */
-  const [owedToStaff, setOwedToStaff] = useState(0); // from its own query, so older entries never fall off the total
+  const [owedToStaff, setOwedToStaff] = useState(0); // from its own queries, so older entries never fall off the totals
+  const [unpaidTotal, setUnpaidTotal] = useState(0);
+  const [filter, setFilter] = useState('all'); // all | unpaid | paid
   const [hasMore, setHasMore] = useState(false);
+  const shown = expenses.filter((e) => filter === 'all' || (filter === 'unpaid' ? isPending(e) : !isPending(e)));
   const [loadingMore, setLoadingMore] = useState(false);
   const lastDocRef = useRef(null);
+
+  const isPending = (e) => e.paidVia === 'unpaid' || e.paidVia === 'staff';
+
+  /** Owner marks an unpaid / staff-pocket expense as paid: the cash moves on the day of payment, the original day is untouched. */
+  const markPaid = async (e, via) => {
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
+    try {
+      const batch = writeBatch(db);
+      batch.update(doc(db, `shops/${shopId}/expenses`, e.id), { paidVia: via, paidAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      const after = { ...e, paidVia: via, paidAt: await serverNow() };
+      writeStats(batch, shopId, [...expenseEntries(e).map((x) => ({ ...x, delta: negate(x.delta) })), ...expenseEntries(after)]);
+      logActivity(batch, shopId, user.uid, { action: 'expense_paid', amount: e.amount, note: `${via} ${e.description || e.category || ''}`.trim() });
+      await batch.commit();
+      setExpenses((prev) => prev.map((x) => (x.id === e.id ? { ...after, paidAt: Timestamp.now() } : x)));
+      fetchOwed();
+      hapticVibrate(10);
+      toast.success(`Marked paid (${via === 'cash' ? 'drawer cash' : 'bank / UPI'})`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not mark it paid. Nothing was changed.');
+    }
+  };
 
   const canEdit = (e) => {
     if (isAdmin) return true;
@@ -93,8 +118,13 @@ export default function Expenses() {
   const fetchOwed = useCallback(async () => {
     if (!shopId) return;
     try {
-      const snap = await getDocs(query(collection(db, `shops/${shopId}/expenses`), where('paidVia', '==', 'staff'), limit(100)));
-      setOwedToStaff(snap.docs.reduce((n, d) => n + (Number(d.data().amount) || 0), 0));
+      const sum = (snap) => snap.docs.reduce((n, d) => n + (Number(d.data().amount) || 0), 0);
+      const [staff, unpaid] = await Promise.all([
+        getDocs(query(collection(db, `shops/${shopId}/expenses`), where('paidVia', '==', 'staff'), limit(100))),
+        getDocs(query(collection(db, `shops/${shopId}/expenses`), where('paidVia', '==', 'unpaid'), limit(100))),
+      ]);
+      setOwedToStaff(sum(staff));
+      setUnpaidTotal(sum(unpaid));
     } catch (err) { console.warn('Could not total what is owed to staff', err); }
   }, [shopId]);
 
@@ -154,15 +184,17 @@ export default function Expenses() {
     if (editing) {
       try {
         const next = { amount: parsedAmount, description: description.trim().slice(0, 200), category, paidVia };
-        const key = bizDayKey(toDate(editing.createdAt));
+        // Paying a pending (unpaid / staff-pocket) expense: stamp the payment time so the cash lands on today, not the day it was made.
+        const paying = isPending(editing) && (paidVia === 'cash' || paidVia === 'upi');
         const batch = writeBatch(db);
-        batch.update(doc(db, `shops/${shopId}/expenses`, editing.id), { ...next, updatedAt: serverTimestamp() });
+        batch.update(doc(db, `shops/${shopId}/expenses`, editing.id), { ...next, ...(paying ? { paidAt: serverTimestamp() } : {}), updatedAt: serverTimestamp() });
+        const after = { ...editing, ...next, ...(paying ? { paidAt: Timestamp.now() } : {}) };
         writeStats(batch, shopId, [
-          { key, delta: negate(expenseDelta(editing)) },
-          { key, delta: expenseDelta({ ...editing, ...next }) },
+          ...expenseEntries(editing).map((x) => ({ ...x, delta: negate(x.delta) })),
+          ...expenseEntries(after),
         ]);
         await batch.commit();
-        setExpenses((prev) => prev.map((x) => (x.id === editing.id ? { ...x, ...next } : x)));
+        setExpenses((prev) => prev.map((x) => (x.id === editing.id ? after : x)));
         closeSheet();
         fetchOwed();
         hapticVibrate(10);
@@ -189,7 +221,7 @@ export default function Expenses() {
       const newDocRef = doc(collection(db, `shops/${shopId}/expenses`));
       const batch = writeBatch(db);
       batch.set(newDocRef, payload);
-      writeStats(batch, shopId, [{ key: bizDayKey(await serverNow()), delta: expenseDelta(payload) }]);
+      writeStats(batch, shopId, expenseEntries({ ...payload, createdAt: await serverNow() }));
       await batch.commit();
 
       setExpenses(prev => [{ id: newDocRef.id, ...payload, createdAt: Timestamp.now() }, ...prev]);
@@ -225,7 +257,7 @@ export default function Expenses() {
       const batch = writeBatch(db);
       batch.delete(doc(db, `shops/${shopId}/expenses`, id));
       if (gone) logActivity(batch, shopId, user.uid, { action: 'expense_delete', amount: gone.amount, note: `${gone.category || ''} ${gone.description || ''}`.trim() });
-      if (gone) writeStats(batch, shopId, [{ key: bizDayKey(toDate(gone.createdAt)), delta: negate(expenseDelta(gone)) }]);
+      if (gone) writeStats(batch, shopId, expenseEntries(gone).map((x) => ({ ...x, delta: negate(x.delta) })));
       await batch.commit();
       if (editing?.id === id) closeSheet();
       fetchOwed();
@@ -278,13 +310,20 @@ export default function Expenses() {
           </div>
         ) : (
           <div className="space-y-4">
-            {owedToStaff > 0 && (
-              <div className="rounded-2xl bg-amber-50 border border-amber-200 p-3 text-sm font-semibold text-amber-800">
-                Owed to staff: ₹{(owedToStaff / 100).toLocaleString('en-IN')}. Paid from their own pocket. When you repay, edit the entry and set Drawer Cash or Bank / UPI.
+            {(owedToStaff > 0 || unpaidTotal > 0) && (
+              <div className="rounded-2xl bg-amber-50 border border-amber-200 p-3 text-sm font-semibold text-amber-800 space-y-0.5">
+                {unpaidTotal > 0 && <p>Unpaid: ₹{(unpaidTotal / 100).toLocaleString('en-IN')}</p>}
+                {owedToStaff > 0 && <p>Owed to staff: ₹{(owedToStaff / 100).toLocaleString('en-IN')} (paid from their own pocket)</p>}
+                <p className="text-xs font-medium">{isAdmin ? 'Tap Paid cash or Paid UPI on a row when you pay it. The cash is counted on the day you pay.' : 'Only the owner can mark these as paid.'}</p>
               </div>
             )}
+            <div className="flex gap-2" role="group" aria-label="Filter">
+              {[['all', 'All'], ['unpaid', 'Unpaid'], ['paid', 'Paid']].map(([k, l]) => (
+                <button key={k} type="button" aria-pressed={filter === k} onClick={() => setFilter(k)} className={`press h-9 rounded-full px-4 text-sm font-bold ${filter === k ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600'}`}>{l}</button>
+              ))}
+            </div>
           <div className="divide-y divide-slate-200/80 relative">
-            {expenses.map(expense => {
+            {shown.map(expense => {
               const cat = CATEGORIES.find(c => c.id === expense.category);
               const Icon = cat ? cat.icon : expense.category === 'staff_loan' ? HandCoins : Package;
               const made = expense.createdAt?.toDate ? expense.createdAt.toDate() : null;
@@ -319,11 +358,17 @@ export default function Expenses() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-extrabold text-slate-900 text-base tabular-nums whitespace-nowrap">₹{(expense.amount / 100).toLocaleString('en-IN')}</p>
-                    <span className="text-xs font-bold text-slate-500 uppercase whitespace-nowrap">{via}</span>
+                    <span className={`text-xs font-bold uppercase whitespace-nowrap ${isPending(expense) ? 'text-amber-600' : 'text-green-600'}`}>{isPending(expense) ? (expense.paidVia === 'staff' ? 'Owed to staff' : 'Unpaid') : `Paid · ${via}`}</span>
                   </div>
 
                   </div>
                   </SwipeRow>
+                  {isAdmin && isPending(expense) && (
+                    <div className="flex gap-2 pb-3 pl-14">
+                      <button type="button" onClick={() => markPaid(expense, 'cash')} className="press h-9 rounded-full bg-blue-600 px-4 text-xs font-bold text-white">Paid cash</button>
+                      <button type="button" onClick={() => markPaid(expense, 'upi')} className="press h-9 rounded-full border border-blue-600 px-4 text-xs font-bold text-blue-600">Paid UPI</button>
+                    </div>
+                  )}
                 </motion.div>
               );
             })}
@@ -371,10 +416,11 @@ export default function Expenses() {
 
                 <div>
                    <label className="block text-sm font-semibold text-slate-700 mb-2">Paid Via</label>
-                   <div className="flex bg-slate-100 p-1 rounded-xl">
-                      <button type="button" onClick={() => setPaidVia('cash')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${paidVia === 'cash' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Drawer Cash</button>
-                      <button type="button" onClick={() => setPaidVia('upi')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${paidVia === 'upi' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Bank / UPI</button>
-                      <button type="button" onClick={() => setPaidVia('staff')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${paidVia === 'staff' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Staff pocket</button>
+                   <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl">
+                      <button type="button" onClick={() => setPaidVia('cash')} className={`py-2 text-sm font-bold rounded-lg transition-all ${paidVia === 'cash' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Drawer Cash</button>
+                      <button type="button" onClick={() => setPaidVia('upi')} className={`py-2 text-sm font-bold rounded-lg transition-all ${paidVia === 'upi' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Bank / UPI</button>
+                      <button type="button" onClick={() => setPaidVia('staff')} className={`py-2 text-sm font-bold rounded-lg transition-all ${paidVia === 'staff' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Staff pocket</button>
+                      <button type="button" onClick={() => setPaidVia('unpaid')} className={`py-2 text-sm font-bold rounded-lg transition-all ${paidVia === 'unpaid' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Not paid yet</button>
                    </div>
                 </div>
 

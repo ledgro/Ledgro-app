@@ -240,13 +240,21 @@ service cloud.firestore {
           && request.resource.data.amount <= 100000000
           && isValidString(request.resource.data.category, 1, 50)
           && isValidString(request.resource.data.description, 0, 200)
-          && request.resource.data.get('paidVia', 'cash') in ['cash', 'upi', 'staff']
+          && request.resource.data.get('paidVia', 'cash') in ['cash', 'upi', 'staff', 'unpaid']
           && request.resource.data.creatorId == request.auth.uid;
 
         allow update: if isMember(shopId)
           && (isAdmin(shopId) || (resource.data.creatorId == request.auth.uid && request.time < resource.data.createdAt + duration.value(1, 'd')))
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amount', 'category', 'description', 'paidVia', 'updatedAt'])
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['paidVia']) || request.resource.data.paidVia in ['cash', 'upi', 'staff'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amount', 'category', 'description', 'paidVia', 'paidAt', 'updatedAt'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['paidVia']) || request.resource.data.paidVia in ['cash', 'upi', 'staff', 'unpaid'])
+          // Once paid, the payment method is final (the day's cash was already moved).
+          && (!('paidAt' in resource.data) || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['paidVia', 'paidAt']))
+          // Paying an unpaid / staff-pocket expense: owner only, stamped with the server time so the cash lands on the day it was paid.
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['paidAt'])
+              || (isAdmin(shopId) && request.resource.data.paidAt == request.time
+                  && resource.data.get('paidVia', 'cash') in ['unpaid', 'staff'] && request.resource.data.paidVia in ['cash', 'upi']))
+          && (!(resource.data.get('paidVia', 'cash') in ['unpaid', 'staff'] && request.resource.data.get('paidVia', 'cash') in ['cash', 'upi'])
+              || request.resource.data.diff(resource.data).affectedKeys().hasAny(['paidAt']))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount']) || (request.resource.data.amount is number && request.resource.data.amount > 0 && request.resource.data.amount <= 100000000))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['category']) || isValidString(request.resource.data.category, 1, 50))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['description']) || isValidString(request.resource.data.description, 0, 200));
@@ -390,7 +398,7 @@ service cloud.firestore {
         allow create: if isMember(shopId)
           && request.resource.data.keys().hasOnly(['action', 'uid', 'billNo', 'billId', 'amount', 'note', 'createdAt'])
           && request.resource.data.keys().hasAll(['action', 'uid', 'createdAt'])
-          && request.resource.data.action in ['void', 'payment_change', 'return', 'discount', 'expense_delete', 'import', 'staff_edit', 'staff_delete', 'staff_settle', 'staff_loan_close', 'price_change', 'stock_change']
+          && request.resource.data.action in ['void', 'payment_change', 'return', 'discount', 'expense_delete', 'import', 'staff_edit', 'staff_delete', 'staff_settle', 'staff_loan_close', 'price_change', 'stock_change', 'expense_paid']
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.createdAt == request.time
           && isValidString(request.resource.data.get('billNo', ''), 0, 40)
