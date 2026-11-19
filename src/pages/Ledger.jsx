@@ -15,6 +15,7 @@ import { useBodyLock } from '../hooks/useBodyLock';
 import { fetchAllPaged } from '../lib/firestoreUtils';
 import { writeStats, voidEntries } from '../lib/dayStats';
 import CatalogThumb from '../components/CatalogThumb';
+import { foldExchanges } from '../lib/exchanges';
 import { bizDateFromKey, billDelta, bizDayKey, bizDayStart, bizDate, dayKey, negate, toDate } from '../lib/statsMath';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
 import { buildReport, rs } from '../lib/reportExport';
@@ -371,6 +372,7 @@ export default function Ledger() {
       const batch = writeBatch(db);
 
       // Only keys allowed by firestore.rules for a return.
+      const exchangeId = exchanging ? doc(collection(db, `shops/${shopId}/bills`)).id : ''; // shared by the return and the new sale
       const payload = {
         type: 'return',
         originalBillId: selectedBill.id,
@@ -383,7 +385,7 @@ export default function Ledger() {
         billNo: '', // set below from the credit-note series
         clientCreatedAt: Date.now(),
         createdAt: serverTimestamp(),
-        ...(exchanging ? { exchangeOf: selectedBill.id } : {}),
+        ...(exchanging ? { exchangeOf: selectedBill.id, exchangeId } : {}),
       };
 
       const nowServer = await serverNow();
@@ -407,6 +409,7 @@ export default function Ledger() {
         const salePayload = {
           type: 'sale',
           exchangeOf: selectedBill.id,
+          exchangeId,
           creatorId: user.uid,
           items,
           subtotal: exch.newTotal,
@@ -462,18 +465,15 @@ export default function Ledger() {
     bills.forEach((b) => { if (b.type === 'reversal' && b.originalBillId) reversedIds.add(b.originalBillId); });
 
     // An exchange is stored as two records (a return and a new sale). Show it as one row: the new sale, with the return noted on it.
-    const exchangeReturn = new Map();
-    bills.forEach((b) => { if (b.type === 'return' && b.exchangeOf) exchangeReturn.set(b.exchangeOf, b); });
-    const exchangeSale = new Set();
-    bills.forEach((b) => { if ((!b.type || b.type === 'sale') && b.exchangeOf && exchangeReturn.has(b.exchangeOf)) exchangeSale.add(b.exchangeOf); });
-
-    return bills.map((b) => ({
-      ...b,
-      isVoided: reversedIds.has(b.id),
-      exchangeReturn: (!b.type || b.type === 'sale') && b.exchangeOf ? exchangeReturn.get(b.exchangeOf) : undefined,
-      // Counted in the totals, but not listed as its own row.
-      folded: activeFilter !== 'return' && b.type === 'return' && !!b.exchangeOf && exchangeSale.has(b.exchangeOf),
-    })).filter((bill) => {
+    const folded = new Map(foldExchanges(bills).map((b) => [b.id, b]));
+    return bills.map((raw) => {
+      const b = folded.get(raw.id);
+      return {
+        ...b,
+        isVoided: reversedIds.has(b.id),
+        folded: activeFilter !== 'return' && b.folded, // counted in the totals, but not listed as its own row
+      };
+    }).filter((bill) => {
       if (!showVoided && bill.isVoided) return false;
       // A void turns the bill itself into type 'reversal' (no second record), so it is listed only when Show voided is on.
       if (bill.type === 'reversal' && !bill.isVoided) return false;
