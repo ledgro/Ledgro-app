@@ -461,9 +461,21 @@ export default function Ledger() {
     const reversedIds = new Set();
     bills.forEach((b) => { if (b.type === 'reversal' && b.originalBillId) reversedIds.add(b.originalBillId); });
 
-    return bills.map((b) => ({ ...b, isVoided: reversedIds.has(b.id) })).filter((bill) => {
+    // An exchange is stored as two records (a return and a new sale). Show it as one row: the new sale, with the return noted on it.
+    const exchangeReturn = new Map();
+    bills.forEach((b) => { if (b.type === 'return' && b.exchangeOf) exchangeReturn.set(b.exchangeOf, b); });
+    const exchangeSale = new Set();
+    bills.forEach((b) => { if ((!b.type || b.type === 'sale') && b.exchangeOf && exchangeReturn.has(b.exchangeOf)) exchangeSale.add(b.exchangeOf); });
+
+    return bills.map((b) => ({
+      ...b,
+      isVoided: reversedIds.has(b.id),
+      exchangeReturn: (!b.type || b.type === 'sale') && b.exchangeOf ? exchangeReturn.get(b.exchangeOf) : undefined,
+      // Counted in the totals, but not listed as its own row.
+      folded: activeFilter !== 'return' && b.type === 'return' && !!b.exchangeOf && exchangeSale.has(b.exchangeOf),
+    })).filter((bill) => {
       if (!showVoided && bill.isVoided) return false;
-      if (!showVoided && bill.type === 'reversal') return false;
+      if (bill.type === 'reversal') return false; // the Voided tag on the original says it all
 
       if (activeFilter) {
         if (activeFilter === 'return' && bill.type !== 'return') return false;
@@ -496,8 +508,8 @@ export default function Ledger() {
       const key = bizDayKey(when);
       if (!map.has(key)) map.set(key, { key, bills: [], total: 0, count: 0 });
       const sec = map.get(key);
-      sec.bills.push(b);
-      if (!b.isVoided && (b.type === 'sale' || b.type === 'return' || !b.type)) { sec.total += Number(b.grandTotal) || 0; sec.count += 1; }
+      if (!b.folded) sec.bills.push(b);
+      if (!b.isVoided && (b.type === 'sale' || b.type === 'return' || !b.type)) { sec.total += Number(b.grandTotal) || 0; if (!b.folded) sec.count += 1; }
     });
     return [...map.values()].map((sec) => {
       const d = bizDateFromKey(sec.key);
@@ -519,7 +531,8 @@ export default function Ledger() {
     processedBills.forEach((b) => {
       if (b.isVoided || !(b.type === 'sale' || b.type === 'return' || !b.type)) return;
       const parts = payParts(b);
-      out.count += 1; out.total += Number(b.grandTotal) || 0; out.cash += parts.cash; out.upi += parts.upi;
+      if (!b.folded) out.count += 1;
+      out.total += Number(b.grandTotal) || 0; out.cash += parts.cash; out.upi += parts.upi;
     });
     return out;
   }, [processedBills]);
@@ -692,6 +705,7 @@ export default function Ledger() {
                             {bill.isVoided && <span className="rounded bg-slate-500/20 px-1.5 py-0.5 text-xs font-black uppercase tracking-wider text-slate-500">Voided</span>}
                             {!isReturn && bill.exchangeOf && <span className="rounded bg-blue-500/15 px-1.5 py-0.5 text-xs font-black uppercase tracking-wider text-blue-500">Exchange</span>}
                           </span>
+                          {bill.exchangeReturn && <span className="mt-0.5 block text-xs font-semibold text-orange-500">Exchange · returned {formatCurrency(Math.abs(bill.exchangeReturn.grandTotal))}</span>}
                           <span className="mt-0.5 block text-xs font-medium text-slate-500">{time}{lines.length ? ` · ${lines.length} ${lines.length === 1 ? 'item' : 'items'}` : ''}</span>
                           {shown.length > 0 && (
                             <span className="mt-1 block space-y-0.5">
