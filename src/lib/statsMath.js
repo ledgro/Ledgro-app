@@ -77,9 +77,26 @@ export function expenseDelta(e) {
   if (!e || isCashAdjustment(e)) return d;
   const amt = Number(e.amount) || 0;
   d.exp = amt;
-  d.expCash = (e.paidVia || 'cash') === 'cash' ? amt : 0;
+  // Cash that was paid later (paidAt) is counted on the day it was paid, see expenseEntries.
+  d.expCash = (e.paidVia || 'cash') === 'cash' && !e.paidAt ? amt : 0;
   d.cats[safeCat(e.category)] = amt;
   return d;
+}
+
+/**
+ * Every day-stat change one expense causes: the expense itself on the day it was made (profit),
+ * and, if it was paid from the drawer later, the cash going out on the day it was actually paid.
+ * Unpaid and staff-pocket expenses count as expenses but move no drawer cash until they are paid.
+ */
+export function expenseEntries(e) {
+  if (!e || isCashAdjustment(e)) return [];
+  const out = [{ key: bizDayKey(toDate(e.createdAt)), delta: expenseDelta(e) }];
+  if (e.paidAt && (e.paidVia || 'cash') === 'cash') {
+    const d = emptyStats();
+    d.expCash = Number(e.amount) || 0;
+    out.push({ key: bizDayKey(toDate(e.paidAt)), delta: d });
+  }
+  return out;
 }
 
 export function addInto(target, delta, sign = 1) {
@@ -118,7 +135,7 @@ export function buildDayStats(bills, expenses) {
   });
   expenses.forEach((e) => {
     if (isCashAdjustment(e)) return;
-    addInto(get(bizDayKey(toDate(e.createdAt))), expenseDelta(e));
+    expenseEntries(e).forEach(({ key, delta }) => addInto(get(key), delta));
   });
   return map;
 }

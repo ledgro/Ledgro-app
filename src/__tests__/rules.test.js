@@ -279,6 +279,14 @@ d('firestore.rules', () => {
       await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/expenses/e2`), exp(MEMBER, { paidVia: 'crypto' })));
       await assertSucceeds(setDoc(doc(as(MEMBER), `shops/${SHOP}/expenses/e3`), exp(MEMBER, { category: 'cash_adjustment', description: 'Cash Shortage' })));
     });
+    it('unpaid expense: member can record it, only the owner can mark it paid, and only with the server time', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), `shops/${SHOP}/expenses/u1`), exp(MEMBER, { paidVia: 'unpaid' })));
+      const ref = (who) => doc(as(who), `shops/${SHOP}/expenses/u1`);
+      await assertFails(updateDoc(ref(MEMBER), { paidVia: 'cash', paidAt: serverTimestamp() })); // not the owner
+      await assertFails(updateDoc(ref(ADMIN), { paidVia: 'cash' })); // paid without a payment time
+      await assertSucceeds(updateDoc(ref(ADMIN), { paidVia: 'cash', paidAt: serverTimestamp() }));
+      await assertFails(updateDoc(ref(ADMIN), { paidVia: 'upi' })); // already paid: method is final
+    });
     it('only admin deletes', async () => {
       await assertSucceeds(setDoc(doc(as(MEMBER), `shops/${SHOP}/expenses/e1`), exp(MEMBER)));
       await assertFails(deleteDoc(doc(as(MEMBER), `shops/${SHOP}/expenses/e1`)));

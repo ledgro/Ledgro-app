@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { billDelta, expenseDelta, negate, addInto, emptyStats, buildDayStats, sumStats, dayKey, bizDayKey, bizDate, bizDayStart, setDayCutoff } from '../lib/statsMath';
+import { expenseEntries, billDelta, expenseDelta, negate, addInto, emptyStats, buildDayStats, sumStats, dayKey, bizDayKey, bizDate, bizDayStart, setDayCutoff } from '../lib/statsMath';
 
 const at = (y, m, d, h = 12) => new Date(y, m - 1, d, h);
 const sale = (id, total, method = 'cash', extra = {}) => ({ id, type: 'sale', grandTotal: total, paymentMethod: method, payment: { method }, createdAt: at(2026, 1, 2), ...extra });
@@ -124,5 +124,38 @@ describe('configurable cutoff', () => {
     expect(bizDayKey(new Date('2026-01-02T04:59:00+05:30'))).toBe('2026-01-01');
     expect(bizDayKey(new Date('2026-01-02T05:00:00+05:30'))).toBe('2026-01-02');
     setDayCutoff(270);
+  });
+});
+
+describe('expenseEntries (paid / unpaid)', () => {
+  const made = new Date('2026-11-10T10:00:00+05:30');
+  const paid = new Date('2026-11-14T10:00:00+05:30');
+  it('cash expense: profit and drawer cash on the same day', () => {
+    const [e] = expenseEntries({ amount: 500, category: 'tea', paidVia: 'cash', createdAt: made });
+    expect(e.key).toBe('2026-11-10');
+    expect(e.delta).toMatchObject({ exp: 500, expCash: 500 });
+  });
+  it('unpaid expense counts as an expense but moves no cash', () => {
+    const list = expenseEntries({ amount: 900, category: 'rent', paidVia: 'unpaid', createdAt: made });
+    expect(list).toHaveLength(1);
+    expect(list[0].delta).toMatchObject({ exp: 900, expCash: 0 });
+  });
+  it('paid later in cash: cash goes out on the payment day, the original day keeps no cash', () => {
+    const list = expenseEntries({ amount: 900, category: 'rent', paidVia: 'cash', paidAt: paid, createdAt: made });
+    expect(list).toHaveLength(2);
+    expect(list[0]).toMatchObject({ key: '2026-11-10' });
+    expect(list[0].delta).toMatchObject({ exp: 900, expCash: 0 });
+    expect(list[1]).toMatchObject({ key: '2026-11-14' });
+    expect(list[1].delta).toMatchObject({ exp: 0, expCash: 900 });
+  });
+  it('paid later by UPI: no drawer cash at all', () => {
+    const list = expenseEntries({ amount: 900, category: 'rent', paidVia: 'upi', paidAt: paid, createdAt: made });
+    expect(list).toHaveLength(1);
+    expect(list[0].delta.expCash).toBe(0);
+  });
+  it('rebuild matches the live writes', () => {
+    const map = buildDayStats([], [{ amount: 900, category: 'rent', paidVia: 'cash', paidAt: paid, createdAt: made }]);
+    expect(map.get('2026-11-10')).toMatchObject({ exp: 900, expCash: 0 });
+    expect(map.get('2026-11-14')).toMatchObject({ exp: 0, expCash: 900 });
   });
 });
