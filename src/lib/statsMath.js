@@ -56,7 +56,7 @@ export function billDelta(b) {
   const mult = b.type === 'return' ? -1 : 1;
   const total = signedBillTotal(b);
   d.rev = total;
-  d.bills = b.type === 'return' ? 0 : 1;
+  d.bills = b.type === 'return' || b.exchangeOf ? 0 : 1; // an exchange is one transaction with the bill it came from
   const method = b.payment?.method || b.paymentMethod;
   if (method === 'split' && b.payment?.breakdown) {
     d.splitCash = (b.payment.breakdown.cash || 0) * mult;

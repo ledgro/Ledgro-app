@@ -1,3 +1,4 @@
+import { foldExchanges } from '../lib/exchanges';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
@@ -79,7 +80,7 @@ export function SearchPanel({ onClose }) {
     const seen = new Set();
     const hit = [...exact, ...bills.filter((b) => t && String(b.billNo || '').toLowerCase().includes(t))]
       .filter((b) => (seen.has(b.id) ? false : seen.add(b.id)));
-    return t ? hit.slice(0, MAX) : bills.filter((b) => b.type !== 'reversal').slice(0, 5);
+    return t ? hit.slice(0, MAX) : foldExchanges(bills).filter((b) => b.type !== 'reversal' && !b.folded).slice(0, 5);
   }, [bills, exact, t]);
   const expHits = useMemo(() => {
     if (!t) return [];

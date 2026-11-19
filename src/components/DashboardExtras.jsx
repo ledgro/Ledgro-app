@@ -1,3 +1,4 @@
+import { foldExchanges } from '../lib/exchanges';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
@@ -76,9 +77,9 @@ export function LatestActivity({ shopId, mask }) {
         const bills = bs.docs.map((d) => ({ id: d.id, ...d.data() }));
         const reversed = new Set(bills.filter((b) => b.type === 'reversal' && b.originalBillId).map((b) => b.originalBillId));
         const list = [
-          ...bills.filter((b) => b.type !== 'reversal' && !reversed.has(b.id)).map((b) => ({
+          ...foldExchanges(bills).filter((b) => b.type !== 'reversal' && !reversed.has(b.id) && !b.folded).map((b) => ({
             id: `b${b.id}`, at: toDate(b.createdAt), amount: b.grandTotal || 0, out: b.type === 'return',
-            title: b.type === 'return' ? 'Return' : `Bill${b.billNo ? ` ${b.billNo}` : ''}`, sub: (b.paymentMethod || '').toUpperCase(),
+            title: b.type === 'return' ? 'Return' : `Bill${b.billNo ? ` ${b.billNo}` : ''}${b.exchangeReturn ? ' · exchange' : ''}`, sub: (b.paymentMethod || '').toUpperCase(),
           })),
           ...es.docs.map((d) => { const e = d.data(); return { id: `e${d.id}`, at: toDate(e.createdAt), amount: e.amount || 0, out: true, title: e.description || e.category || 'Expense', sub: e.category || '' }; }),
         ];
