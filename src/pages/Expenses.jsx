@@ -1,11 +1,11 @@
 import { sheetStyle } from '../hooks/useKeyboardInset';
 import FieldError, { errRing } from '../components/FieldError';
 import { toast } from 'sonner';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import StaffCash from './StaffCash';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, orderBy, getDocs, serverTimestamp, writeBatch, doc, limit } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, serverTimestamp, writeBatch, doc, limit, startAfter, where, Timestamp } from 'firebase/firestore';
 import { writeStats } from '../lib/dayStats';
 import { bizDayKey, toDate, expenseDelta, negate } from '../lib/statsMath';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
@@ -52,13 +52,30 @@ export default function Expenses() {
   const [editing, setEditing] = useState(null);
 
   /** Owner any time; the person who added it within 24 hours. Rules enforce the same on save. */
-  const owedToStaff = expenses.filter((e) => e.paidVia === 'staff').reduce((n, e) => n + (Number(e.amount) || 0), 0);
+  const [owedToStaff, setOwedToStaff] = useState(0); // from its own query, so older entries never fall off the total
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const lastDocRef = useRef(null);
 
   const canEdit = (e) => {
     if (isAdmin) return true;
     const created = e.createdAt?.toDate ? e.createdAt.toDate().getTime() : 0;
     // oxlint-disable-next-line react/purity
     return e.creatorId === user?.uid && created > 0 && Date.now() - created < 24 * 60 * 60 * 1000;
+  };
+
+  /** The one way to close the sheet: always clears what was typed, so New can never show an old expense. */
+  const closeSheet = () => {
+    setIsOpen(false);
+    setEditing(null);
+    setAmount(''); setAmountErr('');
+    setDescription('');
+    setCategory(CATEGORIES[0].id);
+    setPaidVia('cash');
+  };
+  const openNew = () => {
+    setEditing(null); setAmount(''); setAmountErr(''); setDescription(''); setCategory(CATEGORIES[0].id); setPaidVia('cash');
+    setIsOpen(true);
   };
 
   const openEdit = (e) => {
@@ -71,22 +88,48 @@ export default function Expenses() {
     setIsOpen(true);
   };
 
+  const PAGE = 50;
+  const readDocs = (snap) => snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }));
+  const fetchOwed = useCallback(async () => {
+    if (!shopId) return;
+    try {
+      const snap = await getDocs(query(collection(db, `shops/${shopId}/expenses`), where('paidVia', '==', 'staff'), limit(100)));
+      setOwedToStaff(snap.docs.reduce((n, d) => n + (Number(d.data().amount) || 0), 0));
+    } catch (err) { console.warn('Could not total what is owed to staff', err); }
+  }, [shopId]);
+
   const fetchExpenses = useCallback(async () => {
     if (!shopId) return;
     setLoading(true);
     setFetchError(false);
     try {
-      // Optimize to only fetch recent expenses to prevent unbounded scans
-      const q = query(collection(db, `shops/${shopId}/expenses`), orderBy('createdAt', 'desc'), limit(50));
-      const snap = await getDocs(q);
-      setExpenses(snap.docs.map(doc => ({ id: doc.id, ...doc.data({ serverTimestamps: 'estimate' }) })));
+      const snap = await getDocs(query(collection(db, `shops/${shopId}/expenses`), orderBy('createdAt', 'desc'), limit(PAGE)));
+      lastDocRef.current = snap.docs[snap.docs.length - 1] || null;
+      setHasMore(snap.docs.length === PAGE);
+      setExpenses(readDocs(snap));
+      fetchOwed();
     } catch (err) {
       console.error("Failed to fetch expenses", err);
       setFetchError(true);
     } finally {
       setLoading(false);
     }
-  }, [shopId]);
+  }, [shopId, fetchOwed]);
+
+  const loadMore = async () => {
+    if (!lastDocRef.current || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const snap = await getDocs(query(collection(db, `shops/${shopId}/expenses`), orderBy('createdAt', 'desc'), startAfter(lastDocRef.current), limit(PAGE)));
+      if (snap.docs.length) lastDocRef.current = snap.docs[snap.docs.length - 1];
+      setHasMore(snap.docs.length === PAGE);
+      const more = readDocs(snap);
+      setExpenses((prev) => [...prev, ...more.filter((m) => !prev.some((x) => x.id === m.id))]);
+    } catch (err) {
+      console.error('Failed to load more expenses', err);
+      toast.error('Could not load more. Check your connection.');
+    } finally { setLoadingMore(false); }
+  };
 
   // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => {
@@ -120,9 +163,8 @@ export default function Expenses() {
         ]);
         await batch.commit();
         setExpenses((prev) => prev.map((x) => (x.id === editing.id ? { ...x, ...next } : x)));
-        setEditing(null);
-        setAmount(''); setDescription(''); setPaidVia('cash'); setCategory(CATEGORIES[0].id);
-        setIsOpen(false);
+        closeSheet();
+        fetchOwed();
         hapticVibrate(10);
         toast.success('Expense updated');
       } catch (err) {
@@ -150,13 +192,9 @@ export default function Expenses() {
       writeStats(batch, shopId, [{ key: bizDayKey(await serverNow()), delta: expenseDelta(payload) }]);
       await batch.commit();
 
-      setExpenses(prev => [{ id: newDocRef.id, ...payload, createdAt: { toDate: () => new Date() } }, ...prev]);
-
-      setPaidVia('cash');
-      setAmount('');
-      setDescription('');
-      setCategory(CATEGORIES[0].id);
-      setIsOpen(false);
+      setExpenses(prev => [{ id: newDocRef.id, ...payload, createdAt: Timestamp.now() }, ...prev]);
+      closeSheet();
+      fetchOwed();
       hapticVibrate(10);
     } catch (err) {
       console.error(err);
@@ -173,7 +211,7 @@ export default function Expenses() {
     if (submitting) return;
     if (expDirty && !(await confirm({ title: 'Discard changes?', message: 'What you entered will be lost.', confirmText: 'Discard', cancelText: 'Keep editing', danger: true }))) return;
     if (expDirty) toast('Discarded');
-    setIsOpen(false);
+    closeSheet();
   };
 
   const handleDeleteExpense = async (id) => {
@@ -189,6 +227,9 @@ export default function Expenses() {
       if (gone) logActivity(batch, shopId, user.uid, { action: 'expense_delete', amount: gone.amount, note: `${gone.category || ''} ${gone.description || ''}`.trim() });
       if (gone) writeStats(batch, shopId, [{ key: bizDayKey(toDate(gone.createdAt)), delta: negate(expenseDelta(gone)) }]);
       await batch.commit();
+      if (editing?.id === id) closeSheet();
+      fetchOwed();
+      toast.success('Expense deleted');
     } catch (err) {
       console.error("Failed to delete expense", err);
       setExpenses(previousExpenses);
@@ -202,7 +243,7 @@ export default function Expenses() {
         <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Expenses</h1>
         {tab === 'expenses' && <button
           aria-label="New Expense"
-          onClick={() => setIsOpen(true)}
+          onClick={openNew}
           className="bg-blue-600 active:scale-95 transition-all text-white h-11 px-4 rounded-full text-sm font-bold flex items-center gap-1.5"
         >
           <Plus size={16} /> New
@@ -236,17 +277,19 @@ export default function Expenses() {
             <p className="text-gray-500 font-medium">No expenses recorded yet.</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-200/80 relative">
+          <div className="space-y-4">
             {owedToStaff > 0 && (
               <div className="rounded-2xl bg-amber-50 border border-amber-200 p-3 text-sm font-semibold text-amber-800">
                 Owed to staff: ₹{(owedToStaff / 100).toLocaleString('en-IN')}. Paid from their own pocket. When you repay, edit the entry and set Drawer Cash or Bank / UPI.
               </div>
             )}
-
+          <div className="divide-y divide-slate-200/80 relative">
             {expenses.map(expense => {
               const cat = CATEGORIES.find(c => c.id === expense.category);
               const Icon = cat ? cat.icon : expense.category === 'staff_loan' ? HandCoins : Package;
-              const date = expense.createdAt?.toDate ? expense.createdAt.toDate().toLocaleString([], {month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Just now';
+              const made = expense.createdAt?.toDate ? expense.createdAt.toDate() : null;
+              const date = made ? made.toLocaleString([], { month: 'short', day: 'numeric', ...(made.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}), hour: 'numeric', minute: '2-digit' }) : 'Just now';
+              const via = expense.paidVia === 'staff' ? 'owed to staff' : (expense.paidVia || 'cash');
 
               return (
                 <motion.div
@@ -269,14 +312,14 @@ export default function Expenses() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-bold text-slate-900 truncate pr-2">{expense.description || cat?.label || 'Other'}</h3>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex flex-wrap items-center gap-x-2 mt-0.5">
                        <p className="text-xs font-semibold text-slate-500">{date}</p>
-                       <span className="text-xs font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">{expense.paidVia === 'staff' ? 'owed to staff' : (expense.paidVia || 'cash')}</span>
                        <span className="text-xs font-semibold text-slate-500 truncate">{nameOf(expense.creatorId)}</span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-extrabold text-slate-900 text-base tabular-nums">₹{(expense.amount / 100).toLocaleString('en-IN')}</p>
+                  <div className="text-right shrink-0">
+                    <p className="font-extrabold text-slate-900 text-base tabular-nums whitespace-nowrap">₹{(expense.amount / 100).toLocaleString('en-IN')}</p>
+                    <span className="text-xs font-bold text-slate-500 uppercase whitespace-nowrap">{via}</span>
                   </div>
 
                   </div>
@@ -285,23 +328,19 @@ export default function Expenses() {
               );
             })}
           </div>
+          {hasMore && <button type="button" onClick={loadMore} disabled={loadingMore} className="press w-full h-11 rounded-full border border-slate-200 text-sm font-bold text-blue-600 disabled:opacity-50">{loadingMore ? 'Loading...' : 'Load more'}</button>}
+          </div>
         )}
       </main>}
 
       <Drawer.Root handleOnly repositionInputs={false} open={isOpen} onOpenChange={(open) => {
-         if (!open && isOpen) { requestClose(); return; }
-         setIsOpen(open);
-         if (!open) {
-            setEditing(null);
-            setAmount('');
-            setDescription('');
-            setCategory(CATEGORIES[0].id);
-         }
+         if (!open) { if (isOpen) requestClose(); return; }
+         setIsOpen(true);
       }}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
-          <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[10px] mt-24 h-auto fixed bottom-0 left-0 right-0 z-[61] focus:outline-none">
-            <div className="p-4 bg-white rounded-t-[10px] flex-1 pb-safe overflow-y-auto">
+          <Drawer.Content style={sheetStyle} className="bg-white flex flex-col rounded-t-[10px] mt-24 h-auto max-h-[90dvh] fixed bottom-0 left-0 right-0 z-[61] focus:outline-none">
+            <div className="p-4 bg-white rounded-t-[10px] flex-1 min-h-0 pb-safe overflow-y-auto">
               <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-gray-300 mb-6" />
               <div className="max-w-md mx-auto">
                 <Drawer.Title className="font-bold text-gray-900 mb-6 text-xl">
@@ -341,7 +380,7 @@ export default function Expenses() {
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">Category</label>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     {CATEGORIES.map(cat => {
                       const Icon = cat.icon;
                       const isSelected = category === cat.id;
@@ -350,7 +389,7 @@ export default function Expenses() {
                           type="button"
                           key={cat.id}
                           onClick={() => setCategory(cat.id)}
-                          className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-colors ${isSelected ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-100 bg-gray-50 text-gray-500'}`}
+                          className={`flex flex-col items-center justify-center p-2.5 rounded-xl border-2 transition-colors ${isSelected ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-100 bg-gray-50 text-gray-500'}`}
                         >
                           <Icon size={24} className="mb-1" />
                           <span className="text-xs font-medium">{cat.label}</span>
