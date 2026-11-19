@@ -475,7 +475,8 @@ export default function Ledger() {
       folded: activeFilter !== 'return' && b.type === 'return' && !!b.exchangeOf && exchangeSale.has(b.exchangeOf),
     })).filter((bill) => {
       if (!showVoided && bill.isVoided) return false;
-      if (bill.type === 'reversal') return false; // the Voided tag on the original says it all
+      // A void turns the bill itself into type 'reversal' (no second record), so it is listed only when Show voided is on.
+      if (bill.type === 'reversal' && !bill.isVoided) return false;
 
       if (activeFilter) {
         if (activeFilter === 'return' && bill.type !== 'return') return false;
