@@ -73,12 +73,13 @@ export default function Transfers() {
   const summary = useMemo(() => {
     const m = new Map();
     transfers.forEach((t) => {
-      const row = m.get(t.party) || { inQty: 0, outQty: 0, inVal: 0, outVal: 0 };
+      const key = (t.party || '').trim().toLowerCase();
+      const row = m.get(key) || { name: (t.party || '').trim(), inQty: 0, outQty: 0, inVal: 0, outVal: 0 };
       const val = (t.unitPrice || 0) * t.qty;
       if (t.direction === 'in') { row.inQty += t.qty; row.inVal += val; } else { row.outQty += t.qty; row.outVal += val; }
-      m.set(t.party, row);
+      m.set(key, row);
     });
-    return [...m.entries()];
+    return [...m.values()];
   }, [transfers]);
 
   const handleSubmit = async (e) => {
@@ -123,8 +124,8 @@ export default function Transfers() {
         catalogId = ref.id;
         batch.set(ref, {
           name: cleanName,
-          lastUsedPrice: unitPrice || 0,
-          unit: 'piece',
+          lastUsedPrice: 0, // a transfer price is a cost, never a selling price
+          unit: 'pair',
           stockCount: qtyNum,
           isActive: true,
           frequency: 0,
@@ -146,7 +147,9 @@ export default function Transfers() {
         createdAt: serverTimestamp(),
       });
       await batch.commit();
-      toast.success(direction === 'in' ? 'Stock added.' : 'Stock sent out.');
+      if (existing && existing.stockCount == null) toast.success("Logged. This product doesn't track stock.");
+      else if (!existing) toast.success('New product added. Set its selling price in Products.', { duration: 6000 });
+      else toast.success(direction === 'in' ? 'Stock added.' : 'Stock sent out.');
       setProductName(''); setQty(''); setPrice('');
       await load();
     } catch (err) {
@@ -161,7 +164,7 @@ export default function Transfers() {
     <div className="min-h-[100dvh] bg-slate-50 pb-nav">
       <header className="bg-white border-b border-slate-200 px-4 py-4 sticky top-0 z-10">
         <h1 className="text-xl font-black text-slate-900">Stock transfer</h1>
-        <p className="text-xs text-slate-500 mt-0.5">Stock to or from another shop. Not counted as a sale.</p>
+        <p className="text-xs text-slate-500 mt-0.5">Stock to or from another shop. Not counted as a sale or expense. Money paid or received is not recorded here: add it in Expenses.</p>
       </header>
 
       <main className="p-4 space-y-6">
@@ -220,11 +223,12 @@ export default function Transfers() {
           <section aria-label="By shop">
             <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">By shop (latest 100)</h2>
             <div className="space-y-2">
-              {summary.map(([name, s]) => (
-                <div key={name} className="bg-white border border-slate-200 rounded-xl p-3">
-                  <div className="font-bold text-slate-900">{name}</div>
-                  <div className="text-sm text-slate-600 mt-1">Received {s.inQty} pcs{s.inVal ? ` (${formatCurrency(s.inVal)})` : ''}</div>
-                  <div className="text-sm text-slate-600">Sent {s.outQty} pcs{s.outVal ? ` (${formatCurrency(s.outVal)})` : ''}</div>
+              {summary.map((s) => (
+                <div key={s.name.toLowerCase()} className="bg-white border border-slate-200 rounded-xl p-3">
+                  <div className="font-bold text-slate-900">{s.name}</div>
+                  <div className="text-sm text-slate-600 mt-1">Received {s.inQty} pairs{s.inVal ? ` (${formatCurrency(s.inVal)})` : ''}</div>
+                  <div className="text-sm text-slate-600">Sent {s.outQty} pairs{s.outVal ? ` (${formatCurrency(s.outVal)})` : ''}</div>
+                  <div className="text-sm font-semibold text-slate-800">Net {s.inQty - s.outQty >= 0 ? '+' : ''}{s.inQty - s.outQty} pairs</div>
                 </div>
               ))}
             </div>
@@ -252,7 +256,7 @@ export default function Transfers() {
                     {t.direction === 'in' ? '+' : '-'}{t.qty}
                   </span>
                   {isAdmin && (
-                    <button type="button" aria-label="Delete entry" onClick={() => removeEntry(t)} className="shrink-0 p-2 text-slate-400 active:text-rose-600"><Trash2 size={16} /></button>
+                    <button type="button" aria-label="Delete entry" onClick={() => removeEntry(t)} className="shrink-0 w-11 h-11 flex items-center justify-center text-slate-400 active:text-rose-600"><Trash2 size={18} /></button>
                   )}
                 </li>
               ))}
