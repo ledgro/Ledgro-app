@@ -379,8 +379,8 @@ service cloud.firestore {
           && request.resource.data.creatorId == request.auth.uid
           && (request.resource.data.get('reversesId', null) == null || isValidString(request.resource.data.reversesId, 1, 128))
           && request.resource.data.createdAt == request.time;
-        // Owner marks an entry reversed, once. The opposite entry is written in the same batch.
-        allow update: if isSoleAdmin(shopId)
+        // Admin marks an entry reversed, once. The opposite entry is written in the same batch.
+        allow update: if isAdmin(shopId)
           && resource.data.get('reversed', false) == false
           && resource.data.get('reversesId', null) == null
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reversed'])
