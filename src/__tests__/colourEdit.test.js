@@ -34,6 +34,24 @@ describe('planColourEdit', () => {
     expect(p.updates.map((u) => u.data.name)).toEqual(['Hells - 37 / Dark Brown', 'Hells - 38 / Dark Brown']);
     expect(p.colourChanged).toBe(true);
   });
+  it('fixing a size typo renames the same doc and keeps its stock', () => {
+    const p = plan(form({ rows: [{ id: '1', stock: '5', size: '3 7' }, { id: '2', stock: '5', size: '38' }] }));
+    expect(p.removes).toEqual([]);
+    expect(p.creates).toEqual([]);
+    expect(p.updates[0].id).toBe('1');
+    expect(p.updates[0].data.options.Size).toBe('3 7');
+    expect(p.updates[0].stockDiff).toBeNull();
+    expect(p.updates[0].stockSet).toBeUndefined();
+  });
+  it('refuses a size renamed to one that exists, or emptied', () => {
+    expect(plan(form({ rows: [{ id: '1', stock: '5', size: '38' }, { id: '2', stock: '5', size: '38' }] })).error).toMatch(/already exists/);
+    expect(plan(form({ rows: [{ id: '1', stock: '5', size: ' ' }, { id: '2', stock: '5' }] })).error).toMatch(/cannot be empty/);
+  });
+  it('new sizes are saved with the stock typed for them', () => {
+    const p = plan(form({ newSizes: '39, 40', newStocks: { '39': '4' } }));
+    expect(p.creates.map((c) => c.stockCount)).toEqual([4, null]);
+    expect(plan(form({ newSizes: '39', newStocks: { '39': '-1' } })).error).toMatch(/valid stock/);
+  });
   it('refuses a colour that already exists', () => {
     expect(plan(form({ colour: 'brown' })).error).toMatch(/already exists/);
   });

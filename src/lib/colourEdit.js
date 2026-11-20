@@ -15,7 +15,7 @@ export function axesOf(items) {
 }
 
 /**
- * form: { base, colour, price, cost, category, lowStock, active, rows: [{ id, stock, remove }], newSizes }
+ * form: { base, colour, price, cost, category, lowStock, active, rows: [{ id, stock, size, remove }], newSizes, newStocks: { [label]: text } }
  * Returns { error } or { updates: [{ id, data, stockDiff, stockSet }], creates: [data], removes: [id], colourChanged }.
  */
 export function planColourEdit({ entry, groupItems, allItems, form }) {
@@ -64,7 +64,10 @@ export function planColourEdit({ entry, groupItems, allItems, form }) {
   const updates = [];
   for (const item of kept) {
     const row = rowById.get(item.id) || {};
-    const options = optionsFor(item);
+    // An edited size label renames the same document, so its stock and history stay.
+    const typedSize = sizeAxis && row.size !== undefined ? clean(row.size).slice(0, 20) : null;
+    if (typedSize !== null && !typedSize) return { error: 'A size cannot be empty. Remove it instead.' };
+    const options = optionsFor(item, typedSize);
     const name = variantName(base, options);
     if (taken.has(name.toLowerCase())) return { error: `"${name}" already exists.` };
     taken.add(name.toLowerCase());
@@ -93,7 +96,7 @@ export function planColourEdit({ entry, groupItems, allItems, form }) {
   const typed = parseValues(form.newSizes);
   if (typed.length) {
     if (!sizeAxis) return { error: 'This product has no size option to add to.' };
-    const have = new Set(kept.map((i) => String(i.options?.[sizeAxis] ?? '').toLowerCase()));
+    const have = new Set(kept.map((i) => String(clean(rowById.get(i.id)?.size ?? i.options?.[sizeAxis] ?? '')).toLowerCase()));
     const rep = entry.rep;
     for (const label of typed) {
       if (have.has(label.toLowerCase())) continue;
@@ -101,7 +104,10 @@ export function planColourEdit({ entry, groupItems, allItems, form }) {
       const name = variantName(base, options);
       if (taken.has(name.toLowerCase())) return { error: `"${name}" already exists.` };
       taken.add(name.toLowerCase());
-      creates.push({ ...common, name, baseName: base, options, groupId: rep.groupId, unit: rep.unit || 'piece', source: rep.source || '', description: rep.description || '', stockCount: null, hasImage: entry.items.some((i) => i.hasImage), frequency: 0 });
+      const rawStock = form.newStocks ? form.newStocks[label] : undefined;
+      const newStock = num(rawStock);
+      if (newStock !== null && (!Number.isFinite(newStock) || newStock < 0)) return { error: `Enter a valid stock for ${label}.` };
+      creates.push({ ...common, name, baseName: base, options, groupId: rep.groupId, unit: rep.unit || 'piece', source: rep.source || '', description: rep.description || '', stockCount: newStock, hasImage: entry.items.some((i) => i.hasImage), frequency: 0 });
     }
     if (kept.length + creates.length > 20) return { error: 'Up to 20 sizes per colour.' };
   }

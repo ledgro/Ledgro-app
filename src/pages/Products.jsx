@@ -399,7 +399,8 @@ export default function Products() {
           if (stockN !== null && (isNaN(stockN) || stockN < 0)) { toast.error('Enter a valid stock count'); setSubmitting(false); return; }
           if (reuse && first) {
             first = false;
-            const upd = { ...basePayload, name: variantName(baseName, opts), baseName, groupId, options: opts, stockCount: stockN, updatedBy: user.uid };
+            // A blank stock box must never wipe the stock this product already had.
+            const upd = { ...basePayload, name: variantName(baseName, opts), baseName, groupId, options: opts, stockCount: stockN ?? reuse.stockCount ?? null, updatedBy: user.uid };
             batch.update(doc(db, `shops/${shopId}/catalog`, reuse.id), upd);
             created.push({ ...reuse, ...upd, id: reuse.id, updatedAt: new Date() });
             continue;
@@ -624,6 +625,11 @@ export default function Products() {
           groupItems={catalogItems.filter((i) => i.groupId === colourEdit.groupId && !i.deleted)}
           isAdmin={isAdmin}
           onClose={() => setColourEditKey(null)}
+          onAddColour={(options) => {
+            const e = colourEdit;
+            setColourEditKey(null);
+            openDrawer(null, { groupId: e.groupId, baseName: e.name, options, from: e.rep });
+          }}
         />
       )}
 
@@ -706,7 +712,7 @@ export default function Products() {
                     </button>
                   )}
                   {convert && (
-                    <p className="text-xs text-slate-500">Saving creates the variants below and hides this product. Set stock for each variant.</p>
+                    <p className="text-xs text-slate-500">The first variant below is this same product and keeps its stock if you leave that box empty. Other variants are new: set their stock.</p>
                   )}
                   {hasVariants && (!editingItem || convert) && (
                     <VariantBuilder axes={axes} setAxes={setAxes} comboStock={comboStock} setComboStock={setComboStock} />

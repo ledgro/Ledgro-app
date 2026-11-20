@@ -16,7 +16,7 @@ const field = 'w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 
 const toText = (paise) => (paise == null ? '' : String(paise / 100));
 
 /** Edit one product in one colour as a whole: details, colour name and sizes (add, restock, remove) in one place. */
-export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose }) {
+export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose, onAddColour }) {
   const { shopId, user } = useAuth();
   const catalog = useCatalogStore((s) => s.items);
   const addItem = useCatalogStore((s) => s.addItem);
@@ -27,7 +27,8 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose })
     base: entry.name, colour: entry.colour, price: toText(rep.lastUsedPrice), cost: toText(rep.costPrice), category: rep.category || '',
     lowStock: rep.lowStockAlert != null ? String(rep.lowStockAlert) : '', active: rep.isActive !== false, newSizes: '',
   }));
-  const [rows, setRows] = useState(() => entry.items.map((i) => ({ id: i.id, stock: i.stockCount == null ? '' : String(i.stockCount), remove: false })));
+  const [rows, setRows] = useState(() => entry.items.map((i) => ({ id: i.id, stock: i.stockCount == null ? '' : String(i.stockCount), remove: false, size: sizeLabelOf(i) })));
+  const [newStocks, setNewStocks] = useState({});
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
   const patchRow = (id, patch) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -36,7 +37,7 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose })
   const save = async () => {
     if (busy) return;
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
-    const plan = planColourEdit({ entry, groupItems, allItems: catalog, form: { ...f, rows } });
+    const plan = planColourEdit({ entry, groupItems, allItems: catalog, form: { ...f, rows, newStocks } });
     if (plan.error) { toast.error(plan.error); return; }
     if (plan.removes.length) {
       const names = entry.items.filter((i) => plan.removes.includes(i.id)).map(sizeLabelOf).join(', ');
@@ -150,7 +151,11 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose })
                 const r = rows.find((x) => x.id === it.id);
                 return (
                   <div key={it.id} className={`flex items-center gap-3 rounded-xl border p-2 ${r.remove ? 'border-red-200 bg-red-50' : 'border-slate-200'}`}>
-                    <span className={`w-16 text-center text-base font-bold ${r.remove ? 'text-red-600 line-through' : 'text-slate-900'}`}>{sizeLabelOf(it) || '-'}</span>
+                    {r.remove || !sizeAxis ? (
+                      <span className={`w-16 text-center text-base font-bold ${r.remove ? 'text-red-600 line-through' : 'text-slate-900'}`}>{sizeLabelOf(it) || '-'}</span>
+                    ) : (
+                      <input aria-label={`Size ${sizeLabelOf(it)}`} maxLength={20} className="h-11 w-16 shrink-0 rounded-lg border border-slate-200 px-1 text-center text-base font-bold text-slate-900" value={r.size} onChange={(e) => patchRow(it.id, { size: e.target.value })} />
+                    )}
                     {r.remove ? (
                       <span className="flex-1 text-xs font-semibold text-red-600">Will be removed when you save</span>
                     ) : (
@@ -167,10 +172,34 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose })
                 <div className="pt-2">
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Add sizes</label>
                   <input maxLength={80} className={field} value={f.newSizes} onChange={set('newSizes')} placeholder="e.g. 39, 40, 41" />
-                  {adding.length > 0 && <p className="mt-1 text-xs font-semibold text-slate-500">Will add {adding.join(', ')} to {entry.colour || 'this product'}. Set their stock after saving.</p>}
+                  {adding.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      <p className="text-xs font-semibold text-slate-500">Will add to {entry.colour || 'this product'}. Stock is optional.</p>
+                      {adding.map((label) => (
+                        <div key={label} className="flex items-center gap-3 rounded-xl border border-slate-200 p-2">
+                          <span className="w-16 text-center text-base font-bold text-slate-900">{label}</span>
+                          <input aria-label={`Stock for new size ${label}`} className="h-11 flex-1 rounded-lg border border-slate-200 px-3 font-bold" type="number" inputMode="numeric" min="0" placeholder="Stock" value={newStocks[label] ?? ''} onChange={(e) => setNewStocks((p) => ({ ...p, [label]: e.target.value.slice(0, 7) }))} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
+
+            {onAddColour && (
+              <div className="space-y-1">
+                {colourAxis ? (
+                  <button type="button" disabled={busy}
+                    onClick={() => onAddColour({ ...(rep.options || {}), [colourAxis]: '', ...(sizeAxis ? { [sizeAxis]: '' } : {}) })}
+                    className="h-12 w-full rounded-xl border border-blue-200 bg-blue-50 font-bold text-blue-700 active:bg-blue-100">
+                    + Add another colour
+                  </button>
+                ) : (
+                  <p className="text-xs font-semibold text-slate-500">To add another colour, first type this product's colour above and save.</p>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="kb-hide absolute bottom-0 left-0 right-0 border-t border-slate-100 bg-white p-4 pb-safe">
