@@ -12,8 +12,7 @@ import BottomNav from '../components/BottomNav';
 import { ListSkeleton } from '../components/Skeleton';
 import { useShowLoader } from '../hooks/useShowLoader';
 import { Trash2, UserPlus, LogOut, ArrowUpCircle, ShieldCheck, ShieldOff, MoreVertical } from 'lucide-react';
-import { broadcastSessionTerminated } from '../lib/sessionBroadcast';
-import { deleteShopCascade, flushPendingWrites } from '../lib/firestoreUtils';
+import { flushPendingWrites } from '../lib/firestoreUtils';
 import { useNameOf, useMemberNames } from '../lib/memberNames';
 import { confirm } from '../lib/confirm';
 
@@ -197,19 +196,11 @@ export default function Members() {
 
     try {
       beginVoluntaryExit();
-      if (isCreator) {
-        toast.loading('Deleting shop...', { id: 'del-shop' });
-        await deleteShopCascade(shopId, (m) => toast.loading(m, { id: 'del-shop' }));
-        toast.dismiss('del-shop');
-        broadcastSessionTerminated();
-      } else {
-        await updateDoc(doc(db, 'shops', shopId), { [`members.${user.uid}`]: deleteField() });
-      }
+      await updateDoc(doc(db, 'shops', shopId), { [`members.${user.uid}`]: deleteField() });
       await signOut({ force: true });
     } catch (err) {
       console.error(err);
-      toast.dismiss('del-shop');
-      toast.error(isCreator ? `Could not delete the whole shop (${err?.code || 'error'}). Some data may be gone. Tap Delete shop again to finish.` : 'Failed to leave shop.');
+      toast.error('Failed to leave shop.');
     }
   };
 
