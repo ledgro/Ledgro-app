@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import FieldError, { errRing } from '../components/FieldError';
 import { toast } from 'sonner';
-import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, increment, writeBatch, deleteDoc } from 'firebase/firestore';
-import { ArrowDownToLine, ArrowUpFromLine, Trash2 } from 'lucide-react';
+import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, increment, writeBatch } from 'firebase/firestore';
+import { ArrowDownToLine, ArrowUpFromLine, Undo2 } from 'lucide-react';
 import { confirm } from '../lib/confirm';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
@@ -56,15 +56,44 @@ export default function Transfers() {
   // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
-  const removeEntry = async (t) => {
-    const ok = await confirm({ title: 'Delete this entry?', message: 'Only the history line is removed. Your stock count does not change.', confirmText: 'Delete', danger: true });
+  const reverseEntry = async (t) => {
+    if (t.reversed || t.reversesId) return;
+    if (!navigator.onLine) { toast.error('Go online to reverse an entry.'); return; }
+    const product = items.find((p) => p.id === t.productId && p.isActive !== false);
+    const tracks = product && product.stockCount != null;
+    if (!product) { toast.error('This product was removed. Fix stock by hand in Products.'); return; }
+    if (tracks && t.direction === 'in' && product.stockCount < t.qty) {
+      toast.error(`Only ${product.stockCount} in stock. Cannot take back ${t.qty}.`);
+      return;
+    }
+    const ok = await confirm({
+      title: 'Reverse this entry?',
+      message: `${t.qty} ${t.name} ${t.direction === 'in' ? 'received' : 'sent'} ${t.direction === 'in' ? 'from' : 'to'} ${t.party}. Stock goes ${t.direction === 'in' ? 'down' : 'back up'} by ${t.qty}. A reversal line is added to the history.`,
+      confirmText: 'Reverse', danger: true,
+    });
     if (!ok) return;
     try {
-      await deleteDoc(doc(db, `shops/${shopId}/transfers/${t.id}`));
-      setTransfers((l) => l.filter((x) => x.id !== t.id));
+      sessionGuard.assertValidSession(user.uid);
+      const batch = writeBatch(db);
+      if (tracks) {
+        batch.update(doc(db, `shops/${shopId}/catalog`, product.id), {
+          stockCount: increment(t.direction === 'in' ? -t.qty : t.qty),
+          updatedAt: serverTimestamp(),
+        });
+      }
+      batch.set(doc(collection(db, `shops/${shopId}/transfers`)), {
+        direction: t.direction === 'in' ? 'out' : 'in',
+        party: t.party, productId: t.productId, name: t.name, qty: t.qty,
+        unitPrice: t.unitPrice ?? null,
+        reversesId: t.id, creatorId: user.uid, createdAt: serverTimestamp(),
+      });
+      batch.update(doc(db, `shops/${shopId}/transfers/${t.id}`), { reversed: true });
+      await batch.commit();
+      toast.success('Reversed.');
+      await load();
     } catch (err) {
       console.error(err);
-      toast.error(`Could not delete (${err.code || 'error'}).`);
+      toast.error(err?.code === 'permission-denied' ? 'Not allowed. Stock may be too low, or already reversed.' : `Could not reverse (${err?.code || 'error'}).`);
     }
   };
 
@@ -246,7 +275,7 @@ export default function Transfers() {
               {transfers.map((t) => (
                 <li key={t.id} className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-semibold text-slate-900 truncate">{t.name}</div>
+                    <div className="font-semibold text-slate-900 truncate">{t.name}{t.reversed ? ' · reversed' : ''}{t.reversesId ? ' · reversal' : ''}</div>
                     <div className="text-xs text-slate-500 truncate">
                       {t.direction === 'in' ? 'from' : 'to'} {t.party} · {toDateSafe(t.createdAt).toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                       {t.unitPrice != null ? ` · ${formatCurrency(t.unitPrice)} each` : ''}
@@ -255,8 +284,8 @@ export default function Transfers() {
                   <span className={cn('font-black shrink-0', t.direction === 'in' ? 'text-emerald-600' : 'text-rose-600')}>
                     {t.direction === 'in' ? '+' : '-'}{t.qty}
                   </span>
-                  {isAdmin && (
-                    <button type="button" aria-label="Delete entry" onClick={() => removeEntry(t)} className="shrink-0 w-11 h-11 flex items-center justify-center text-slate-400 active:text-rose-600"><Trash2 size={18} /></button>
+                  {isAdmin && !t.reversed && !t.reversesId && (
+                    <button type="button" aria-label="Reverse entry" onClick={() => reverseEntry(t)} className="shrink-0 w-11 h-11 flex items-center justify-center text-slate-400 active:text-rose-600"><Undo2 size={18} /></button>
                   )}
                 </li>
               ))}

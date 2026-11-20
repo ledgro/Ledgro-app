@@ -589,6 +589,15 @@ d('firestore.rules', () => {
       await assertFails(updateDoc(doc(as(MEMBER), `${col}/t8`), { qty: 99 }));
       await assertFails(deleteDoc(doc(as(ADMIN), `${col}/t8`)));
     });
+    it('owner marks reversed once; reversal line allowed; member cannot', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), `${col}/r1`), tr(MEMBER)));
+      await assertFails(updateDoc(doc(as(MEMBER), `${col}/r1`), { reversed: true }));
+      await assertFails(updateDoc(doc(as(ADMIN), `${col}/r1`), { reversed: true, qty: 9 }));
+      await assertSucceeds(updateDoc(doc(as(ADMIN), `${col}/r1`), { reversed: true }));
+      await assertFails(updateDoc(doc(as(ADMIN), `${col}/r1`), { reversed: true }));
+      await assertSucceeds(setDoc(doc(as(ADMIN), `${col}/r2`), tr(ADMIN, { direction: 'out', reversesId: 'r1' })));
+      await assertFails(updateDoc(doc(as(ADMIN), `${col}/r2`), { reversed: true }));
+    });
     it('members read', async () => {
       await assertSucceeds(setDoc(doc(as(MEMBER), `${col}/t9`), tr(MEMBER)));
       await assertSucceeds(getDocs(query(collection(as(ADMIN), col), limit(10))));
