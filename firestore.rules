@@ -377,7 +377,12 @@ service cloud.firestore {
           && request.resource.data.qty is number && request.resource.data.qty > 0 && request.resource.data.qty <= 100000
           && (request.resource.data.get('unitPrice', null) == null || (request.resource.data.unitPrice is number && request.resource.data.unitPrice >= 0))
           && request.resource.data.creatorId == request.auth.uid
-          && (request.resource.data.get('reversesId', null) == null || isValidString(request.resource.data.reversesId, 1, 128))
+          // A reversal line is admin-only and must come with the original being marked reversed in the same batch.
+          && (request.resource.data.get('reversesId', null) == null
+            || (isAdmin(shopId)
+              && isValidString(request.resource.data.reversesId, 1, 128)
+              && getAfter(/databases/$(database)/documents/shops/$(shopId)/transfers/$(request.resource.data.reversesId)).data.get('reversed', false) == true
+              && get(/databases/$(database)/documents/shops/$(shopId)/transfers/$(request.resource.data.reversesId)).data.get('reversed', false) == false))
           && request.resource.data.createdAt == request.time;
         // Admin marks an entry reversed, once. The opposite entry is written in the same batch.
         allow update: if isAdmin(shopId)

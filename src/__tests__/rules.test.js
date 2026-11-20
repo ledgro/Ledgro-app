@@ -589,14 +589,27 @@ d('firestore.rules', () => {
       await assertFails(updateDoc(doc(as(MEMBER), `${col}/t8`), { qty: 99 }));
       await assertFails(deleteDoc(doc(as(ADMIN), `${col}/t8`)));
     });
-    it('owner marks reversed once; reversal line allowed; member cannot', async () => {
+    it('admin marks reversed once; member cannot; edits blocked', async () => {
       await assertSucceeds(setDoc(doc(as(MEMBER), `${col}/r1`), tr(MEMBER)));
       await assertFails(updateDoc(doc(as(MEMBER), `${col}/r1`), { reversed: true }));
       await assertFails(updateDoc(doc(as(ADMIN), `${col}/r1`), { reversed: true, qty: 9 }));
       await assertSucceeds(updateDoc(doc(as(ADMIN), `${col}/r1`), { reversed: true }));
       await assertFails(updateDoc(doc(as(ADMIN), `${col}/r1`), { reversed: true }));
-      await assertSucceeds(setDoc(doc(as(ADMIN), `${col}/r2`), tr(ADMIN, { direction: 'out', reversesId: 'r1' })));
-      await assertFails(updateDoc(doc(as(ADMIN), `${col}/r2`), { reversed: true }));
+    });
+    it('reversal line needs admin and the original marked reversed in the same batch', async () => {
+      await assertSucceeds(setDoc(doc(as(MEMBER), `${col}/q1`), tr(MEMBER)));
+      await assertFails(setDoc(doc(as(MEMBER), `${col}/q2`), tr(MEMBER, { direction: 'out', reversesId: 'q1' })));
+      await assertFails(setDoc(doc(as(ADMIN), `${col}/q3`), tr(ADMIN, { direction: 'out', reversesId: 'q1' })));
+      const db = as(ADMIN);
+      const b = writeBatch(db);
+      b.set(doc(db, `${col}/q4`), tr(ADMIN, { direction: 'out', reversesId: 'q1' }));
+      b.update(doc(db, `${col}/q1`), { reversed: true });
+      await assertSucceeds(b.commit());
+      await assertFails(updateDoc(doc(as(ADMIN), `${col}/q4`), { reversed: true }));
+      const b2 = writeBatch(db);
+      b2.set(doc(db, `${col}/q5`), tr(ADMIN, { direction: 'out', reversesId: 'q1' }));
+      b2.update(doc(db, `${col}/q1`), { reversed: true });
+      await assertFails(b2.commit());
     });
     it('members read', async () => {
       await assertSucceeds(setDoc(doc(as(MEMBER), `${col}/t9`), tr(MEMBER)));
