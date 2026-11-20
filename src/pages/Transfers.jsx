@@ -125,7 +125,7 @@ export default function Transfers() {
         batch.set(ref, {
           name: cleanName,
           lastUsedPrice: 0, // a transfer price is a cost, never a selling price
-          unit: 'pair',
+          unit: 'piece',
           stockCount: qtyNum,
           isActive: true,
           frequency: 0,
