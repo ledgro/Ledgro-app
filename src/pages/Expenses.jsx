@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { collection, query, orderBy, getDocs, serverTimestamp, writeBatch, doc, limit, startAfter, where, Timestamp } from 'firebase/firestore';
 import { writeStats } from '../lib/dayStats';
 import { expenseEntries, negate } from '../lib/statsMath';
+import { isPending } from '../lib/expenses';
 import { serverNow, CLOCK_MSG } from '../lib/clockDrift';
 import { db } from '../firebase';
 import { Drawer } from 'vaul';
@@ -60,7 +61,6 @@ export default function Expenses() {
   const [loadingMore, setLoadingMore] = useState(false);
   const lastDocRef = useRef(null);
 
-  const isPending = (e) => e.paidVia === 'unpaid' || e.paidVia === 'staff';
 
   /** Owner marks an unpaid / staff-pocket expense as paid: the cash moves on the day of payment, the original day is untouched. */
   const markPaid = async (e, via) => {
@@ -237,8 +237,10 @@ export default function Expenses() {
   };
 
   const expDirty = editing
-    ? (description !== (editing.description || '') || Math.round(parseFloat(amount || 0) * 100) !== (editing.amount || 0))
+    ? (description !== (editing.description || '') || Math.round(parseFloat(amount || 0) * 100) !== (editing.amount || 0) || category !== editing.category || paidVia !== (editing.paidVia || 'cash'))
     : (!!amount || !!description);
+  // What the rules allow when editing: once paid the method is final, and only the owner can mark a pending expense paid.
+  const payOptDisabled = (v) => !!editing && (!!editing.paidAt || (isPending(editing) && !isAdmin && (v === 'cash' || v === 'upi')));
   const requestClose = async () => {
     if (submitting) return;
     if (expDirty && !(await confirm({ title: 'Discard changes?', message: 'What you entered will be lost.', confirmText: 'Discard', cancelText: 'Keep editing', danger: true }))) return;
@@ -417,10 +419,10 @@ export default function Expenses() {
                 <div>
                    <label className="block text-sm font-semibold text-slate-700 mb-2">Paid Via</label>
                    <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl">
-                      <button type="button" onClick={() => setPaidVia('cash')} className={`py-2 text-sm font-bold rounded-lg transition-all ${paidVia === 'cash' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Drawer Cash</button>
-                      <button type="button" onClick={() => setPaidVia('upi')} className={`py-2 text-sm font-bold rounded-lg transition-all ${paidVia === 'upi' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Bank / UPI</button>
-                      <button type="button" onClick={() => setPaidVia('staff')} className={`py-2 text-sm font-bold rounded-lg transition-all ${paidVia === 'staff' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Staff pocket</button>
-                      <button type="button" onClick={() => setPaidVia('unpaid')} className={`py-2 text-sm font-bold rounded-lg transition-all ${paidVia === 'unpaid' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Not paid yet</button>
+                      <button type="button" disabled={payOptDisabled('cash')} onClick={() => setPaidVia('cash')} className={`py-2 text-sm font-bold rounded-lg transition-all disabled:opacity-40 ${paidVia === 'cash' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Drawer Cash</button>
+                      <button type="button" disabled={payOptDisabled('upi')} onClick={() => setPaidVia('upi')} className={`py-2 text-sm font-bold rounded-lg transition-all disabled:opacity-40 ${paidVia === 'upi' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Bank / UPI</button>
+                      <button type="button" disabled={payOptDisabled('staff')} onClick={() => setPaidVia('staff')} className={`py-2 text-sm font-bold rounded-lg transition-all disabled:opacity-40 ${paidVia === 'staff' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Staff pocket</button>
+                      <button type="button" disabled={payOptDisabled('unpaid')} onClick={() => setPaidVia('unpaid')} className={`py-2 text-sm font-bold rounded-lg transition-all disabled:opacity-40 ${paidVia === 'unpaid' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Not paid yet</button>
                    </div>
                 </div>
 
