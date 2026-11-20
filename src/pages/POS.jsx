@@ -151,6 +151,7 @@ export default function POS() {
 
   const handleAddItem = (item) => {
     dispatch({ type: 'ADD_ITEM', payload: item });
+    if (!(Number(item.unitPriceAtSale) > 0)) toast.warning(`${item.name} has no selling price (₹0). Edit the price in the cart before billing.`, { id: 'zero-price' });
     if (localStorage.getItem('ledgro_haptic') !== 'false') {
       hapticVibrate(10);
     }
