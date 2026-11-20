@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import FieldError, { errRing } from '../components/FieldError';
 import { toast } from 'sonner';
 import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, increment, writeBatch } from 'firebase/firestore';
-import { ArrowDownToLine, ArrowUpFromLine, Undo2 } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, Undo2, Plus, X } from 'lucide-react';
 import { confirm } from '../lib/confirm';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
@@ -27,9 +27,10 @@ export default function Transfers() {
   const [party, setParty] = useState('');
   const [fe, setFe] = useState({});
   const clr = (k) => setFe((p) => (p[k] ? { ...p, [k]: '' } : p));
-  const [productName, setProductName] = useState('');
-  const [qty, setQty] = useState('');
-  const [price, setPrice] = useState('');
+  const blankLine = () => ({ k: Math.random().toString(36).slice(2), name: '', qty: '', price: '' });
+  const [lines, setLines] = useState(() => [blankLine()]);
+  const setLine = (k, patch) => { setLines((l) => l.map((x) => (x.k === k ? { ...x, ...patch } : x))); clr('lines'); };
+  const MAX_LINES = 15;
   const [submitting, setSubmitting] = useState(false);
   const [transfers, setTransfers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -112,79 +113,90 @@ export default function Transfers() {
     return [...m.values()];
   }, [transfers]);
 
+  const findItem = (name) => items.find((i) => i.id && i.isActive !== false && (i.name || '').trim().toLowerCase() === name.toLowerCase());
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
     const cleanParty = sanitizeText(party).slice(0, 60);
-    const cleanName = sanitizeText(productName).slice(0, 100);
-    const qtyNum = parseFloat(qty);
-    const priceNum = price !== '' ? parseFloat(price) : null;
     const errs = {};
     if (!cleanParty) errs.party = direction === 'in' ? 'Enter the shop it came from.' : 'Enter the shop it went to.';
-    if (!cleanName) errs.product = 'Enter the product name.';
-    if (!(qtyNum > 0)) errs.qty = qty === '' ? 'Enter how many pieces.' : 'Quantity must be more than 0.';
-    else if (qtyNum > 100000) errs.qty = 'Quantity can be at most 100000.';
-    if (priceNum !== null && (isNaN(priceNum) || priceNum < 0)) errs.price = 'Price must be 0 or more. Leave it empty if you do not know it.';
-    if (Object.keys(errs).length) { setFe(errs); return; }
-    setFe({});
 
-    const existing = items.find((i) => i.id && (i.name || '').trim().toLowerCase() === cleanName.toLowerCase());
-    if (!existing && direction === 'out') { toast.error('That product is not in your list. Only products you have can go out.'); return; }
-    if (existing && direction === 'out' && existing.stockCount != null && existing.stockCount < qtyNum) {
-      toast.error(`Only ${existing.stockCount} in stock.`);
-      return;
-    }
+    // Blank rows are ignored, so an extra empty row never blocks saving.
+    const filled = lines.filter((l) => l.name.trim() || l.qty !== '' || l.price !== '');
+    const lineErrs = {};
+    const seen = new Set();
+    const parsed = filled.map((l) => {
+      const name = sanitizeText(l.name).slice(0, 100);
+      const qtyNum = parseFloat(l.qty);
+      const priceNum = l.price !== '' ? parseFloat(l.price) : null;
+      const existing = name ? findItem(name) : null;
+      let msg = '';
+      if (!name) msg = 'Enter the product name.';
+      else if (seen.has(name.toLowerCase())) msg = 'This product is listed twice. Combine the quantities.';
+      else if (!(qtyNum > 0)) msg = l.qty === '' ? 'Enter how many.' : 'Quantity must be more than 0.';
+      else if (qtyNum > 100000) msg = 'Quantity can be at most 100000.';
+      else if (priceNum !== null && (isNaN(priceNum) || priceNum < 0)) msg = 'Price must be 0 or more, or leave it empty.';
+      else if (!existing && direction === 'out') msg = 'Not in your list. Only products you have can go out.';
+      else if (existing && direction === 'out' && existing.stockCount != null && existing.stockCount < qtyNum) msg = `Only ${existing.stockCount} in stock.`;
+      if (name) seen.add(name.toLowerCase());
+      if (msg) lineErrs[l.k] = msg;
+      return { name, qtyNum, priceNum, existing };
+    });
+    if (filled.length === 0) errs.lines = 'Add at least one product.';
+    if (Object.keys(lineErrs).length) errs.lines = 'Fix the products marked in red.';
+    if (Object.keys(errs).length || Object.keys(lineErrs).length) { setFe({ ...errs, lineErrs }); return; }
+    setFe({});
 
     setSubmitting(true);
     try {
       sessionGuard.assertValidSession(user.uid);
       const batch = writeBatch(db);
-      const unitPrice = priceNum !== null ? Math.round(priceNum * 100) : null;
-      let catalogId;
-      if (existing) {
-        catalogId = existing.id;
-        if (existing.stockCount != null) {
-          batch.update(doc(db, `shops/${shopId}/catalog`, existing.id), {
-            stockCount: increment(direction === 'in' ? qtyNum : -qtyNum),
+      let created = 0; let untracked = 0;
+      parsed.forEach(({ name, qtyNum, priceNum, existing }) => {
+        const unitPrice = priceNum !== null ? Math.round(priceNum * 100) : null;
+        let catalogId;
+        if (existing) {
+          catalogId = existing.id;
+          if (existing.stockCount != null) {
+            batch.update(doc(db, `shops/${shopId}/catalog`, existing.id), {
+              stockCount: increment(direction === 'in' ? qtyNum : -qtyNum),
+              updatedAt: serverTimestamp(),
+            });
+          } else untracked += 1;
+        } else {
+          const ref = doc(collection(db, `shops/${shopId}/catalog`));
+          catalogId = ref.id;
+          created += 1;
+          batch.set(ref, {
+            name,
+            lastUsedPrice: 0, // a transfer price is a cost, never a selling price
+            unit: 'piece',
+            stockCount: qtyNum,
+            isActive: true,
+            frequency: 0,
+            source: cleanParty,
+            costPrice: unitPrice,
+            createdBy: user.uid,
+            createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
         }
-      } else {
-        const ref = doc(collection(db, `shops/${shopId}/catalog`));
-        catalogId = ref.id;
-        batch.set(ref, {
-          name: cleanName,
-          lastUsedPrice: 0, // a transfer price is a cost, never a selling price
-          unit: 'piece',
-          stockCount: qtyNum,
-          isActive: true,
-          frequency: 0,
-          source: cleanParty,
-          costPrice: unitPrice,
-          createdBy: user.uid,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+        batch.set(doc(collection(db, `shops/${shopId}/transfers`)), {
+          direction, party: cleanParty, productId: catalogId, name, qty: qtyNum, unitPrice,
+          creatorId: user.uid, createdAt: serverTimestamp(),
         });
-      }
-      batch.set(doc(collection(db, `shops/${shopId}/transfers`)), {
-        direction,
-        party: cleanParty,
-        productId: catalogId,
-        name: cleanName,
-        qty: qtyNum,
-        unitPrice,
-        creatorId: user.uid,
-        createdAt: serverTimestamp(),
       });
       await batch.commit();
-      if (existing && existing.stockCount == null) toast.success("Logged. This product doesn't track stock.");
-      else if (!existing) toast.success('New product added. Set its selling price in Products.', { duration: 6000 });
-      else toast.success(direction === 'in' ? 'Stock added.' : 'Stock sent out.');
-      setProductName(''); setQty(''); setPrice('');
+      const n = parsed.length;
+      if (created) toast.success(`${n} saved. ${created} new product${created > 1 ? 's' : ''} added: set selling price in Products.`, { duration: 6000 });
+      else if (untracked === n) toast.success("Logged. These products don't track stock.");
+      else toast.success(direction === 'in' ? `Stock added (${n}).` : `Stock sent out (${n}).`);
+      setLines([blankLine()]);
       await load();
     } catch (err) {
       console.error(err);
-      toast.error('Could not save the transfer. Nothing was saved.');
+      toast.error(err?.code === 'permission-denied' ? 'Not saved. Stock changed on another phone, or a product is no longer allowed. Refresh and try again.' : 'Could not save the transfer. Nothing was saved.');
     } finally {
       setSubmitting(false);
     }
@@ -217,35 +229,48 @@ export default function Transfers() {
             <datalist id="transfer-parties">{parties.map((p) => <option key={p} value={p} />)}</datalist>
           </label>
 
-          <label className="block">
-            <span className="block text-sm font-semibold text-slate-700 mb-1">Product</span>
-            <input list="transfer-products" value={productName} onChange={(e) => { setProductName(e.target.value); clr('product'); }} maxLength={100} aria-invalid={!!fe.product}
-              className={'w-full px-4 h-12 border border-slate-200 rounded-xl font-medium text-slate-900' + errRing(fe.product)} />
-            <FieldError>{fe.product}</FieldError>
-            <datalist id="transfer-products">{items.filter((i) => i.isActive !== false).map((i) => <option key={i.id} value={i.name} />)}</datalist>
-            {direction === 'in' && productName.trim() && !items.some((i) => (i.name || '').trim().toLowerCase() === productName.trim().toLowerCase()) && (
-              <span className="block text-xs text-blue-600 mt-1">New product. It will be added to your list.</span>
+          <datalist id="transfer-products">{items.filter((i) => i.isActive !== false).map((i) => <option key={i.id} value={i.name} />)}</datalist>
+          <div className="space-y-3">
+            {lines.map((l, idx) => {
+              const hit = l.name.trim() ? findItem(l.name.trim()) : null;
+              const err = fe.lineErrs?.[l.k];
+              return (
+                <div key={l.k} className={cn('rounded-xl border p-3 space-y-2', err ? 'border-rose-300' : 'border-slate-200')}>
+                  <div className="flex items-center gap-2">
+                    <input list="transfer-products" value={l.name} onChange={(e) => setLine(l.k, { name: e.target.value })} maxLength={100}
+                      placeholder={`Product ${idx + 1}`} aria-label={`Product ${idx + 1}`}
+                      className="flex-1 min-w-0 px-3 h-11 border border-slate-200 rounded-lg font-medium text-slate-900" />
+                    {lines.length > 1 && (
+                      <button type="button" aria-label={`Remove product ${idx + 1}`} onClick={() => setLines((x) => x.filter((y) => y.k !== l.k))}
+                        className="shrink-0 w-11 h-11 flex items-center justify-center text-slate-400 active:text-rose-600"><X size={18} /></button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="number" inputMode="decimal" min="0" step="1" value={l.qty} onChange={(e) => setLine(l.k, { qty: e.target.value.slice(0, 8) })}
+                      placeholder="Quantity" aria-label={`Quantity ${idx + 1}`}
+                      className="w-full px-3 h-11 border border-slate-200 rounded-lg font-medium text-slate-900" />
+                    <input type="number" inputMode="decimal" min="0" step="0.01" value={l.price} onChange={(e) => setLine(l.k, { price: e.target.value.slice(0, 10) })}
+                      placeholder="Price each (optional)" aria-label={`Price each ${idx + 1}`}
+                      className="w-full px-3 h-11 border border-slate-200 rounded-lg font-medium text-slate-900" />
+                  </div>
+                  {err ? <p className="text-xs text-rose-600">{err}</p>
+                    : hit && hit.stockCount != null ? <p className="text-xs text-slate-500">{hit.stockCount} in stock</p>
+                    : direction === 'in' && l.name.trim() && !hit ? <p className="text-xs text-blue-600">New product. It will be added to your list.</p> : null}
+                </div>
+              );
+            })}
+            <FieldError>{fe.lines}</FieldError>
+            {lines.length < MAX_LINES && (
+              <button type="button" onClick={() => setLines((x) => [...x, blankLine()])}
+                className="w-full h-11 rounded-xl border border-dashed border-slate-300 text-slate-600 font-semibold flex items-center justify-center gap-1.5 active:bg-slate-50">
+                <Plus size={16} /> Add another product
+              </button>
             )}
-          </label>
-
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className="block text-sm font-semibold text-slate-700 mb-1">Quantity</span>
-              <input type="number" inputMode="decimal" min="0" step="1" value={qty} onChange={(e) => { setQty(e.target.value.slice(0, 8)); clr('qty'); }} aria-invalid={!!fe.qty}
-                className={'w-full px-4 h-12 border border-slate-200 rounded-xl font-medium text-slate-900' + errRing(fe.qty)} />
-              <FieldError>{fe.qty}</FieldError>
-            </label>
-            <label className="block">
-              <span className="block text-sm font-semibold text-slate-700 mb-1">Price each (optional)</span>
-              <input type="number" inputMode="decimal" min="0" step="0.01" value={price} onChange={(e) => { setPrice(e.target.value.slice(0, 10)); clr('price'); }} aria-invalid={!!fe.price}
-                className={'w-full px-4 h-12 border border-slate-200 rounded-xl font-medium text-slate-900' + errRing(fe.price)} />
-              <FieldError>{fe.price}</FieldError>
-            </label>
           </div>
 
           <button type="submit" disabled={submitting}
             className="w-full h-12 rounded-xl bg-blue-600 text-white font-bold active:scale-[0.99] disabled:opacity-50">
-            {submitting ? 'Saving...' : direction === 'in' ? 'Add stock' : 'Send out'}
+            {submitting ? 'Saving...' : direction === 'in' ? 'Add stock' : 'Send out'}{!submitting && lines.filter((l) => l.name.trim()).length > 1 ? ` (${lines.filter((l) => l.name.trim()).length})` : ''}
           </button>
         </form>
 
