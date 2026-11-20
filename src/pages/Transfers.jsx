@@ -61,7 +61,7 @@ export default function Transfers() {
     if (!navigator.onLine) { toast.error('Go online to reverse an entry.'); return; }
     const product = items.find((p) => p.id === t.productId && p.isActive !== false);
     const tracks = product && product.stockCount != null;
-    if (!product) { toast.error('This product was removed. Fix stock by hand in Products.'); return; }
+    if (!product) { toast.error('This product is removed or hidden. Turn it back on in Products, then reverse.'); return; }
     if (tracks && t.direction === 'in' && product.stockCount < t.qty) {
       toast.error(`Only ${product.stockCount} in stock. Cannot take back ${t.qty}.`);
       return;
@@ -102,6 +102,7 @@ export default function Transfers() {
   const summary = useMemo(() => {
     const m = new Map();
     transfers.forEach((t) => {
+      if (t.reversed || t.reversesId) return; // a reversed pair cancels out: not a real movement
       const key = (t.party || '').trim().toLowerCase();
       const row = m.get(key) || { name: (t.party || '').trim(), inQty: 0, outQty: 0, inVal: 0, outVal: 0 };
       const val = (t.unitPrice || 0) * t.qty;
@@ -250,7 +251,7 @@ export default function Transfers() {
 
         {summary.length > 0 && (
           <section aria-label="By shop">
-            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">By shop (latest 100)</h2>
+            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">By shop (latest 100, reversed entries left out)</h2>
             <div className="space-y-2">
               {summary.map((s) => (
                 <div key={s.name.toLowerCase()} className="bg-white border border-slate-200 rounded-xl p-3">
