@@ -41,6 +41,37 @@ export const variantLabel = (options) => Object.values(options || {}).join(' / '
 
 export const comboKey = (options) => JSON.stringify(Object.entries(options || {}));
 
+const isSubset = (small, big) => Object.entries(small).every(([k, v]) => String(big[k] ?? '').toLowerCase() === String(v).toLowerCase());
+
+/**
+ * Stock typed per combination must survive when the options change (colour added, a letter typed, a typo fixed).
+ * Exact matches stay. A combination that gained or lost an option follows its sizes. What is left is paired in order
+ * (a renamed value). Nothing typed is dropped silently.
+ */
+export function remapComboStock(oldCombos, newCombos, stock) {
+  const out = {};
+  const usedOld = new Set();
+  const usedNew = new Set();
+  const has = (k) => stock[k] !== undefined && stock[k] !== '';
+  const nk = newCombos.map(comboKey);
+  oldCombos.forEach((o) => {
+    const k = comboKey(o);
+    if (nk.includes(k)) { if (has(k)) out[k] = stock[k]; usedOld.add(k); usedNew.add(k); }
+  });
+  oldCombos.forEach((o) => {
+    const ok = comboKey(o);
+    if (usedOld.has(ok)) return;
+    const hits = newCombos.filter((n, i) => !usedNew.has(nk[i]) && (isSubset(o, n) || isSubset(n, o)));
+    if (!hits.length) return;
+    hits.forEach((n) => { if (has(ok)) out[comboKey(n)] = stock[ok]; usedNew.add(comboKey(n)); });
+    usedOld.add(ok);
+  });
+  const restOld = oldCombos.filter((o) => !usedOld.has(comboKey(o)));
+  const restNew = newCombos.filter((n) => !usedNew.has(comboKey(n)));
+  if (restOld.length === restNew.length) restOld.forEach((o, i) => { if (has(comboKey(o))) out[comboKey(restNew[i])] = stock[comboKey(o)]; });
+  return out;
+}
+
 export function variantName(baseName, options) {
   const label = variantLabel(options);
   const base = clean(baseName);
