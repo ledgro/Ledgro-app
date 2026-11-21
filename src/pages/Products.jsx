@@ -628,7 +628,8 @@ export default function Products() {
           onAddColour={(options) => {
             const e = colourEdit;
             setColourEditKey(null);
-            openDrawer(null, { groupId: e.groupId, baseName: e.name, options, from: e.rep });
+            // Photos belong to one colour: the new colour starts with none, never the old colour's.
+            openDrawer(null, { groupId: e.groupId, baseName: e.name, options, from: { ...e.rep, hasImage: false } });
           }}
         />
       )}

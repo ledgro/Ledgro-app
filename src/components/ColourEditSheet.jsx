@@ -27,7 +27,7 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose, o
     base: entry.name, colour: entry.colour, price: toText(rep.lastUsedPrice), cost: toText(rep.costPrice), category: rep.category || '',
     lowStock: rep.lowStockAlert != null ? String(rep.lowStockAlert) : '', active: rep.isActive !== false, newSizes: '',
   }));
-  const [rows, setRows] = useState(() => entry.items.map((i) => ({ id: i.id, stock: i.stockCount == null ? '' : String(i.stockCount), remove: false, size: sizeLabelOf(i) })));
+  const [rows, setRows] = useState(() => entry.items.map((i) => ({ id: i.id, stock: i.stockCount == null ? '' : String(i.stockCount), remove: false, size: sizeAxis ? String(i.options?.[sizeAxis] ?? '') : '' })));
   const [newStocks, setNewStocks] = useState({});
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));

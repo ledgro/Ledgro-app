@@ -80,3 +80,14 @@ describe('planColourEdit', () => {
     expect(p.creates[0].name).toBe('Slides - 9');
   });
 });
+
+describe('three options (Size, Width, Colour)', () => {
+  const w = (id, size) => ({ id, groupId: 'g', baseName: 'Hells', name: `Hells - ${size} / Wide / Black`, options: { Size: size, Width: 'Wide', Colour: 'Black' }, lastUsedPrice: 38000, stockCount: 5, unit: 'piece' });
+  const items = [w('1', '6'), w('2', '7')];
+  const ent = { name: 'Hells', colour: 'Black', items, rep: items[0] };
+  it('saving a size row with its real value keeps names unchanged', () => {
+    const p = planColourEdit({ entry: ent, groupItems: items, allItems: items, form: { base: 'Hells', colour: 'Black', price: '380', cost: '', category: '', lowStock: '', active: true, rows: items.map((i) => ({ id: i.id, stock: '5', size: i.options.Size })), newSizes: '' } });
+    expect(p.error).toBeUndefined();
+    expect(p.updates.map((u) => u.data.name)).toEqual(['Hells - 6 / Wide / Black', 'Hells - 7 / Wide / Black']);
+  });
+});
