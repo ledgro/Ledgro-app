@@ -33,3 +33,12 @@ export async function zipFiles(files) {
   files.forEach(({ blob, name }) => zip.file(name, blob));
   return zip.generateAsync({ type: 'blob', compression: 'STORE', mimeType: 'application/zip' });
 }
+
+export const ZIP_PART_SIZE = 100; // a phone holds every picture in memory while zipping, so big sets go in parts
+
+/** Splits files into groups of at most `size`. */
+export const chunk = (list, size = ZIP_PART_SIZE) => {
+  const out = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+};
