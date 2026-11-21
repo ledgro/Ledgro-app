@@ -12,7 +12,7 @@ import { collection, addDoc, doc, updateDoc, deleteDoc, writeBatch, serverTimest
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Drawer } from 'vaul';
-import { PackagePlus, Search, Plus, Archive, ChevronDown, ChevronUp, Edit2, Trash2, Camera, FileDown, LayoutGrid, List, ArrowLeftRight, ArrowDownAZ } from 'lucide-react';
+import { PackagePlus, Search, Plus, Archive, ChevronDown, ChevronUp, Edit2, Trash2, Camera, FileDown, LayoutGrid, List, ArrowLeftRight, ArrowDownAZ, Check, CheckSquare } from 'lucide-react';
 import { formatCurrency, sanitizeText, cn } from '../lib/utils';
 import { sessionGuard } from '../lib/SessionGuard';
 import { useCatalogLoader } from '../hooks/useCatalogLoader';
@@ -28,7 +28,8 @@ import ProductThumb from '../components/ProductThumb';
 import ColourEditSheet from '../components/ColourEditSheet';
 import { compressImage, loadItemImage, saveImage, removeImage, imageKey } from '../lib/productImage';
 import { buildCatalogPdf } from '../lib/catalogPdf';
-import { saveFile } from '../lib/shareFile';
+import { saveFile, shareFiles, isIOS } from '../lib/shareFile';
+import { makeImages, zipFiles, MAX_SHARE_FILES } from '../lib/catalogImages';
 
 const ProductRow = memo(function ProductRow({ item, onOpen }) {
   const tracked = item.stockCount != null;
@@ -121,6 +122,10 @@ export default function Products() {
   const [view, setView] = useState('list');
   const [exporting, setExporting] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState(() => new Set());
+  const [imgProgress, setImgProgress] = useState(null);
+  const cancelRef = useRef(false);
   const [transferOpen, setTransferOpen] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
@@ -507,10 +512,60 @@ export default function Products() {
   const { ref: moreRef, inView: moreInView } = useInView({ rootMargin: '400px' });
   useEffect(() => { if (moreInView) setLim((l) => ({ key: resetKey, n: (l.key === resetKey ? l.n : 40) + 40 })); }, [moreInView, resetKey]);
   const visible = entries.slice(0, limit);
-  const renderEntry = (e) => (e.type === 'colour'
-    ? <ProductColourCard key={e.key} entry={e} onEdit={setColourEdit} />
+  const withSelect = (e, node) => (selectMode ? (
+    <div key={keyOf(e)} className="relative">
+      {node}
+      <button type="button" aria-pressed={selected.has(keyOf(e))} aria-label={`Select ${e.name || e.item?.name}`} onClick={() => toggleSel(keyOf(e))}
+        className="absolute inset-0 z-10 rounded-2xl bg-transparent">
+        <span className={cn('absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full border-2', selected.has(keyOf(e)) ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white/90 text-transparent')}>
+          <Check size={22} aria-hidden="true" />
+        </span>
+      </button>
+    </div>
+  ) : node);
+  const renderEntry = (e) => withSelect(e, e.type === 'colour'
+    ? <ProductColourCard key={e.key} entry={e} onEdit={setColourEdit} onShare={shareOne} />
     : renderProductRow(e.item));
   const renderProductCard = (item) => <ProductCard key={item.id} item={item} onOpen={onOpen} />;
+
+  const keyOf = (e) => e.key || e.item.id;
+  const toggleSel = (k) => setSelected((cur) => { const n = new Set(cur); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const selectedItems = useMemo(() => entries.filter((e) => selected.has(keyOf(e))).flatMap((e) => e.items || [e.item]), [entries, selected]);
+  const endSelect = () => { setSelectMode(false); setSelected(new Set()); };
+
+  // Pictures are drawn one by one; on iOS the share sheet needs a fresh tap, so a toast button offers it after drawing.
+  const exportImages = async ({ items, options, mode }) => {
+    if (imgProgress) return;
+    cancelRef.current = false;
+    setImgProgress({ done: 0, total: 1 });
+    try {
+      const { files, failed, cancelled } = await makeImages({
+        items, options, shopName,
+        getImage: (it) => loadItemImage(shopId, it),
+        onProgress: (done, total) => setImgProgress({ done, total }),
+        isCancelled: () => cancelRef.current,
+      });
+      if (cancelled) { toast('Cancelled.'); return; }
+      if (failed.length) toast.error(`Could not make ${failed.length}: ${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '...' : ''}. The rest are ready.`, { duration: 8000 });
+      if (!files.length) return;
+      const zipIt = async () => saveFile(await zipFiles(files), `Product-Images-${new Date().toISOString().slice(0, 10)}.zip`, 'Product pictures');
+      if (mode === 'zip' || files.length > MAX_SHARE_FILES) { await zipIt(); setExportOpen(false); return; }
+      const r = await shareFiles(files, 'Product pictures');
+      if (r === 'shared' || r === 'cancelled') { if (r === 'shared') setExportOpen(false); return; }
+      if (isIOS()) {
+        toast.success(`${files.length} picture${files.length === 1 ? '' : 's'} ready`, {
+          duration: 30000,
+          action: { label: 'Share', onClick: async () => { if ((await shareFiles(files, 'Product pictures')) === 'unsupported') await zipIt(); } },
+        });
+      } else await zipIt();
+      setExportOpen(false);
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not make the pictures.');
+    } finally { setImgProgress(null); }
+  };
+
+  const shareOne = (entry) => exportImages({ items: entry.items || [entry.item], options: {}, mode: 'share' });
 
   const exportCatalog = async ({ items, options, stock, cats }) => {
     if (!items.length || exporting) return;
@@ -570,7 +625,11 @@ export default function Products() {
             </button>
           )}
           <button type="button" onClick={() => setExportOpen(true)} disabled={!activeProducts.length} className="press glass-btn-flat flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-bold disabled:opacity-50">
-            <FileDown size={15} aria-hidden="true" /> PDF
+            <FileDown size={15} aria-hidden="true" /> Export
+          </button>
+          <button type="button" onClick={() => (selectMode ? endSelect() : setSelectMode(true))} disabled={!activeProducts.length} aria-pressed={selectMode}
+            className={cn('press flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-bold disabled:opacity-50', selectMode ? 'bg-blue-600 text-white shadow-md' : 'glass-btn-flat')}>
+            <CheckSquare size={15} aria-hidden="true" /> Select
           </button>
         </div>
         {filterOptions.length > 2 && <div className="mt-2"><CategoryChips options={filterOptions} value={filter} onChange={setFilter} /></div>}
@@ -591,7 +650,7 @@ export default function Products() {
           </div>
         ) : (
           view === 'grid'
-            ? <div className="rise-list grid grid-cols-2 gap-4">{visible.map((e) => (e.type === 'colour' ? <div key={e.key} className="col-span-2">{renderEntry(e)}</div> : renderProductCard(e.item)))}</div>
+            ? <div className="rise-list grid grid-cols-2 gap-4">{visible.map((e) => (e.type === 'colour' ? <div key={e.key} className="col-span-2">{renderEntry(e)}</div> : withSelect(e, renderProductCard(e.item))))}</div>
             : <div className="rise-list">{visible.map(renderEntry)}</div>
         )}
         {entries.length > limit && <div ref={moreRef} className="py-6 text-center text-sm font-semibold text-slate-400">Loading more...</div>}
@@ -867,10 +926,20 @@ export default function Products() {
         </Drawer.Portal>
       </Drawer.Root>
 
-      <CatalogExportSheet open={exportOpen} onClose={() => setExportOpen(false)} items={activeProducts} busy={exporting} onExport={exportCatalog} />
+      <CatalogExportSheet open={exportOpen} onClose={() => { if (!imgProgress) setExportOpen(false); }} items={selectMode && selected.size ? selectedItems : activeProducts} selectedCount={selectMode ? selected.size : 0} busy={exporting} onExport={exportCatalog} onExportImages={exportImages} progress={imgProgress} onCancel={() => { cancelRef.current = true; }} />
 
       {isAdmin && <CatalogTransferSheet open={transferOpen} onClose={() => setTransferOpen(false)} items={catalogItems} shopId={shopId} shopName={shopName} uid={user?.uid} onAdded={(list) => list.forEach(addCatalogItem)} />}
 
+      {selectMode && (
+        <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-[44rem] items-center gap-2 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
+          <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">{selected.size} selected</span>
+          <button type="button" onClick={() => setSelected(selected.size === entries.length ? new Set() : new Set(entries.map(keyOf)))} className="h-11 rounded-xl bg-slate-100 px-3 text-sm font-bold text-slate-800">
+            {selected.size === entries.length ? 'Clear' : `Select all (${entries.length})`}
+          </button>
+          <button type="button" disabled={!selected.size} onClick={() => setExportOpen(true)} className="h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white disabled:opacity-40">Export</button>
+          <button type="button" onClick={endSelect} className="h-11 rounded-xl px-3 text-sm font-bold text-slate-600">Cancel</button>
+        </div>
+      )}
       <BottomNav />
     </div>
   );

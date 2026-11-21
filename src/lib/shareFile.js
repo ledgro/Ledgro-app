@@ -115,3 +115,29 @@ export async function canvasToPdfBlob(canvas) {
   pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, wMm, hMm);
   return pdf.output('blob');
 }
+
+/** Share several files at once (WhatsApp takes up to 30). Returns 'shared' | 'cancelled' | 'unsupported'. */
+export async function shareFiles(files, title = '') {
+  if (!files.length) return 'cancelled';
+  if (isNative) {
+    try {
+      const [{ Filesystem, Directory }, { Share }] = await Promise.all([import('@capacitor/filesystem'), import('@capacitor/share')]);
+      const uris = [];
+      for (const { blob, name } of files) {
+        const data = await new Promise((resolve, reject) => { const r = new FileReader(); r.onloadend = () => resolve(String(r.result).split(',')[1]); r.onerror = reject; r.readAsDataURL(blob); });
+        const { uri } = await Filesystem.writeFile({ path: name, data, directory: Directory.Cache });
+        uris.push(uri);
+      }
+      try { await Share.share({ title, files: uris, dialogTitle: title || 'Share' }); return 'shared'; } catch (err) {
+        if (/cancel/i.test(`${err?.message || ''}`)) return 'cancelled';
+        throw err;
+      }
+    } catch (err) { console.error('native share failed', err); return 'unsupported'; }
+  }
+  const list = files.map(({ blob, name }) => new File([blob], name, { type: blob.type }));
+  if (!(navigator.canShare && navigator.canShare({ files: list }))) return 'unsupported';
+  try { await navigator.share({ files: list, title }); return 'shared'; } catch (err) {
+    if (err?.name === 'AbortError') return 'cancelled';
+    return 'unsupported';
+  }
+}
