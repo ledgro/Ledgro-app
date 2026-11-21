@@ -2,6 +2,9 @@ import { rs } from './reportExport';
 import { colourOf, colourKey, colourLabel, sizeLabelOf } from './variants';
 
 /** One entry per product and colour: sizes of the same shoe are folded into a single card. */
+/** Stock like 0.1 + 0.2 must not print as a long decimal. */
+export const roundQty = (n) => Math.round(Number(n) * 100) / 100;
+
 export function groupCatalog(items) {
   const map = new Map();
   items.forEach((it) => {
@@ -22,8 +25,8 @@ export function groupCatalog(items) {
       min: Math.min(...prices),
       max: Math.max(...prices),
       unit: first.unit,
-      variants: first.groupId ? list.map((i) => ({ label: sizeLabelOf(i), qty: i.stockCount == null ? null : Math.max(0, i.stockCount), out: i.stockCount != null && i.stockCount <= 0 })) : [],
-      stock: tracked.length ? tracked.reduce((a, i) => a + Math.max(0, i.stockCount), 0) : null,
+      variants: first.groupId ? list.map((i) => ({ label: sizeLabelOf(i), qty: i.stockCount == null ? null : roundQty(Math.max(0, i.stockCount)), out: i.stockCount != null && i.stockCount <= 0 })) : [],
+      stock: tracked.length ? roundQty(tracked.reduce((a, i) => a + Math.max(0, i.stockCount), 0)) : null,
     };
   }).sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
 }
@@ -43,14 +46,15 @@ export async function buildCatalogPdf({ shopName, items, getImage, subtitle = ''
   const cols = o.photos ? 3 : 4;
   const gap = 5;
   const cw = (W - 2 * M - gap * (cols - 1)) / cols;
-  const ih = o.photos ? cw * 0.9 : 0;
+  const ih = o.photos ? cw : 0; // photos are stored square, so the box is square too (nothing squashed)
   const perRow = cols === 3 ? 4 : 5;
   const chipGap = 1.2;
   const chipW = (cw - 4 - chipGap * (perRow - 1)) / perRow;
   const chipH = o.stock ? 9 : 6;
   const maxChipRows = o.sizes ? Math.max(0, ...products.map((p) => Math.ceil(p.variants.length / perRow))) : 0;
   const chipBlock = maxChipRows ? maxChipRows * (chipH + chipGap) + 1 : 0;
-  const ch = (o.photos ? ih + 4 : 5) + 10 + (o.prices ? 4.5 : o.stock ? 4 : 0) + chipBlock + 2;
+  const NAME_H = 8.5; // always two lines of room, so prices and chips line up across a row
+  const ch = (o.photos ? ih + 4 : 5) + NAME_H + 2 + (o.prices ? 4.5 : o.stock ? 4 : 0) + chipBlock + 2;
   const today = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
   const head = () => {
@@ -102,7 +106,7 @@ export async function buildCatalogPdf({ shopName, items, getImage, subtitle = ''
     pdf.setTextColor(15, 23, 42); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9);
     const nameLines = pdf.splitTextToSize(p.name, cw - 4).slice(0, 2);
     pdf.text(nameLines, x + 2, ty);
-    ty += nameLines.length * 4 + 2;
+    ty += NAME_H + 2;
 
     if (o.prices) {
       pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11); pdf.setTextColor(30, 64, 175);
@@ -125,7 +129,11 @@ export async function buildCatalogPdf({ shopName, items, getImage, subtitle = ''
         else { pdf.setFillColor(239, 246, 255); pdf.setDrawColor(191, 219, 254); }
         pdf.roundedRect(cx, cy, chipW, chipH, 1, 1, 'FD');
         const dim = v.out && o.stock;
-        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8);
+        pdf.setFont('helvetica', 'bold');
+        // Shrink long labels ("UK 8", "6-7 yrs") until they fit inside the chip.
+        let fs = 8;
+        pdf.setFontSize(fs);
+        while (fs > 4.5 && pdf.getTextWidth(String(v.label)) > chipW - 1) { fs -= 0.5; pdf.setFontSize(fs); }
         pdf.setTextColor(dim ? 160 : 15, dim ? 170 : 23, dim ? 180 : 42);
         pdf.text(String(v.label), cx + chipW / 2, cy + (o.stock ? 3.9 : 4.2), { align: 'center' });
         if (o.stock) {

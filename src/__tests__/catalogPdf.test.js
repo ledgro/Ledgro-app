@@ -26,3 +26,11 @@ describe('groupCatalog by colour', () => {
     expect(out[0].variants).toEqual([{ label: '37', qty: 10, out: false }, { label: '38', qty: 0, out: true }]);
   });
 });
+
+describe('roundQty', () => {
+  it('does not print float noise', async () => {
+    const { roundQty } = await import('../lib/catalogPdf');
+    expect(roundQty(0.1 + 0.2)).toBe(0.3);
+    expect(roundQty(5)).toBe(5);
+  });
+});
