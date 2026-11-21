@@ -30,6 +30,7 @@ import { compressImage, loadItemImage, saveImage, removeImage, imageKey } from '
 import { buildCatalogPdf } from '../lib/catalogPdf';
 import { saveFile, shareFiles, canShareFilesHere } from '../lib/shareFile';
 import { isNative } from '../lib/native';
+import { draftKey, saveDraft, loadDraft, clearDraft, sameDay } from '../lib/productDraft';
 import { makeImages, zipFiles, chunk, MAX_SHARE_FILES } from '../lib/catalogImages';
 
 const ProductRow = memo(function ProductRow({ item, onOpen }) {
@@ -118,6 +119,7 @@ export default function Products() {
   const [convert, setConvert] = useState(false);
   const [photo, setPhoto] = useState(null); // data URL shown in the form
   const [photoDirty, setPhotoDirty] = useState(false);
+  const [draftNote, setDraftNote] = useState(false); // 'Draft restored' banner
   const [cropFile, setCropFile] = useState(null); // picked photo waiting to be cropped
   const [viewPhoto, setViewPhoto] = useState(false);
   const [view, setView] = useState('list');
@@ -189,9 +191,52 @@ export default function Products() {
       .filter(item => item.name?.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [catalogItems, searchQuery]);
 
+  // A New Product form is kept on this phone while you type, so closing it or reloading the app does not lose it.
+  const isNewForm = !editingItem && !joinGroup;
+  const dKey = draftKey(shopId, user?.uid);
+  const collectDraft = () => ({ name, price, unit, stockCount, lowStockAlert, category, description, source, costPrice, isActive, hasVariants, axes, comboStock, photo });
+  useEffect(() => {
+    if (!isDrawerOpen || !isNewForm || !dKey) return undefined;
+    const t = setTimeout(() => saveDraft(dKey, collectDraft()), 500);
+    return () => clearTimeout(t);
+    // collectDraft reads exactly the fields listed here
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDrawerOpen, isNewForm, dKey, name, price, unit, stockCount, lowStockAlert, category, description, source, costPrice, isActive, hasVariants, axes, comboStock, photo]);
+
+  const applyDraft = (d) => {
+    setName(d.name || ''); setPrice(d.price || ''); setUnit(d.unit || 'piece'); setStockCount(d.stockCount || '');
+    setLowStockAlert(d.lowStockAlert || ''); setCategory(d.category || ''); setDescription(d.description || ''); setSource(d.source || '');
+    setCostPrice(d.costPrice || ''); setIsActive(d.isActive !== false); setHasVariants(!!d.hasVariants);
+    if (Array.isArray(d.axes) && d.axes.length) setAxes(d.axes.map((a) => ({ name: String(a.name ?? ''), values: String(a.values ?? '') })));
+    setComboStock(d.comboStock && typeof d.comboStock === 'object' ? d.comboStock : {});
+    if (d.photo) { setPhoto(d.photo); setPhotoDirty(true); }
+    setDirty(true);
+    setDraftNote(true);
+  };
+  const offerDraft = async () => {
+    const d = loadDraft(dKey);
+    if (!d) return;
+    if (!sameDay(d.savedAt)) {
+      const when = new Date(d.savedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+      const keep = await confirm({ title: 'Continue your old draft?', message: `You started "${d.name || 'a product'}" on ${when}.`, confirmText: 'Continue', cancelText: 'Start fresh' });
+      if (!keep) { clearDraft(dKey); return; }
+    }
+    applyDraft(d);
+  };
+  const discardDraft = async () => {
+    if (submitting) return;
+    if (!(await confirm({ title: 'Discard this draft?', message: 'What you entered will be lost.', confirmText: 'Discard', cancelText: 'Keep editing', danger: true }))) return;
+    clearDraft(dKey);
+    setDraftNote(false);
+    setDirty(false);
+    setIsDrawerOpen(false);
+    toast('Draft discarded');
+  };
+
   /** Close the sheet; if anything was typed, ask before throwing it away. */
   const requestClose = async () => {
     if (submitting) return;
+    if (isNewForm && dKey) { saveDraft(dKey, collectDraft()); if (dirty) toast('Draft saved'); setIsDrawerOpen(false); return; }
     if (dirty && !(await confirm({ title: 'Discard changes?', message: 'What you entered will be lost.', confirmText: 'Discard', cancelText: 'Keep editing', danger: true }))) return;
     if (dirty) toast('Discarded');
     setIsDrawerOpen(false);
@@ -206,6 +251,7 @@ export default function Products() {
     setPhoto(null);
     setPhotoDirty(false);
     setComboStock({});
+    setDraftNote(false);
     setOptionEdits(item?.options ? { ...item.options } : {});
     // Adding to an existing product: keep its colour (and any other axis) filled in, only the size is typed fresh.
     setAxes(group ? Object.keys(group.options || {}).map((k) => ({ name: k, values: /^sizes?$/i.test(k.trim()) ? '' : String(group.options[k] ?? '') })) : [{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
@@ -236,6 +282,7 @@ export default function Products() {
     const pic = group ? group.from : item;
     if (pic?.hasImage) loadItemImage(shopId, pic).then((d) => setPhoto((cur) => cur ?? d));
     setIsDrawerOpen(true);
+    if (!src && !item && !group) offerDraft();
   };
 
   const handleSaveProduct = async (e) => {
@@ -451,6 +498,7 @@ export default function Products() {
         toast.success('Product added');
       }
 
+      if (isNewForm) { clearDraft(dKey); setDraftNote(false); }
       setIsDrawerOpen(false);
     } catch (err) {
       console.error(err);
@@ -726,6 +774,7 @@ export default function Products() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 pb-6 relative">
+              {draftNote && <p className="mb-3 rounded-xl bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700" role="status">Draft restored. Tap Discard at the bottom to start fresh.</p>}
               <form id="product-form" noValidate onSubmit={handleSaveProduct} onChange={() => setDirty(true)} className="space-y-6">
 
                 <div className="space-y-4">
@@ -927,7 +976,7 @@ export default function Products() {
 
               <div className="sheet-foot mt-8 flex gap-2 pb-safe">
                 {editingItem && <button type="button" aria-label="Delete product" onClick={handleDeleteProduct} disabled={submitting} className="press flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600 disabled:opacity-50"><Trash2 size={20} /></button>}
-                {dirty && <button type="button" onClick={requestClose} disabled={submitting} className="press h-12 rounded-xl bg-slate-100 px-4 text-sm font-bold text-slate-700 disabled:opacity-50">Discard</button>}
+                {(dirty || draftNote) && <button type="button" onClick={isNewForm ? discardDraft : requestClose} disabled={submitting} className="press h-12 rounded-xl bg-slate-100 px-4 text-sm font-bold text-slate-700 disabled:opacity-50">Discard</button>}
                 <button type="submit" form="product-form" disabled={submitting || !name.trim() || !price} className="press flex h-12 flex-1 items-center justify-center rounded-xl bg-blue-600 font-bold text-white shadow-sm disabled:opacity-50">
                   {submitting ? 'Saving...' : (editingItem ? 'Update' : 'Save product')}
                 </button>
