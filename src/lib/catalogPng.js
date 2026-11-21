@@ -27,17 +27,22 @@ export function cardLayout(card, o, W = CARD_W, H = CARD_H) {
   const chipRows = sizes.length ? Math.ceil(sizes.length / COLS) : 0;
   const chipH = o.stock ? (chipRows >= 3 ? 112 : 132) : (chipRows >= 3 ? 80 : 92);
   const chipBlock = chipRows ? chipRows * chipH + (chipRows - 1) * GAP : 0;
-  const nameH = NAME_LINE * 2; // always two lines of room so cards line up
-  const priceH = o.prices ? 80 : 0;
   const footerH = 56;
-  const gaps = 24 + 20 + (chipRows ? 28 : 0);
-  const photoH = Math.max(MIN_PHOTO, H - PAD - footerH - chipBlock - priceH - nameH - gaps - PAD);
+  const photoGap = o.photos ? 24 : 0;
+  const nameTop = 0.8 * NAME_LINE; // first baseline below the photo gap
+  const afterName = nameTop + NAME_LINE; // second line baseline (two lines of room, so cards line up)
+  const priceOff = afterName + 72; // price baseline
+  const chipsOff = (o.prices ? priceOff + 40 : afterName + 24);
+  const tail = (chips) => (chips ? chipsOff + chipBlock : (o.prices ? priceOff : afterName));
+  const used = photoGap + tail(sizes.length > 0);
+  const photoH = Math.max(MIN_PHOTO, H - PAD - footerH - PAD - used);
   const photo = { x: PAD, y: PAD, w: W - 2 * PAD, h: o.photos ? photoH : 0 };
-  const nameY = photo.y + photo.h + (o.photos ? 24 : 0) + NAME_LINE * 0.8;
-  const priceY = nameY + NAME_LINE + NAME_LINE * 0.2 + 20 + 40;
-  const chipsY = priceY + (o.prices ? 28 : 0) + (chipRows ? 12 : 0);
+  const top = photo.y + photo.h + photoGap;
+  const nameY = top + nameTop;
+  const priceY = top + priceOff;
+  const chipsY = top + chipsOff;
   const chips = sizes.map((v, k) => ({ v, x: PAD + (k % COLS) * (chipW + GAP), y: chipsY + Math.floor(k / COLS) * (chipH + GAP), w: chipW, h: chipH }));
-  const bottom = chips.length ? chipsY + chipBlock : priceY;
+  const bottom = top + tail(sizes.length > 0);
   return { photo, nameY, priceY, chips, chipH, bottom, fits: bottom <= H - PAD - footerH + 1 };
 }
 

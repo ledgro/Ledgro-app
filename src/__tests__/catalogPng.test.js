@@ -6,10 +6,10 @@ const measure = (t, fs) => t.length * fs * 0.5;
 
 describe('cardLayout', () => {
   it('fits 1 to 20 sizes, with and without stock', () => {
-    for (const stock of [false, true]) for (let n = 0; n <= 20; n++) {
-      const L = cardLayout(card(n), { ...defaultImageOptions, stock });
+    for (const stock of [false, true]) for (const prices of [true, false]) for (const photos of [true, false]) for (let n = 0; n <= 20; n++) {
+      const L = cardLayout(card(n), { ...defaultImageOptions, stock, prices, photos });
       expect(L.fits).toBe(true);
-      expect(L.photo.h).toBeGreaterThanOrEqual(240);
+      if (photos) expect(L.photo.h).toBeGreaterThanOrEqual(240);
       L.chips.forEach((c) => { expect(c.x + c.w).toBeLessThanOrEqual(CARD_W); expect(c.y + c.h).toBeLessThanOrEqual(CARD_H); });
     }
   });

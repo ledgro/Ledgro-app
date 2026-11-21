@@ -141,3 +141,11 @@ export async function shareFiles(files, title = '') {
     return 'unsupported';
   }
 }
+
+/** True when this browser can hand several files to the share sheet. */
+export const canShareFilesHere = (files) => {
+  try {
+    const list = files.map(({ blob, name }) => new File([blob], name, { type: blob.type }));
+    return !!(navigator.canShare && navigator.canShare({ files: list }));
+  } catch { return false; }
+};

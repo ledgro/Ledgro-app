@@ -28,8 +28,9 @@ import ProductThumb from '../components/ProductThumb';
 import ColourEditSheet from '../components/ColourEditSheet';
 import { compressImage, loadItemImage, saveImage, removeImage, imageKey } from '../lib/productImage';
 import { buildCatalogPdf } from '../lib/catalogPdf';
-import { saveFile, shareFiles, isIOS } from '../lib/shareFile';
-import { makeImages, zipFiles, MAX_SHARE_FILES } from '../lib/catalogImages';
+import { saveFile, shareFiles, canShareFilesHere } from '../lib/shareFile';
+import { isNative } from '../lib/native';
+import { makeImages, zipFiles, chunk, MAX_SHARE_FILES } from '../lib/catalogImages';
 
 const ProductRow = memo(function ProductRow({ item, onOpen }) {
   const tracked = item.stockCount != null;
@@ -530,7 +531,9 @@ export default function Products() {
 
   const keyOf = (e) => e.key || e.item.id;
   const toggleSel = (k) => setSelected((cur) => { const n = new Set(cur); if (n.has(k)) n.delete(k); else n.add(k); return n; });
-  const selectedItems = useMemo(() => entries.filter((e) => selected.has(keyOf(e))).flatMap((e) => e.items || [e.item]), [entries, selected]);
+  // Only cards in the current list count: if the search or category changed, hidden picks are ignored.
+  const selectedEntries = useMemo(() => entries.filter((e) => selected.has(keyOf(e))), [entries, selected]);
+  const selectedItems = useMemo(() => selectedEntries.flatMap((e) => e.items || [e.item]), [selectedEntries]);
   const endSelect = () => { setSelectMode(false); setSelected(new Set()); };
 
   // Pictures are drawn one by one; on iOS the share sheet needs a fresh tap, so a toast button offers it after drawing.
@@ -548,16 +551,25 @@ export default function Products() {
       if (cancelled) { toast('Cancelled.'); return; }
       if (failed.length) toast.error(`Could not make ${failed.length}: ${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '...' : ''}. The rest are ready.`, { duration: 8000 });
       if (!files.length) return;
-      const zipIt = async () => saveFile(await zipFiles(files), `Product-Images-${new Date().toISOString().slice(0, 10)}.zip`, 'Product pictures');
-      if (mode === 'zip' || files.length > MAX_SHARE_FILES) { await zipIt(); setExportOpen(false); return; }
+      const day = new Date().toISOString().slice(0, 10);
+      // One picture is saved as a plain PNG. Several go in a ZIP, in parts of 100 so the phone is not overloaded.
+      const saveAll = async () => {
+        if (files.length === 1) { await saveFile(files[0].blob, files[0].name, 'Product picture'); return; }
+        const parts = chunk(files);
+        for (let k = 0; k < parts.length; k++) {
+          await saveFile(await zipFiles(parts[k]), `Product-Images-${day}${parts.length > 1 ? `-part-${k + 1}-of-${parts.length}` : ''}.zip`, 'Product pictures');
+        }
+      };
+      if (mode === 'zip' || files.length > MAX_SHARE_FILES) { await saveAll(); setExportOpen(false); return; }
       const r = await shareFiles(files, 'Product pictures');
       if (r === 'shared' || r === 'cancelled') { if (r === 'shared') setExportOpen(false); return; }
-      if (isIOS()) {
+      // Drawing took seconds, so the browser no longer accepts a share. Offer a fresh tap where sharing exists, else save.
+      if (!isNative && canShareFilesHere(files)) {
         toast.success(`${files.length} picture${files.length === 1 ? '' : 's'} ready`, {
           duration: 30000,
-          action: { label: 'Share', onClick: async () => { if ((await shareFiles(files, 'Product pictures')) === 'unsupported') await zipIt(); } },
+          action: { label: 'Share', onClick: async () => { if ((await shareFiles(files, 'Product pictures')) === 'unsupported') await saveAll(); } },
         });
-      } else await zipIt();
+      } else await saveAll();
       setExportOpen(false);
     } catch (err) {
       console.error(err);
@@ -635,7 +647,7 @@ export default function Products() {
         {filterOptions.length > 2 && <div className="mt-2"><CategoryChips options={filterOptions} value={filter} onChange={setFilter} /></div>}
       </header>
 
-      <main className="p-4 flex-1">
+      <main className={cn('p-4 flex-1', selectMode && 'pb-28')}>
         {activeProducts.length === 0 ? (
           <div className="flex flex-col items-center px-6 pt-16 text-center">
             <span className="glass-card mb-5 flex h-20 w-20 items-center justify-center rounded-full text-slate-400"><PackagePlus size={34} aria-hidden="true" /></span>
@@ -926,17 +938,17 @@ export default function Products() {
         </Drawer.Portal>
       </Drawer.Root>
 
-      <CatalogExportSheet open={exportOpen} onClose={() => { if (!imgProgress) setExportOpen(false); }} items={selectMode && selected.size ? selectedItems : activeProducts} selectedCount={selectMode ? selected.size : 0} busy={exporting} onExport={exportCatalog} onExportImages={exportImages} progress={imgProgress} onCancel={() => { cancelRef.current = true; }} />
+      <CatalogExportSheet open={exportOpen} onClose={() => { if (!imgProgress) setExportOpen(false); }} items={selectMode && selectedEntries.length ? selectedItems : activeProducts} selectedCount={selectMode ? selectedEntries.length : 0} busy={exporting} onExport={exportCatalog} onExportImages={exportImages} progress={imgProgress} onCancel={() => { cancelRef.current = true; }} />
 
       {isAdmin && <CatalogTransferSheet open={transferOpen} onClose={() => setTransferOpen(false)} items={catalogItems} shopId={shopId} shopName={shopName} uid={user?.uid} onAdded={(list) => list.forEach(addCatalogItem)} />}
 
       {selectMode && (
-        <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-[44rem] items-center gap-2 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
-          <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">{selected.size} selected</span>
-          <button type="button" onClick={() => setSelected(selected.size === entries.length ? new Set() : new Set(entries.map(keyOf)))} className="h-11 rounded-xl bg-slate-100 px-3 text-sm font-bold text-slate-800">
-            {selected.size === entries.length ? 'Clear' : `Select all (${entries.length})`}
+        <div className="fixed inset-x-0 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-[44rem] items-center gap-2 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
+          <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">{selectedEntries.length} selected</span>
+          <button type="button" onClick={() => setSelected(selectedEntries.length === entries.length ? new Set() : new Set(entries.map(keyOf)))} className="h-11 rounded-xl bg-slate-100 px-3 text-sm font-bold text-slate-800">
+            {selectedEntries.length === entries.length ? 'Clear' : `Select all (${entries.length})`}
           </button>
-          <button type="button" disabled={!selected.size} onClick={() => setExportOpen(true)} className="h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white disabled:opacity-40">Export</button>
+          <button type="button" disabled={!selectedEntries.length} onClick={() => setExportOpen(true)} className="h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white disabled:opacity-40">Export</button>
           <button type="button" onClick={endSelect} className="h-11 rounded-xl px-3 text-sm font-bold text-slate-600">Cancel</button>
         </div>
       )}
