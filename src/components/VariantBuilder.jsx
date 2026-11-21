@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MAX_AXES, MAX_COMBOS, buildCombos, comboKey, variantLabel } from '../lib/variants';
+import { MAX_AXES, MAX_COMBOS, buildCombos, comboKey, variantLabel, remapComboStock } from '../lib/variants';
 
 const field = 'w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900';
 
@@ -11,7 +11,11 @@ export function VariantBuilder({ axes, setAxes, comboStock, setComboStock }) {
     setComboStock(Object.fromEntries(combos.map((opts) => [comboKey(opts), sameStock])));
   };
   const tooMany = combos.length > MAX_COMBOS;
-  const setAxis = (i, patch) => setAxes(axes.map((a, idx) => (idx === i ? { ...a, ...patch } : a)));
+  const setAxis = (i, patch) => {
+    const next = axes.map((a, idx) => (idx === i ? { ...a, ...patch } : a));
+    setComboStock(remapComboStock(combos, buildCombos(next), comboStock));
+    setAxes(next);
+  };
 
   return (
     <div className="space-y-3">
