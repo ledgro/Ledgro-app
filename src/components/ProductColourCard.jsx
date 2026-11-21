@@ -1,5 +1,5 @@
 import { memo, useRef, useState } from 'react';
-import { Camera } from 'lucide-react';
+import { Camera, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -21,7 +21,7 @@ const tone = (it) => {
 };
 
 /** One product in one colour: its own photo (change it here, other colours are untouched) and its sizes. */
-function ProductColourCard({ entry, onEdit }) {
+function ProductColourCard({ entry, onEdit, onShare }) {
   const { shopId, user } = useAuth();
   const addItem = useCatalogStore((s) => s.addItem);
   const [busy, setBusy] = useState(false);
@@ -113,6 +113,7 @@ function ProductColourCard({ entry, onEdit }) {
           <p className="mt-1 text-sm font-extrabold text-blue-600">{min === max ? formatCurrency(min) : `${formatCurrency(min)} - ${formatCurrency(max)}`}</p>
           <p className="text-xs text-slate-500">{items.length} size{items.length === 1 ? '' : 's'}{tracked.length ? ` · ${total} in stock` : ''}</p>
           </button>
+          {onShare && <button type="button" onClick={() => onShare(entry)} aria-label={`Share picture of ${name} ${colour}`} className="mt-1 mr-3 inline-flex h-11 items-center gap-1 text-xs font-bold text-blue-600"><Share2 size={14} aria-hidden="true" /> Share picture</button>}
           {hasPhoto && <button type="button" onClick={onRemove} disabled={busy} className="mt-1 text-xs font-bold text-red-600">Remove photo</button>}
         </div>
       </div>
