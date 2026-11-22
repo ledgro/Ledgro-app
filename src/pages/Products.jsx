@@ -217,14 +217,15 @@ export default function Products() {
   const offerDraft = async () => {
     const d = loadDraft(dKey);
     if (!d) return;
-    if (!sameDay(d.savedAt)) {
-      holdDraft.current = true;
-      const when = new Date(d.savedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-      const keep = await confirm({ title: 'Continue your old draft?', message: `You started "${d.name || 'a product'}" on ${when}.`, confirmText: 'Continue', cancelText: 'Start fresh' });
-      if (!keep) { clearDraft(dKey); holdDraft.current = false; return; }
-    }
-    applyDraft(d);
-    holdDraft.current = false;
+    try {
+      if (!sameDay(d.savedAt)) {
+        holdDraft.current = true;
+        const when = new Date(d.savedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+        const keep = await confirm({ title: 'Continue your old draft?', message: `You started "${d.name || 'a product'}" on ${when}.`, confirmText: 'Continue', cancelText: 'Start fresh' });
+        if (!keep) { clearDraft(dKey); return; }
+      }
+      applyDraft(d);
+    } finally { holdDraft.current = false; }
   };
   const discardDraft = async () => {
     if (submitting) return;
@@ -682,6 +683,9 @@ export default function Products() {
           <button type="button" onClick={() => setView(view === 'list' ? 'grid' : 'list')} className="press glass-btn-flat flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-bold">
             {view === 'list' ? <LayoutGrid size={15} aria-hidden="true" /> : <List size={15} aria-hidden="true" />}{view === 'list' ? 'Grid' : 'List'}
           </button>
+          <a href="#/transfers" className="press glass-btn-flat flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-bold">
+            <PackagePlus size={15} aria-hidden="true" /> Stock in/out
+          </a>
           {isAdmin && (
             <button type="button" onClick={() => setTransferOpen(true)} className="press glass-btn-flat flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-bold">
               <ArrowLeftRight size={15} aria-hidden="true" /> Import / export
