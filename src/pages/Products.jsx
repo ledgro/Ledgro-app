@@ -194,10 +194,11 @@ export default function Products() {
   // A New Product form is kept on this phone while you type, so closing it or reloading the app does not lose it.
   const isNewForm = !editingItem && !joinGroup;
   const dKey = draftKey(shopId, user?.uid);
+  const holdDraft = useRef(false); // true while the 'old draft' question is open, so an empty form never overwrites it
   const collectDraft = () => ({ name, price, unit, stockCount, lowStockAlert, category, description, source, costPrice, isActive, hasVariants, axes, comboStock, photo });
   useEffect(() => {
     if (!isDrawerOpen || !isNewForm || !dKey) return undefined;
-    const t = setTimeout(() => saveDraft(dKey, collectDraft()), 500);
+    const t = setTimeout(() => { if (!holdDraft.current) saveDraft(dKey, collectDraft()); }, 500);
     return () => clearTimeout(t);
     // collectDraft reads exactly the fields listed here
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -217,11 +218,13 @@ export default function Products() {
     const d = loadDraft(dKey);
     if (!d) return;
     if (!sameDay(d.savedAt)) {
+      holdDraft.current = true;
       const when = new Date(d.savedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
       const keep = await confirm({ title: 'Continue your old draft?', message: `You started "${d.name || 'a product'}" on ${when}.`, confirmText: 'Continue', cancelText: 'Start fresh' });
-      if (!keep) { clearDraft(dKey); return; }
+      if (!keep) { clearDraft(dKey); holdDraft.current = false; return; }
     }
     applyDraft(d);
+    holdDraft.current = false;
   };
   const discardDraft = async () => {
     if (submitting) return;

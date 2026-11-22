@@ -250,7 +250,9 @@ export default function Expenses() {
 
   const handleDeleteExpense = async (id) => {
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
-    if (!(await confirm({ title: 'Delete expense?', message: 'This expense will be removed.', confirmText: 'Delete', danger: true }))) return;
+    const target = expenses.find((e) => e.id === id);
+    const what = target ? `"${target.description || 'Expense'}" (₹${(Number(target.amount || 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })})` : 'This expense';
+    if (!(await confirm({ title: 'Delete expense?', message: `${what} will be removed and today's totals adjusted. It cannot be restored.`, confirmText: 'Delete', danger: true }))) return;
     const previousExpenses = [...expenses];
     setExpenses(prev => prev.filter(e => e.id !== id));
 
