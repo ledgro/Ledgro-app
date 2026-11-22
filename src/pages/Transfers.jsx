@@ -5,6 +5,7 @@ import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, incre
 import { ArrowDownToLine, ArrowUpFromLine, Undo2, Plus, X } from 'lucide-react';
 import { confirm } from '../lib/confirm';
 import { db } from '../firebase';
+import { logActivity } from '../lib/audit';
 import { useAuth } from '../context/AuthContext';
 import { loadCatalog } from '../lib/catalogSync';
 import { useCatalogStore } from '../store/catalogStore';
@@ -89,6 +90,7 @@ export default function Transfers() {
         reversesId: t.id, creatorId: user.uid, createdAt: serverTimestamp(),
       });
       batch.update(doc(db, `shops/${shopId}/transfers/${t.id}`), { reversed: true });
+      logActivity(batch, shopId, user.uid, { action: 'stock_change', note: `Reversed ${t.direction === 'in' ? 'in' : 'out'}: ${t.qty} ${t.name}${t.party ? ` (${t.party})` : ''}` });
       await batch.commit();
       toast.success('Reversed.');
       await load();
@@ -187,6 +189,10 @@ export default function Transfers() {
           creatorId: user.uid, createdAt: serverTimestamp(),
         });
       });
+      // One activity-log line per transfer, so the owner sees who moved stock. Same batch: it saves with the transfer or not at all.
+      const summary = parsed.map((p) => `${p.name} ${p.qtyNum}`).join(', ');
+      const totalCost = parsed.reduce((sum, p) => sum + (p.priceNum !== null ? Math.round(p.priceNum * 100) * p.qtyNum : 0), 0);
+      logActivity(batch, shopId, user.uid, { action: 'stock_change', amount: totalCost, note: `${direction === 'in' ? 'Received from' : 'Sent to'} ${cleanParty}: ${summary}` });
       await batch.commit();
       const n = parsed.length;
       if (created) toast.success(`${n} saved. ${created} new product${created > 1 ? 's' : ''} added: set selling price in Products.`, { duration: 6000 });

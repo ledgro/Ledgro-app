@@ -252,7 +252,7 @@ export default function Expenses() {
     if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was saved.'); return; }
     const target = expenses.find((e) => e.id === id);
     const what = target ? `"${target.description || 'Expense'}" (₹${(Number(target.amount || 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })})` : 'This expense';
-    if (!(await confirm({ title: 'Delete expense?', message: `${what} will be removed and today's totals adjusted. It cannot be restored.`, confirmText: 'Delete', danger: true }))) return;
+    if (!(await confirm({ title: 'Delete expense?', message: `${what} will be removed and the totals adjusted. It cannot be restored.`, confirmText: 'Delete', danger: true }))) return;
     const previousExpenses = [...expenses];
     setExpenses(prev => prev.filter(e => e.id !== id));
 
