@@ -26,7 +26,8 @@ export function planColourEdit({ entry, groupItems, allItems, form }) {
   if (!base) return { error: 'Enter the product name.' };
   const price = Number(form.price);
   if (form.price === '' || !Number.isFinite(price) || price < 0) return { error: 'Enter a valid price.' };
-  const cost = num(form.cost);
+  const hasCost = form.cost !== undefined; // staff never get the cost box, so their edits leave cost alone
+  const cost = hasCost ? num(form.cost) : null;
   if (cost !== null && (!Number.isFinite(cost) || cost < 0)) return { error: 'Enter a valid cost price.' };
   const low = num(form.lowStock);
   if (low !== null && (!Number.isFinite(low) || low < 0)) return { error: 'Enter a valid low stock alert.' };
@@ -50,7 +51,7 @@ export function planColourEdit({ entry, groupItems, allItems, form }) {
   const removes = entry.items.filter((i) => rowById.get(i.id)?.remove).map((i) => i.id);
 
   const common = {
-    lastUsedPrice: Math.round(price * 100), costPrice: cost === null ? null : Math.round(cost * 100),
+    lastUsedPrice: Math.round(price * 100), ...(hasCost ? { costPrice: cost === null ? null : Math.round(cost * 100) } : {}),
     category: clean(form.category).slice(0, 40), lowStockAlert: low, isActive: form.active !== false,
   };
   const optionsFor = (item, sizeLabel) => {

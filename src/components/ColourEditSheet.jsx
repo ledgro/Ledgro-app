@@ -5,6 +5,8 @@ import { Trash2, Undo2 } from 'lucide-react';
 import { doc, collection, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
+import { costFields, putCost } from '../lib/costs';
+import { useCostStore } from '../store/costStore';
 import { useCatalogStore } from '../store/catalogStore';
 import { sheetStyle } from '../hooks/useKeyboardInset';
 import { planColourEdit, axesOf } from '../lib/colourEdit';
@@ -22,9 +24,11 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose, o
   const addItem = useCatalogStore((s) => s.addItem);
   const removeItem = useCatalogStore((s) => s.removeItem);
   const rep = entry.rep;
+  const costMap = useCostStore((s) => s.costs);
+  const setCostLocal = useCostStore((s) => s.setOne);
   const { colourAxis, sizeAxis } = useMemo(() => axesOf(entry.items), [entry.items]);
   const [f, setF] = useState(() => ({
-    base: entry.name, colour: entry.colour, price: toText(rep.lastUsedPrice), cost: toText(rep.costPrice), category: rep.category || '',
+    base: entry.name, colour: entry.colour, price: toText(rep.lastUsedPrice), cost: isAdmin ? toText(costFields(rep, costMap).costPrice) : undefined, category: rep.category || '',
     lowStock: rep.lowStockAlert != null ? String(rep.lowStockAlert) : '', active: rep.isActive !== false, newSizes: '',
   }));
   const [rows, setRows] = useState(() => entry.items.map((i) => ({ id: i.id, stock: i.stockCount == null ? '' : String(i.stockCount), remove: false, size: sizeAxis ? String(i.options?.[sizeAxis] ?? '') : '' })));
@@ -59,6 +63,11 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose, o
         else if (u.stockSet !== undefined) data.stockCount = u.stockSet;
         ops.push((b) => b.update(col(u.id), data));
         const cur = catalog.find((i) => i.id === u.id);
+        if (isAdmin && 'costPrice' in u.data) {
+          const src = costFields(cur || { id: u.id }, costMap).source;
+          ops.push((b) => putCost(b, shopId, u.id, { costPrice: u.data.costPrice, source: src }));
+          mirror.push(() => setCostLocal(u.id, { costPrice: u.data.costPrice, source: src }));
+        }
         if (cur) mirror.push(() => addItem({ ...cur, ...u.data, stockCount: u.stockAfter, updatedBy: user.uid }));
       });
       plan.removes.forEach((id) => {
@@ -69,6 +78,11 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose, o
       plan.creates.forEach((c) => {
         const ref = doc(collection(db, `shops/${shopId}/catalog`));
         ops.push((b) => b.set(ref, { ...c, createdBy: user.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+        if (isAdmin && 'costPrice' in c) {
+          const src = costFields(rep, costMap).source;
+          ops.push((b) => putCost(b, shopId, ref.id, { costPrice: c.costPrice, source: src }));
+          mirror.push(() => setCostLocal(ref.id, { costPrice: c.costPrice, source: src }));
+        }
         mirror.push(() => addItem({ ...c, id: ref.id, createdBy: user.uid, createdAt: new Date(), updatedAt: new Date() }));
       });
       for (let i = 0; i < ops.length; i += 15) {
@@ -124,10 +138,12 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose, o
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Price (all sizes)</label>
                   <input className={field} type="number" inputMode="decimal" step="0.01" value={f.price} onChange={set('price')} />
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Cost price</label>
-                  <input className={field} type="number" inputMode="decimal" step="0.01" value={f.cost} onChange={set('cost')} />
-                </div>
+                {isAdmin && (
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Cost price</label>
+                    <input className={field} type="number" inputMode="decimal" step="0.01" value={f.cost} onChange={set('cost')} />
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

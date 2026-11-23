@@ -572,6 +572,30 @@ d('firestore.rules', () => {
     });
   });
 
+  describe('costs (owner-only purchase data)', () => {
+    const path = `shops/${SHOP}/costs/c1`;
+    const cost = (extra = {}) => ({ costPrice: 58000, source: 'VIBBRO', updatedAt: serverTimestamp(), ...extra });
+    it('admin can write and read; staff can neither read nor write; outsider neither', async () => {
+      await assertSucceeds(setDoc(doc(as(ADMIN), path), cost()));
+      await assertSucceeds(getDoc(doc(as(ADMIN), path)));
+      await assertFails(getDoc(doc(as(MEMBER), path)));
+      await assertFails(getDocs(query(collection(as(MEMBER), `shops/${SHOP}/costs`), limit(10))));
+      await assertFails(setDoc(doc(as(MEMBER), `shops/${SHOP}/costs/c2`), cost()));
+      await assertFails(updateDoc(doc(as(MEMBER), path), { costPrice: 1, updatedAt: serverTimestamp() }));
+      await assertFails(deleteDoc(doc(as(MEMBER), path)));
+      await assertFails(getDoc(doc(as(OUTSIDER), path)));
+      await assertFails(setDoc(doc(as(OUTSIDER), `shops/${SHOP}/costs/c3`), cost()));
+    });
+    it('admin writes are validated: no extra fields, no negative cost, source length, server time', async () => {
+      await assertFails(setDoc(doc(as(ADMIN), `shops/${SHOP}/costs/x1`), cost({ extra: 1 })));
+      await assertFails(setDoc(doc(as(ADMIN), `shops/${SHOP}/costs/x2`), cost({ costPrice: -5 })));
+      await assertFails(setDoc(doc(as(ADMIN), `shops/${SHOP}/costs/x3`), cost({ source: 'x'.repeat(61) })));
+      await assertFails(setDoc(doc(as(ADMIN), `shops/${SHOP}/costs/x4`), cost({ updatedAt: Timestamp.fromMillis(1000) })));
+      await assertSucceeds(setDoc(doc(as(ADMIN), `shops/${SHOP}/costs/x5`), cost({ costPrice: null, source: '' })));
+      await assertSucceeds(deleteDoc(doc(as(ADMIN), `shops/${SHOP}/costs/x5`)));
+    });
+  });
+
   describe('transfers', () => {
     const tr = (uid, extra = {}) => ({ direction: 'in', party: 'VIBBRO', productId: 'c1', name: 'Heels shoe', qty: 3, unitPrice: 58000, creatorId: uid, createdAt: serverTimestamp(), ...extra });
     const col = `shops/${SHOP}/transfers`;

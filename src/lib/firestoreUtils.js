@@ -51,7 +51,7 @@ export async function deleteCollectionPaged(collectionPath, pageSize = DELETE_PA
  * Only valid when the caller is the sole admin AND sole member
  * (that is the only case firestore.rules allow it).
  */
-const STEP_LABEL = { bills: 'bills', expenses: 'expenses', catalog: 'products', dailyClosures: 'cash counts', dailyStats: 'totals', transfers: 'transfers', memberProfiles: 'names', errorLogs: 'error logs', photos: 'photos', catalogImages: 'photos', staffCash: 'staff cash', billCounters: 'bill numbers', auditLogs: 'activity log', staffPeople: 'salaries' };
+const STEP_LABEL = { bills: 'bills', expenses: 'expenses', catalog: 'products', dailyClosures: 'cash counts', dailyStats: 'totals', transfers: 'transfers', costs: 'costs', memberProfiles: 'names', errorLogs: 'error logs', photos: 'photos', catalogImages: 'photos', staffCash: 'staff cash', billCounters: 'bill numbers', auditLogs: 'activity log', staffPeople: 'salaries' };
 
 /**
  * Photos are big (up to 70 KB each), so listing them to delete is slow. Their ids come from the catalog items,
@@ -123,7 +123,7 @@ export async function deleteShopCascade(shopId, onStep) {
     let n = 0;
     return deleteCollectionPaged(`shops/${shopId}/${sub}`, size, () => { n += size; tick(); if (sub === 'catalog') say(`${n}+ gone`); });
   });
-  const others = ['bills', 'expenses', 'dailyClosures', 'dailyStats', 'transfers', 'memberProfiles', 'errorLogs', 'staffCash', 'billCounters', 'auditLogs', 'staffPeople'];
+  const others = ['bills', 'expenses', 'costs', 'dailyClosures', 'dailyStats', 'transfers', 'memberProfiles', 'errorLogs', 'staffCash', 'billCounters', 'auditLogs', 'staffPeople'];
   const tasks = [
     collection_('catalog', 50),
     run('photos', (tick) => deleteImagesFast(shopId, tick)),

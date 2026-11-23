@@ -91,3 +91,16 @@ describe('three options (Size, Width, Colour)', () => {
     expect(p.updates.map((u) => u.data.name)).toEqual(['Hells - 6 / Wide / Black', 'Hells - 7 / Wide / Black']);
   });
 });
+
+describe('cost is owner-only', () => {
+  it('a form without a cost box leaves cost alone on every size', () => {
+    const f = form(); delete f.cost;
+    const p = plan(f);
+    expect(p.error).toBeUndefined();
+    p.updates.forEach((u) => expect('costPrice' in u.data).toBe(false));
+  });
+  it('a form with a cost box still writes it', () => {
+    const p = plan(form({ cost: '250' }));
+    p.updates.forEach((u) => expect(u.data.costPrice).toBe(25000));
+  });
+});
