@@ -1,0 +1,46 @@
+name: Make Android signing key (run once)
+
+# Manual, one-time. Creates the key that signs the Ledgro APK. Needs one secret first:
+#   ANDROID_KEYSTORE_PASSWORD  (a long password you choose; never reuse another one)
+# It prints only the public fingerprint. The key file is password-protected and offered as a
+# one-day download for you to store safely. After you save it, delete the artifact and the run.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  make-key:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create key
+        env:
+          STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          set -eu
+          if [ "${#STORE_PASS}" -lt 12 ]; then
+            echo "Set secret ANDROID_KEYSTORE_PASSWORD first (at least 12 characters)."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/out"
+          keytool -genkeypair -keystore "$RUNNER_TEMP/out/ledgro.keystore" -storetype PKCS12 \
+            -alias ledgro -keyalg RSA -keysize 4096 -validity 10000 \
+            -dname "CN=Ledgro, O=Ledgro, C=IN" \
+            -storepass:env STORE_PASS -keypass:env STORE_PASS
+          base64 -w 0 "$RUNNER_TEMP/out/ledgro.keystore" > "$RUNNER_TEMP/out/ledgro.keystore.base64.txt"
+          FP=$(keytool -list -v -keystore "$RUNNER_TEMP/out/ledgro.keystore" -alias ledgro -storepass:env STORE_PASS | grep 'SHA256:' | head -1 | sed 's/.*SHA256: //')
+          {
+            echo "### Key made"
+            echo "Alias: \`ledgro\`"
+            echo "SHA-256 fingerprint (public, goes in assetlinks.json):"
+            echo "\`$FP\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Offer the key as a one-day download
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ledgro-android-key
+          path: ${{ runner.temp }}/out/*
+          retention-days: 1
+          if-no-files-found: error
