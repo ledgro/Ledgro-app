@@ -5,6 +5,9 @@ import { ChevronLeft, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
+import { costFields } from '../lib/costs';
+import { useCostStore } from '../store/costStore';
+import { useCostsLoader } from '../hooks/useCostsLoader';
 import { useCatalogStore } from '../store/catalogStore';
 import { useNameOf } from '../lib/memberNames';
 import { bizDate, bizDayStart, dayKey } from '../lib/statsMath';
@@ -45,7 +48,10 @@ const Row = ({ left, sub, right }) => (
 
 /** Owner and staff reports. All of them can be saved as a PDF. */
 export default function Reports() {
-  const { shopId, shopName, user } = useAuth();
+  const { shopId, shopName, user, shopAdminId } = useAuth();
+  const isAdmin = user?.uid === shopAdminId;
+  useCostsLoader(shopId, isAdmin);
+  const costMap = useCostStore((s) => s.costs);
   const navigate = useNavigate();
   const nameOf = useNameOf(shopId, user?.uid);
   const catalog = useCatalogStore((s) => s.items);
@@ -84,8 +90,8 @@ export default function Reports() {
   const slow = useMemo(() => deadStock(catalog, bills || [], 50), [catalog, bills]);
   const returns = useMemo(() => returnsByProduct(bills || [], 30), [bills]);
   const stock = useMemo(() => (catalog || []).filter((c) => c.id && c.isActive !== false && !c.deleted && typeof c.stockCount === 'number')
-    .map((c) => ({ name: c.name, qty: c.stockCount, cost: Number(c.costPrice) || 0, price: Number(c.lastUsedPrice) || 0, low: c.lowStockAlert != null && c.stockCount <= c.lowStockAlert }))
-    .sort((a, b) => a.name.localeCompare(b.name)), [catalog]);
+    .map((c) => ({ name: c.name, qty: c.stockCount, cost: Number(costFields(c, isAdmin ? costMap : null).costPrice) || 0, price: Number(c.lastUsedPrice) || 0, low: c.lowStockAlert != null && c.stockCount <= c.lowStockAlert }))
+    .sort((a, b) => a.name.localeCompare(b.name)), [catalog, costMap, isAdmin]);
   const staff = useMemo(() => {
     const m = new Map();
     (bills || []).filter((b) => (b.type || 'sale') === 'sale').forEach((b) => {

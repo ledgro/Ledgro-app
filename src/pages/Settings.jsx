@@ -3,7 +3,10 @@ import { normalizePhone } from '../lib/phone';
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore';
+import { useCatalogStore } from '../store/catalogStore';
+import { useCostStore } from '../store/costStore';
+import { planCostMove, runCostMove } from '../lib/costs';
 import { db } from '../firebase';
 import { fetchAllPaged, flushPendingWrites } from '../lib/firestoreUtils';
 import { rebuildStats } from '../lib/dayStats';
@@ -181,15 +184,45 @@ export default function Settings() {
     }
   };
 
-  const handleBackupJson = async () => {
-    if (!shopId) return;
+  const [movingCosts, setMovingCosts] = useState(false);
+
+  /** Step 1 of keeping cost and supplier away from staff: copy them to the owner-only place. Old fields stay. Safe to run twice. */
+  const handleMoveCosts = async () => {
+    if (!shopId || !isOwner || movingCosts) return;
+    if (!navigator.onLine) { toast.error('You are offline. Reconnect and try again. Nothing was changed.'); return; }
+    setMovingCosts(true);
+    try {
+      const snap = await getDocs(collection(db, `shops/${shopId}/costs`));
+      const existing = {};
+      snap.docs.forEach((d) => { const v = d.data(); existing[d.id] = { costPrice: v.costPrice ?? null, source: v.source || '' }; });
+      const rows = planCostMove(useCatalogStore.getState().items, existing);
+      if (!rows.length) { useCostStore.getState().setAll(shopId, existing); toast.success('Nothing to move. Every cost is already in the owner-only place.'); return; }
+      const ok = await confirm({ title: `Move ${rows.length} product cost${rows.length === 1 ? '' : 's'}?`, message: 'A backup file downloads first. Then cost price and supplier are copied to a place staff cannot read. The old values stay where they are, so nothing is lost. You can run this again.', confirmText: 'Back up and move' });
+      if (!ok) return;
+      if (!(await handleBackupJson(true))) { toast.error('Backup failed, so nothing was moved.'); return; }
+      const n = await runCostMove(shopId, rows);
+      const merged = { ...existing };
+      rows.forEach((r) => { merged[r.id] = { costPrice: r.costPrice, source: r.source }; });
+      useCostStore.getState().setAll(shopId, merged);
+      toast.success(`${n} product cost${n === 1 ? '' : 's'} moved.`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Move stopped. Run it again to finish; products already moved are skipped.');
+    } finally { setMovingCosts(false); }
+  };
+
+  const handleBackupJson = async (withProducts = false) => {
+    if (!shopId) return false;
     try {
       const data = await loadAllForExport();
+      if (withProducts) data.products = useCatalogStore.getState().items.map((i) => ({ ...i }));
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       await saveFile(blob, `ledgro-backup-${Date.now()}.json`, 'Ledgro backup');
+      return true;
     } catch (err) {
       console.error(err);
       toast.error('Backup failed. Check connection.');
+      return false;
     }
   };
 
@@ -473,8 +506,13 @@ export default function Settings() {
               </button>
             )}
             {isAdmin && (
-              <button onClick={handleBackupJson} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors text-sm">
+              <button onClick={() => handleBackupJson()} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors text-sm">
                 Download bills & expenses (JSON)
+              </button>
+            )}
+            {isOwner && (
+              <button onClick={handleMoveCosts} disabled={movingCosts} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors text-sm disabled:opacity-60">
+                {movingCosts ? 'Moving costs...' : 'Move costs to owner-only storage'}
               </button>
             )}
             <button onClick={handleClearCache} className="w-full bg-slate-50 text-slate-700 font-bold h-12 rounded-xl border border-slate-200 active:bg-slate-100 transition-colors text-sm">

@@ -4,16 +4,21 @@ import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore
 import { ArrowRightLeft } from 'lucide-react';
 import { db } from '../firebase';
 import { useCatalogStore } from '../store/catalogStore';
+import { useCostStore } from '../store/costStore';
+import { useCostsLoader } from '../hooks/useCostsLoader';
+import { putCost, withCosts } from '../lib/costs';
 import { saveFile } from '../lib/shareFile';
 import { buildProductsExport, parseProductsExport, planImport, toPayload } from '../lib/moveData';
 import { logActivity } from '../lib/audit';
 
-const BATCH = 400;
+const BATCH = 200; // each new product is two writes (product + owner-only cost), and a batch holds 500
 const btn = 'w-full h-12 rounded-xl font-bold';
 
 /** Owner only. Move products to another shop through a file, with a preview before anything is written. */
 export default function MoveData({ shopId, uid }) {
-  const items = useCatalogStore((s) => s.items);
+  useCostsLoader(shopId, true); // this panel is owner-only
+  const costMap = useCostStore((s) => s.costs);
+  const items = withCosts(useCatalogStore((s) => s.items), costMap);
   const addItem = useCatalogStore((s) => s.addItem);
   const [stock, setStock] = useState(false);
   const [cost, setCost] = useState(false);
@@ -66,6 +71,7 @@ export default function MoveData({ shopId, uid }) {
           if (kind === 'new') {
             const ref = doc(collection(db, `shops/${shopId}/catalog`));
             batch.set(ref, toPayload(x, { groupFor, uid, serverTimestamp }));
+            if (x.cost != null || String(x.source || '').trim()) putCost(batch, shopId, ref.id, { costPrice: x.cost, source: x.source });
             created.push({ ...toPayload(x, { groupFor, uid, serverTimestamp: () => new Date() }), id: ref.id });
           } else {
             batch.update(doc(db, `shops/${shopId}/catalog`, x.existing.id), { lastUsedPrice: x.incoming.price, updatedBy: uid, updatedAt: serverTimestamp() });

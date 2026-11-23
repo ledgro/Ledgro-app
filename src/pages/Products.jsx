@@ -30,6 +30,9 @@ import { compressImage, loadItemImage, saveImage, removeImage, imageKey } from '
 import { buildCatalogPdf } from '../lib/catalogPdf';
 import { saveFile, shareFiles, canShareFilesHere } from '../lib/shareFile';
 import { isNative } from '../lib/native';
+import { putCost, costFields, withCosts } from '../lib/costs';
+import { useCostStore } from '../store/costStore';
+import { useCostsLoader } from '../hooks/useCostsLoader';
 import { draftKey, saveDraft, loadDraft, clearDraft, sameDay } from '../lib/productDraft';
 import { makeImages, zipFiles, chunk, MAX_SHARE_FILES } from '../lib/catalogImages';
 
@@ -89,6 +92,10 @@ export default function Products() {
   useCatalogLoader(shopId);
 
   const isAdmin = user?.uid === shopAdminId;
+  useCostsLoader(shopId, isAdmin);
+  const costMap = useCostStore((st) => st.costs);
+  const setCostLocal = useCostStore((st) => st.setOne);
+  // Cost and supplier come from the owner-only collection, falling back to the old product fields until moved.
 
   const [searchQuery, setSearchQuery] = useState(() => new URLSearchParams(window.location.hash.split('?')[1] || '').get('q') || '');
   const [showInactive, setShowInactive] = useState(false);
@@ -268,8 +275,9 @@ export default function Products() {
       setLowStockAlert(src.lowStockAlert?.toString() || '');
       setCategory(src.category || '');
       setDescription(src.description || '');
-      setSource(src.source || '');
-      setCostPrice(src.costPrice != null ? (src.costPrice / 100).toString() : '');
+      const cf = costFields(src, isAdmin ? costMap : null);
+      setSource(cf.source || '');
+      setCostPrice(cf.costPrice != null ? (cf.costPrice / 100).toString() : '');
       setIsActive(src.isActive !== false);
     } else {
       setName('');
@@ -356,8 +364,8 @@ export default function Products() {
         lowStockAlert: alertNum,
         category: normalizedCategory,
         description: sanitizeText(description.trim()),
-        source: sanitizeText(source.trim()).slice(0, 60),
-        costPrice: costNum !== null ? Math.round(costNum * 100) : null,
+        // Staff never see or send cost and supplier; the owner's copy lives in the owner-only collection (and, until step 2, here too).
+        ...(isAdmin ? { source: sanitizeText(source.trim()).slice(0, 60), costPrice: costNum !== null ? Math.round(costNum * 100) : null } : {}),
         isActive: isActive,
         updatedAt: serverTimestamp(),
         ...variantFields,
@@ -394,11 +402,13 @@ export default function Products() {
         // Price and stock changes are written to the activity log together with the edit itself.
         const wb = writeBatch(db);
         wb.update(docRef, payload);
+        if (isAdmin) putCost(wb, shopId, editingItem.id, { costPrice: basePayload.costPrice, source: basePayload.source });
         const oldPrice = Number(editingItem.lastUsedPrice) || 0;
         const newPrice = Number(basePayload.lastUsedPrice) || 0;
         if (oldPrice !== newPrice) logActivity(wb, shopId, user.uid, { action: 'price_change', amount: newPrice, note: `${editingItem.name}: ${formatCurrency(oldPrice)} to ${formatCurrency(newPrice)}` });
         if (stockNum !== null && editingItem.stockCount != null && stockNum !== editingItem.stockCount) logActivity(wb, shopId, user.uid, { action: 'stock_change', amount: 0, note: `${editingItem.name}: ${editingItem.stockCount} to ${stockNum} pairs` });
         await wb.commit();
+        if (isAdmin) setCostLocal(editingItem.id, { costPrice: basePayload.costPrice, source: basePayload.source });
 
         addCatalogItem({
           ...editingItem,
@@ -470,7 +480,9 @@ export default function Products() {
           batch.set(ref, payload);
           created.push({ ...payload, id: ref.id, createdAt: new Date(), updatedAt: new Date() });
         }
+        if (isAdmin) created.forEach((c) => putCost(batch, shopId, c.id, { costPrice: basePayload.costPrice, source: basePayload.source }));
         await batch.commit();
+        if (isAdmin) created.forEach((c) => setCostLocal(c.id, { costPrice: basePayload.costPrice, source: basePayload.source }));
         created.forEach((c) => addCatalogItem(c));
         await persistPhoto(created.map((c) => imageKey(c)));
         toast.success(fresh.length === 1 ? 'Variant added' : `${fresh.length} variants added`);
@@ -491,6 +503,14 @@ export default function Products() {
         const collectionRef = collection(db, `shops/${shopId}/catalog`);
         const newDocRef = await addDoc(collectionRef, payload);
         const newId = newDocRef.id;
+        if (isAdmin) {
+          try {
+            const cb = writeBatch(db);
+            putCost(cb, shopId, newId, { costPrice: basePayload.costPrice, source: basePayload.source });
+            await cb.commit();
+            setCostLocal(newId, { costPrice: basePayload.costPrice, source: basePayload.source });
+          } catch (e) { console.warn('Cost not saved to the owner-only place; the product copy still has it', e); }
+        }
 
         addCatalogItem({
           ...payload,
@@ -893,6 +913,7 @@ export default function Products() {
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Inventory</h3>
 
+                  {isAdmin && (<>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Bought from (optional)</label>
                     <input
@@ -910,6 +931,7 @@ export default function Products() {
                     />
                     <FieldError>{fe.cost}</FieldError>
                   </div>
+                  </>)}
 
                   {!hasVariants && (
                   <div>
@@ -996,7 +1018,7 @@ export default function Products() {
 
       <CatalogExportSheet open={exportOpen} onClose={() => { if (!imgProgress) setExportOpen(false); }} items={selectMode && selectedEntries.length ? selectedItems : activeProducts} selectedCount={selectMode ? selectedEntries.length : 0} busy={exporting} onExport={exportCatalog} onExportImages={exportImages} progress={imgProgress} onCancel={() => { cancelRef.current = true; }} />
 
-      {isAdmin && <CatalogTransferSheet open={transferOpen} onClose={() => setTransferOpen(false)} items={catalogItems} shopId={shopId} shopName={shopName} uid={user?.uid} onAdded={(list) => list.forEach(addCatalogItem)} />}
+      {isAdmin && <CatalogTransferSheet open={transferOpen} onClose={() => setTransferOpen(false)} items={withCosts(catalogItems, costMap)} shopId={shopId} shopName={shopName} uid={user?.uid} onAdded={(list) => list.forEach(addCatalogItem)} />}
 
       {selectMode && (
         <div className="fixed inset-x-0 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-[44rem] items-center gap-2 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">

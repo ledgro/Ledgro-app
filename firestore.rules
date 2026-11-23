@@ -436,6 +436,18 @@ service cloud.firestore {
         allow delete: if isAdmin(shopId);
       }
 
+      // Owner-only purchase data (cost price and supplier), kept away from staff. Step 1 of moving it out of /catalog:
+      // the app writes both places and reads from here first. /catalog still allows the old fields until step 2.
+      match /costs/{productId} {
+        allow read: if isAdmin(shopId);
+        allow create, update: if isAdmin(shopId)
+          && request.resource.data.keys().hasOnly(['costPrice', 'source', 'updatedAt'])
+          && (request.resource.data.get('costPrice', null) == null || (request.resource.data.costPrice is number && request.resource.data.costPrice >= 0))
+          && isValidString(request.resource.data.get('source', ''), 0, 60)
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if isAdmin(shopId);
+      }
+
       match /catalog/{productId} {
         allow read: if isMember(shopId);
         allow create: if isMember(shopId)

@@ -6,6 +6,7 @@ import { db } from '../firebase';
 import { sheetStyle } from '../hooks/useKeyboardInset';
 import { saveFile } from '../lib/shareFile';
 import { buildCatalogCsv, buildCatalogBackup, parseCatalogFile, planImport } from '../lib/catalogTransfer';
+import { putCost } from '../lib/costs';
 import { loadItemImage, saveImage, imageKey, reencodeDataUrl } from '../lib/productImage';
 
 const day = () => new Date().toISOString().slice(0, 10);
@@ -69,6 +70,7 @@ export default function CatalogTransferSheet({ open, onClose, items, shopId, sho
         const part = plan.creates.slice(i, i + 15).map((c) => {
           const ref = doc(collection(db, `shops/${shopId}/catalog`));
           batch.set(ref, { ...c.payload, createdBy: uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+          if (c.payload.costPrice != null || String(c.payload.source || '').trim()) putCost(batch, shopId, ref.id, { costPrice: c.payload.costPrice, source: c.payload.source });
           return { ref, c };
         });
         await batch.commit();

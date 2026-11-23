@@ -6,6 +6,7 @@ import { ArrowDownToLine, ArrowUpFromLine, Undo2, Plus, X } from 'lucide-react';
 import { confirm } from '../lib/confirm';
 import { db } from '../firebase';
 import { logActivity } from '../lib/audit';
+import { putCost } from '../lib/costs';
 import { useAuth } from '../context/AuthContext';
 import { loadCatalog } from '../lib/catalogSync';
 import { useCatalogStore } from '../store/catalogStore';
@@ -183,6 +184,8 @@ export default function Transfers() {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
+          // The owner's private copy of what this cost and who it came from (staff cannot write it).
+          if (isAdmin) putCost(batch, shopId, ref.id, { costPrice: unitPrice, source: cleanParty });
         }
         batch.set(doc(collection(db, `shops/${shopId}/transfers`)), {
           direction, party: cleanParty, productId: catalogId, name, qty: qtyNum, unitPrice,
