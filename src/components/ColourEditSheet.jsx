@@ -26,6 +26,7 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose, o
   const rep = entry.rep;
   const costMap = useCostStore((s) => s.costs);
   const setCostLocal = useCostStore((s) => s.setOne);
+  const costsLoaded = useCostStore((s) => s.loaded);
   const { colourAxis, sizeAxis } = useMemo(() => axesOf(entry.items), [entry.items]);
   const [f, setF] = useState(() => ({
     base: entry.name, colour: entry.colour, price: toText(rep.lastUsedPrice), cost: isAdmin ? toText(costFields(rep, costMap).costPrice) : undefined, category: rep.category || '',
@@ -63,7 +64,7 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose, o
         else if (u.stockSet !== undefined) data.stockCount = u.stockSet;
         ops.push((b) => b.update(col(u.id), data));
         const cur = catalog.find((i) => i.id === u.id);
-        if (isAdmin && 'costPrice' in u.data) {
+        if (isAdmin && costsLoaded && 'costPrice' in u.data) {
           const src = costFields(cur || { id: u.id }, costMap).source;
           ops.push((b) => putCost(b, shopId, u.id, { costPrice: u.data.costPrice, source: src }));
           mirror.push(() => setCostLocal(u.id, { costPrice: u.data.costPrice, source: src }));
@@ -78,7 +79,7 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose, o
       plan.creates.forEach((c) => {
         const ref = doc(collection(db, `shops/${shopId}/catalog`));
         ops.push((b) => b.set(ref, { ...c, createdBy: user.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }));
-        if (isAdmin && 'costPrice' in c) {
+        if (isAdmin && costsLoaded && 'costPrice' in c) {
           const src = costFields(rep, costMap).source;
           ops.push((b) => putCost(b, shopId, ref.id, { costPrice: c.costPrice, source: src }));
           mirror.push(() => setCostLocal(ref.id, { costPrice: c.costPrice, source: src }));

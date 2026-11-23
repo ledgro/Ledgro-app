@@ -95,6 +95,9 @@ export default function Products() {
   useCostsLoader(shopId, isAdmin);
   const costMap = useCostStore((st) => st.costs);
   const setCostLocal = useCostStore((st) => st.setOne);
+  // Until the owner-only costs have loaded, the form may show old values: don't write that copy then (the product copy still gets it, and Move costs picks it up).
+  const costsLoaded = useCostStore((st) => st.loaded);
+  const writeCosts = isAdmin && costsLoaded;
   // Cost and supplier come from the owner-only collection, falling back to the old product fields until moved.
 
   const [searchQuery, setSearchQuery] = useState(() => new URLSearchParams(window.location.hash.split('?')[1] || '').get('q') || '');
@@ -402,13 +405,13 @@ export default function Products() {
         // Price and stock changes are written to the activity log together with the edit itself.
         const wb = writeBatch(db);
         wb.update(docRef, payload);
-        if (isAdmin) putCost(wb, shopId, editingItem.id, { costPrice: basePayload.costPrice, source: basePayload.source });
+        if (writeCosts) putCost(wb, shopId, editingItem.id, { costPrice: basePayload.costPrice, source: basePayload.source });
         const oldPrice = Number(editingItem.lastUsedPrice) || 0;
         const newPrice = Number(basePayload.lastUsedPrice) || 0;
         if (oldPrice !== newPrice) logActivity(wb, shopId, user.uid, { action: 'price_change', amount: newPrice, note: `${editingItem.name}: ${formatCurrency(oldPrice)} to ${formatCurrency(newPrice)}` });
         if (stockNum !== null && editingItem.stockCount != null && stockNum !== editingItem.stockCount) logActivity(wb, shopId, user.uid, { action: 'stock_change', amount: 0, note: `${editingItem.name}: ${editingItem.stockCount} to ${stockNum} pairs` });
         await wb.commit();
-        if (isAdmin) setCostLocal(editingItem.id, { costPrice: basePayload.costPrice, source: basePayload.source });
+        if (writeCosts) setCostLocal(editingItem.id, { costPrice: basePayload.costPrice, source: basePayload.source });
 
         addCatalogItem({
           ...editingItem,
@@ -480,9 +483,9 @@ export default function Products() {
           batch.set(ref, payload);
           created.push({ ...payload, id: ref.id, createdAt: new Date(), updatedAt: new Date() });
         }
-        if (isAdmin) created.forEach((c) => putCost(batch, shopId, c.id, { costPrice: basePayload.costPrice, source: basePayload.source }));
+        if (writeCosts) created.forEach((c) => putCost(batch, shopId, c.id, { costPrice: basePayload.costPrice, source: basePayload.source }));
         await batch.commit();
-        if (isAdmin) created.forEach((c) => setCostLocal(c.id, { costPrice: basePayload.costPrice, source: basePayload.source }));
+        if (writeCosts) created.forEach((c) => setCostLocal(c.id, { costPrice: basePayload.costPrice, source: basePayload.source }));
         created.forEach((c) => addCatalogItem(c));
         await persistPhoto(created.map((c) => imageKey(c)));
         toast.success(fresh.length === 1 ? 'Variant added' : `${fresh.length} variants added`);
@@ -503,7 +506,7 @@ export default function Products() {
         const collectionRef = collection(db, `shops/${shopId}/catalog`);
         const newDocRef = await addDoc(collectionRef, payload);
         const newId = newDocRef.id;
-        if (isAdmin) {
+        if (writeCosts) {
           try {
             const cb = writeBatch(db);
             putCost(cb, shopId, newId, { costPrice: basePayload.costPrice, source: basePayload.source });

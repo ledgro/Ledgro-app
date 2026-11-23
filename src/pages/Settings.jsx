@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { doc, getDoc, updateDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore';
-import { useCatalogStore } from '../store/catalogStore';
 import { useCostStore } from '../store/costStore';
 import { planCostMove, runCostMove } from '../lib/costs';
 import { db } from '../firebase';
@@ -195,8 +194,13 @@ export default function Settings() {
       const snap = await getDocs(collection(db, `shops/${shopId}/costs`));
       const existing = {};
       snap.docs.forEach((d) => { const v = d.data(); existing[d.id] = { costPrice: v.costPrice ?? null, source: v.source || '' }; });
-      const rows = planCostMove(useCatalogStore.getState().items, existing);
-      if (!rows.length) { useCostStore.getState().setAll(shopId, existing); toast.success('Nothing to move. Every cost is already in the owner-only place.'); return; }
+      // Read the products from the server, not the in-memory list: that list is empty until Products/POS has been opened.
+      const catSnap = await getDocs(collection(db, `shops/${shopId}/catalog`));
+      const products = catSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((p) => !p.deleted);
+      if (!products.length) { toast.error('Could not find your products. Check your connection and try again. Nothing was changed.'); return; }
+      const withOld = products.filter((p) => p.costPrice != null || String(p.source || '').trim()).length;
+      const rows = planCostMove(products, existing);
+      if (!rows.length) { useCostStore.getState().setAll(shopId, existing); toast.success(`Nothing to move. ${withOld} of ${products.length} products have a cost or supplier, and all are in the owner-only place.`); return; }
       const ok = await confirm({ title: `Move ${rows.length} product cost${rows.length === 1 ? '' : 's'}?`, message: 'A backup file downloads first. Then cost price and supplier are copied to a place staff cannot read. The old values stay where they are, so nothing is lost. You can run this again.', confirmText: 'Back up and move' });
       if (!ok) return;
       if (!(await handleBackupJson(true))) { toast.error('Backup failed, so nothing was moved.'); return; }
@@ -204,7 +208,7 @@ export default function Settings() {
       const merged = { ...existing };
       rows.forEach((r) => { merged[r.id] = { costPrice: r.costPrice, source: r.source }; });
       useCostStore.getState().setAll(shopId, merged);
-      toast.success(`${n} product cost${n === 1 ? '' : 's'} moved.`);
+      toast.success(`${n} of ${withOld} product cost${withOld === 1 ? '' : 's'} moved (${products.length} products in total).`);
     } catch (err) {
       console.error(err);
       toast.error('Move stopped. Run it again to finish; products already moved are skipped.');
@@ -215,7 +219,10 @@ export default function Settings() {
     if (!shopId) return false;
     try {
       const data = await loadAllForExport();
-      if (withProducts) data.products = useCatalogStore.getState().items.map((i) => ({ ...i }));
+      if (withProducts) {
+        const cs = await getDocs(collection(db, `shops/${shopId}/catalog`));
+        data.products = cs.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
+      }
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       await saveFile(blob, `ledgro-backup-${Date.now()}.json`, 'Ledgro backup');
       return true;
