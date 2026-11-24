@@ -920,7 +920,7 @@ export default function Products() {
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Bought from (optional)</label>
                     <input
-                      type="text" value={source} onChange={(e) => setSource(e.target.value)} maxLength={60}
+                      type="text" value={source} onChange={(e) => setSource(e.target.value)} maxLength={60} disabled={!costsLoaded}
                       className="w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900"
                     />
                   </div>
@@ -928,7 +928,7 @@ export default function Products() {
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Cost price (optional)</label>
                     <input
-                      type="number" inputMode="decimal" step="0.01" min="0" value={costPrice} onChange={(e) => { setCostPrice(e.target.value.slice(0, 10)); clearFe('cost'); }} aria-invalid={!!fe.cost}
+                      type="number" inputMode="decimal" step="0.01" min="0" disabled={!costsLoaded} value={costPrice} onChange={(e) => { setCostPrice(e.target.value.slice(0, 10)); clearFe('cost'); }} aria-invalid={!!fe.cost}
                       className={'w-full px-4 h-12 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-900' + errRing(fe.cost)}
                       placeholder="What you paid per piece"
                     />
