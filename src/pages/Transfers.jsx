@@ -178,8 +178,8 @@ export default function Transfers() {
             stockCount: qtyNum,
             isActive: true,
             frequency: 0,
-            source: cleanParty,
-            costPrice: unitPrice,
+            // Cost and supplier are owner-only: staff-made products carry neither (the owner adds them later).
+            ...(isAdmin ? { source: cleanParty, costPrice: unitPrice } : {}),
             createdBy: user.uid,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),

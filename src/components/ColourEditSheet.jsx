@@ -142,7 +142,7 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose, o
                 {isAdmin && (
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Cost price</label>
-                    <input className={field} type="number" inputMode="decimal" step="0.01" value={f.cost} onChange={set('cost')} />
+                    <input className={field} type="number" inputMode="decimal" step="0.01" value={f.cost} onChange={set('cost')} disabled={!costsLoaded} />
                   </div>
                 )}
               </div>
