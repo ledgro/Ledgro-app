@@ -6,6 +6,9 @@ import { isNative } from './native';
 const EXIT_PAGES = new Set(['/dashboard', '/login', '/setup']);
 const OPEN_SHEET = '[role="dialog"][data-state="open"], [data-vaul-drawer][data-state="open"]';
 
+/** Screens can register a handler (select mode, for example) that gets Back before anything else. */
+export const backStack = [];
+
 /**
  * Android Back button, behaving like an app:
  * 1. a sheet or confirm box is open -> close it
@@ -17,6 +20,8 @@ export function installNativeBack(router) {
   if (!isNative) return;
   let lastExitTap = 0;
   CapApp.addListener('backButton', () => {
+    const top = backStack[backStack.length - 1];
+    if (top && !document.querySelector(OPEN_SHEET)) { top(); return; }
     if (document.querySelector(OPEN_SHEET)) {
       // the sheets (vaul / radix) close on Escape, same as a tap outside
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
