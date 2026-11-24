@@ -13,7 +13,7 @@ const day = () => new Date().toISOString().slice(0, 10);
 const slug = (s) => String(s || 'shop').replace(/[^\w-]+/g, '-');
 
 /** Admin: download all products as a file, or import a file into this shop (never overwrites). */
-export default function CatalogTransferSheet({ open, onClose, items, shopId, shopName, uid, onAdded }) {
+export default function CatalogTransferSheet({ open, onClose, onPdf, items, shopId, shopName, uid, onAdded }) {
   const [busy, setBusy] = useState('');
   const [plan, setPlan] = useState(null);
 
@@ -106,6 +106,7 @@ export default function CatalogTransferSheet({ open, onClose, items, shopId, sho
               <>
                 <section className="space-y-3">
                   <p className="text-sm font-bold text-slate-700">Export all {live.length} products</p>
+                  {onPdf && <button type="button" disabled={!!busy || !live.length} onClick={onPdf} className={`${btn} bg-slate-100 text-slate-800`}>Catalog PDF</button>}
                   <button type="button" disabled={!!busy || !live.length} onClick={downloadCsv} className={`${btn} bg-slate-100 text-slate-800`}>{busy === 'csv' ? 'Creating...' : 'Spreadsheet (CSV, opens in Excel)'}</button>
                   <button type="button" disabled={!!busy || !live.length} onClick={downloadBackup} className={`${btn} bg-slate-100 text-slate-800`}>{busy === 'backup' ? 'Creating...' : 'Full backup (with photos)'}</button>
                   <p className="text-xs text-slate-500">Both include cost price, so keep the file private. The spreadsheet has no photos.</p>

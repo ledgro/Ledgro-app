@@ -25,6 +25,7 @@ function ProductColourCard({ entry, onEdit, onShare }) {
   const { shopId, user } = useAuth();
   const addItem = useCatalogStore((s) => s.addItem);
   const [busy, setBusy] = useState(false);
+  const [menu, setMenu] = useState(false);
   const input = useRef(null);
   const [cropFile, setCropFile] = useState(null);
   const [viewSrc, setViewSrc] = useState(null);
@@ -96,10 +97,22 @@ function ProductColourCard({ entry, onEdit, onShare }) {
           <button type="button" onClick={openPreview} disabled={!hasPhoto} aria-label={hasPhoto ? 'View photo' : 'No photo yet'} className="block rounded-xl"><ProductThumb item={rep} className="h-20 w-20" /></button>
           {cropFile && <ImageCropSheet file={cropFile} onCancel={() => setCropFile(null)} onDone={saveCropped} />}
           {viewSrc && <PhotoPreview src={viewSrc} onClose={() => setViewSrc(null)} />}
-          <button type="button" aria-label={`${hasPhoto ? 'Change' : 'Add'} photo for ${colour || name}`} disabled={busy} onClick={() => input.current?.click()}
-            className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-white shadow active:scale-95 disabled:opacity-50">
-            <Camera size={16} />
+          <button type="button" aria-label={`${hasPhoto ? 'Change' : 'Add'} photo for ${colour || name}`} disabled={busy} aria-haspopup={hasPhoto ? 'menu' : undefined} aria-expanded={hasPhoto ? menu : undefined}
+            onClick={() => (hasPhoto ? setMenu((m) => !m) : input.current?.click())}
+            className="absolute -bottom-3 -right-3 flex h-11 w-11 items-center justify-center active:scale-95 disabled:opacity-50">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-white shadow"><Camera size={16} /></span>
           </button>
+          {onShare && hasPhoto && (
+            <button type="button" onClick={() => onShare(entry)} aria-label={`Share picture of ${name} ${colour}`} className="absolute -left-3 -top-3 flex h-11 w-11 items-center justify-center active:scale-95">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-blue-600 shadow"><Share2 size={16} aria-hidden="true" /></span>
+            </button>
+          )}
+          {menu && (
+            <div role="menu" className="absolute left-0 top-full z-20 mt-3 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+              <button type="button" role="menuitem" onClick={() => { setMenu(false); input.current?.click(); }} className="flex h-11 w-full items-center rounded-lg px-3 text-left text-sm font-bold text-slate-800">Choose new photo</button>
+              <button type="button" role="menuitem" onClick={() => { setMenu(false); onRemove(); }} className="flex h-11 w-full items-center rounded-lg px-3 text-left text-sm font-bold text-red-600">Remove photo</button>
+            </div>
+          )}
           <input ref={input} type="file" accept="image/*" className="sr-only" onChange={onPick} />
         </div>
         <div className="min-w-0 flex-1">
@@ -113,8 +126,6 @@ function ProductColourCard({ entry, onEdit, onShare }) {
           <p className="mt-1 text-sm font-extrabold text-blue-600">{min === max ? formatCurrency(min) : `${formatCurrency(min)} - ${formatCurrency(max)}`}</p>
           <p className="text-xs text-slate-500">{items.length} size{items.length === 1 ? '' : 's'}{tracked.length ? ` · ${total} in stock` : ''}</p>
           </button>
-          {onShare && <button type="button" onClick={() => onShare(entry)} aria-label={`Share picture of ${name} ${colour}`} className="mt-1 mr-3 inline-flex h-11 items-center gap-1 text-xs font-bold text-blue-600"><Share2 size={14} aria-hidden="true" /> Share picture</button>}
-          {hasPhoto && <button type="button" onClick={onRemove} disabled={busy} className="mt-1 text-xs font-bold text-red-600">Remove photo</button>}
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2.5">
