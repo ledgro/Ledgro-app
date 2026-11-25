@@ -68,8 +68,20 @@ describe('selection', () => {
 describe('long press', () => {
   const Probe = ({ onLong, onTap }) => {
     const lp = useLongPress(onLong);
-    return <button data-testid="card" {...lp} onClick={onTap}>card</button>;
+    return (
+      <div data-testid="card" {...lp} onClick={onTap}>
+        card <button type="button" data-testid="inner">share</button>
+      </div>
+    );
   };
+  it('holding a button inside the card does not start select mode', () => {
+    vi.useFakeTimers();
+    const onLong = vi.fn();
+    const { getByTestId } = render(<Probe onLong={onLong} onTap={() => {}} />);
+    fireEvent.pointerDown(getByTestId('inner'), { clientX: 5, clientY: 5, button: 0 });
+    act(() => { vi.advanceTimersByTime(800); });
+    expect(onLong).not.toHaveBeenCalled();
+  });
   it('holding for about half a second starts select mode and the release is not a tap', () => {
     vi.useFakeTimers();
     const onLong = vi.fn(); const onTap = vi.fn();

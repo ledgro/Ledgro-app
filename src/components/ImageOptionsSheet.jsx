@@ -1,6 +1,6 @@
 import { Drawer } from 'vaul';
 import { sheetStyle } from '../hooks/useKeyboardInset';
-import { sizeLabelOf } from '../lib/variants';
+import { sizeLabelOf, colourOf } from '../lib/variants';
 import { formatCurrency, cn } from '../lib/utils';
 
 const SWITCHES = [['prices', 'Price'], ['sizes', 'Sizes'], ['stock', 'Stock numbers']];
@@ -9,7 +9,7 @@ const SAMPLE = { name: 'Product name', price: 1299, sizes: [['7', 4], ['8', 2], 
 /** Small sheet: three switches and a live preview of what a picture will show. `sample` = the first picked product's sizes. */
 export default function ImageOptionsSheet({ open, onClose, prefs, onChange, sample }) {
   const real = sample?.length ? {
-    name: sample[0].name,
+    name: [sample[0].baseName || sample[0].name, colourOf(sample[0])].filter(Boolean).join(' - '),
     price: Math.min(...sample.map((i) => Number(i.lastUsedPrice) || 0)),
     sizes: sample.filter((i) => i.stockCount == null || i.stockCount > 0).slice(0, 8).map((i) => [sizeLabelOf(i), i.stockCount]),
   } : SAMPLE;
@@ -22,10 +22,12 @@ export default function ImageOptionsSheet({ open, onClose, prefs, onChange, samp
             <Drawer.Title className="text-xl font-black text-slate-900">Show on pictures</Drawer.Title>
             <div className="space-y-1">
               {SWITCHES.map(([k, l]) => (
-                <label key={k} className="flex min-h-[44px] items-center justify-between gap-3">
+                <button key={k} type="button" role="switch" aria-checked={!!prefs[k]} aria-label={l} onClick={() => onChange({ ...prefs, [k]: !prefs[k] })} className="flex min-h-[44px] w-full items-center justify-between gap-3 text-left">
                   <span className="text-base font-semibold text-slate-800">{l}</span>
-                  <input type="checkbox" role="switch" checked={!!prefs[k]} onChange={() => onChange({ ...prefs, [k]: !prefs[k] })} aria-label={l} className="h-6 w-11 cursor-pointer accent-blue-600" />
-                </label>
+                  <span aria-hidden="true" className={cn('relative h-7 w-12 shrink-0 rounded-full transition-colors', prefs[k] ? 'bg-blue-600' : 'bg-slate-300')}>
+                    <span className={cn('absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all', prefs[k] ? 'left-[1.375rem]' : 'left-0.5')} />
+                  </span>
+                </button>
               ))}
             </div>
             {prefs.stock && <p className="text-xs font-semibold text-amber-700">Customers will see how many you have.</p>}

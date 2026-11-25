@@ -12,7 +12,7 @@ import { collection, addDoc, doc, updateDoc, deleteDoc, writeBatch, serverTimest
 import { db } from '../firebase';
 import BottomNav from '../components/BottomNav';
 import { Drawer } from 'vaul';
-import { PackagePlus, Search, Plus, Archive, ChevronDown, ChevronUp, Edit2, Trash2, Camera, LayoutGrid, List, ArrowLeftRight, ArrowDownAZ, Check, X } from 'lucide-react';
+import { FileDown, PackagePlus, Search, Plus, Archive, ChevronDown, ChevronUp, Edit2, Trash2, Camera, LayoutGrid, List, ArrowLeftRight, ArrowDownAZ, Check, X } from 'lucide-react';
 import { formatCurrency, sanitizeText, cn } from '../lib/utils';
 import { sessionGuard } from '../lib/SessionGuard';
 import { useCatalogLoader } from '../hooks/useCatalogLoader';
@@ -45,10 +45,10 @@ import ImageOptionsSheet from '../components/ImageOptionsSheet';
 const TIP_KEY = 'ledgro.selectTipSeen';
 const tipSeen = () => { try { return localStorage.getItem(TIP_KEY) === '1'; } catch { return false; } };
 
-/** Wraps a card so press-and-hold starts select mode. */
-function HoldToSelect({ onLong, children }) {
-  const lp = useLongPress(onLong);
-  return <div {...lp} style={{ WebkitTouchCallout: 'none' }}>{children}</div>;
+/** One wrapper for a card in and out of select mode (so cards never remount). Hold starts select mode; in select mode a layer on top toggles. */
+function HoldToSelect({ onLong, selecting, children }) {
+  const lp = useLongPress(onLong, { enabled: !selecting });
+  return <div {...lp} className="relative" style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>{children}</div>;
 }
 
 const ProductRow = memo(function ProductRow({ item, onOpen }) {
@@ -608,17 +608,19 @@ export default function Products() {
   const { ref: moreRef, inView: moreInView } = useInView({ rootMargin: '400px' });
   useEffect(() => { if (moreInView) setLim((l) => ({ key: resetKey, n: (l.key === resetKey ? l.n : 40) + 40 })); }, [moreInView, resetKey]);
   const visible = entries.slice(0, limit);
-  const withSelect = (e, node) => (selectMode ? (
-    <div key={keyOf(e)} className="relative">
+  const withSelect = (e, node) => (
+    <HoldToSelect key={keyOf(e)} selecting={selectMode} onLong={() => startSelect(keyOf(e))}>
       {node}
-      <button type="button" aria-pressed={selected.has(keyOf(e))} aria-label={`Select ${e.name || e.item?.name}`} onClick={() => toggleSel(keyOf(e))}
-        className="absolute inset-0 z-10 rounded-2xl bg-transparent">
-        <span className={cn('absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full border-2', selected.has(keyOf(e)) ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white/90 text-transparent')}>
-          <Check size={22} aria-hidden="true" />
-        </span>
-      </button>
-    </div>
-  ) : <HoldToSelect key={keyOf(e)} onLong={() => startSelect(keyOf(e))}>{node}</HoldToSelect>);
+      {selectMode && (
+        <button type="button" aria-pressed={selected.has(keyOf(e))} aria-label={`Select ${e.name || e.item?.name}`} onClick={() => toggleSel(keyOf(e))}
+          className="absolute inset-0 z-10 rounded-2xl bg-transparent">
+          <span className={cn('absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full border-2', selected.has(keyOf(e)) ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white/90 text-transparent')}>
+            <Check size={22} aria-hidden="true" />
+          </span>
+        </button>
+      )}
+    </HoldToSelect>
+  );
   const renderEntry = (e) => withSelect(e, e.type === 'colour'
     ? <ProductColourCard key={e.key} entry={e} onEdit={setColourEdit} onShare={shareOne} />
     : renderProductRow(e.item));
@@ -744,6 +746,9 @@ export default function Products() {
           <a href="#/transfers" className="press glass-btn-flat flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-bold">
             <PackagePlus size={15} aria-hidden="true" /> Stock in/out
           </a>
+          <button type="button" onClick={() => setExportOpen(true)} disabled={!activeProducts.length} className="press glass-btn-flat flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-bold disabled:opacity-50">
+            <FileDown size={15} aria-hidden="true" /> Catalog PDF
+          </button>
           {isAdmin && (
             <button type="button" onClick={() => setTransferOpen(true)} className="press glass-btn-flat flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-bold">
               <ArrowLeftRight size={15} aria-hidden="true" /> Import / export
@@ -1056,7 +1061,7 @@ export default function Products() {
       <CatalogExportSheet open={exportOpen} onClose={() => setExportOpen(false)} items={activeProducts} busy={exporting} onExport={exportCatalog} />
       <ImageOptionsSheet open={optsOpen} onClose={() => setOptsOpen(false)} prefs={imgPrefs} onChange={changePrefs} sample={selectedEntries[0]?.items || (selectedEntries[0]?.item ? [selectedEntries[0].item] : null)} />
 
-      {isAdmin && <CatalogTransferSheet open={transferOpen} onClose={() => setTransferOpen(false)} onPdf={() => { setTransferOpen(false); setExportOpen(true); }} items={withCosts(catalogItems, costMap)} shopId={shopId} shopName={shopName} uid={user?.uid} onAdded={(list) => list.forEach(addCatalogItem)} />}
+      {isAdmin && <CatalogTransferSheet open={transferOpen} onClose={() => setTransferOpen(false)} items={withCosts(catalogItems, costMap)} shopId={shopId} shopName={shopName} uid={user?.uid} onAdded={(list) => list.forEach(addCatalogItem)} />}
 
       {selectMode && (
         <div className="fixed inset-x-0 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-[44rem] space-y-2 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
