@@ -21,6 +21,7 @@ import { useNameOf } from '../lib/memberNames';
 import { VariantBuilder, VariantEditor } from '../components/VariantBuilder';
 import { MAX_COMBOS, buildCombos, comboKey, isVariant, variantName, colourKey, colourCards, findGroupByName } from '../lib/variants';
 import ProductColourCard from '../components/ProductColourCard';
+import CostLoadStatus from '../components/CostLoadStatus';
 import CatalogExportSheet from '../components/CatalogExportSheet';
 import CatalogTransferSheet from '../components/CatalogTransferSheet';
 import { confirm } from '../lib/confirm';
@@ -967,6 +968,7 @@ export default function Products() {
                       placeholder="What you paid per piece"
                     />
                     <FieldError>{fe.cost}</FieldError>
+                    <CostLoadStatus />
                   </div>
                   </>)}
 

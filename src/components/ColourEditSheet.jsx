@@ -1,3 +1,4 @@
+import CostLoadStatus from './CostLoadStatus';
 import { useMemo, useState } from 'react';
 import { Drawer } from 'vaul';
 import { toast } from 'sonner';
@@ -143,6 +144,7 @@ export default function ColourEditSheet({ entry, groupItems, isAdmin, onClose, o
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Cost price</label>
                     <input className={field} type="number" inputMode="decimal" step="0.01" value={f.cost} onChange={set('cost')} disabled={!costsLoaded} />
+                    <CostLoadStatus />
                   </div>
                 )}
               </div>
