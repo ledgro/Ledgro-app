@@ -5,6 +5,7 @@ export const useCostStore = create((set) => ({
   shopId: null,
   costs: {},
   loaded: false,
+  loading: null,
   error: false,
   setAll: (shopId, costs) => set({ shopId, costs, loaded: true, error: false }),
   setError: (error) => set({ error }),
