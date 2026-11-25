@@ -70,15 +70,28 @@ describe('long press', () => {
     const lp = useLongPress(onLong);
     return (
       <div data-testid="card" {...lp} onClick={onTap}>
-        card <button type="button" data-testid="inner">share</button>
+        card <button type="button" data-testid="inner">size</button>
+        <button type="button" data-no-hold data-testid="noHold">share</button>
       </div>
     );
   };
-  it('holding a button inside the card does not start select mode', () => {
+  it('holding a normal button inside the card starts select mode and does not open it', () => {
+    vi.useFakeTimers();
+    const onLong = vi.fn(); const onTap = vi.fn();
+    const { getByTestId } = render(<Probe onLong={onLong} onTap={onTap} />);
+    const inner = getByTestId('inner');
+    fireEvent.pointerDown(inner, { clientX: 5, clientY: 5, button: 0 });
+    act(() => { vi.advanceTimersByTime(460); });
+    fireEvent.pointerUp(inner);
+    fireEvent.click(inner);
+    expect(onLong).toHaveBeenCalledTimes(1);
+    expect(onTap).not.toHaveBeenCalled();
+  });
+  it('holding a data-no-hold button does nothing', () => {
     vi.useFakeTimers();
     const onLong = vi.fn();
     const { getByTestId } = render(<Probe onLong={onLong} onTap={() => {}} />);
-    fireEvent.pointerDown(getByTestId('inner'), { clientX: 5, clientY: 5, button: 0 });
+    fireEvent.pointerDown(getByTestId('noHold'), { clientX: 5, clientY: 5, button: 0 });
     act(() => { vi.advanceTimersByTime(800); });
     expect(onLong).not.toHaveBeenCalled();
   });

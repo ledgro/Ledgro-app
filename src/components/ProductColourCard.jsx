@@ -106,18 +106,18 @@ function ProductColourCard({ entry, onEdit, onShare }) {
           <button type="button" onClick={openPreview} disabled={!hasPhoto} aria-label={hasPhoto ? 'View photo' : 'No photo yet'} className="block rounded-xl"><ProductThumb item={rep} className="h-20 w-20" /></button>
           {cropFile && <ImageCropSheet file={cropFile} onCancel={() => setCropFile(null)} onDone={saveCropped} />}
           {viewSrc && <PhotoPreview src={viewSrc} onClose={() => setViewSrc(null)} />}
-          <button type="button" aria-label={`${hasPhoto ? 'Change' : 'Add'} photo for ${colour || name}`} disabled={busy} aria-haspopup={hasPhoto ? 'menu' : undefined} aria-expanded={hasPhoto ? menu : undefined}
+          <button type="button" aria-label={`${hasPhoto ? 'Change' : 'Add'} photo for ${colour || name}`} disabled={busy} data-no-hold aria-haspopup={hasPhoto ? 'menu' : undefined} aria-expanded={hasPhoto ? menu : undefined}
             onClick={() => (hasPhoto ? setMenu((m) => !m) : input.current?.click())}
             className="absolute -bottom-3 -right-3 flex h-11 w-11 items-center justify-center active:scale-95 disabled:opacity-50">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-white shadow"><Camera size={16} /></span>
           </button>
           {onShare && hasPhoto && (
-            <button type="button" onClick={() => onShare(entry)} aria-label={`Share picture of ${name} ${colour}`} className="absolute -left-3 -top-3 flex h-11 w-11 items-center justify-center active:scale-95">
+            <button type="button" data-no-hold onClick={() => onShare(entry)} aria-label={`Share picture of ${name} ${colour}`} className="absolute -left-3 -top-3 flex h-11 w-11 items-center justify-center active:scale-95">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-blue-600 shadow"><Share2 size={16} aria-hidden="true" /></span>
             </button>
           )}
           {menu && (
-            <div role="menu" className="absolute left-0 top-full z-20 mt-3 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+            <div role="menu" data-no-hold className="absolute left-0 top-full z-20 mt-3 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
               <button type="button" role="menuitem" onClick={() => { setMenu(false); input.current?.click(); }} className="flex h-11 w-full items-center rounded-lg px-3 text-left text-sm font-bold text-slate-800">Choose new photo</button>
               <button type="button" role="menuitem" onClick={() => { setMenu(false); onRemove(); }} className="flex h-11 w-full items-center rounded-lg px-3 text-left text-sm font-bold text-red-600">Remove photo</button>
             </div>

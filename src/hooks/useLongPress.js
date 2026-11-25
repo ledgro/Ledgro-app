@@ -17,7 +17,7 @@ export function useLongPress(onLong, { ms = 450, slop = 10, enabled = true } = {
     onPointerDown: (e) => {
       if (!enabled) return;
       if (e.button != null && e.button !== 0) return;
-      if (e.target?.closest?.('button, a, input, label')) return; // buttons on a card keep their own press
+      if (e.target?.closest?.('[data-no-hold]')) return; // share, camera and photo menu keep their own press
       fired.current = false;
       start.current = { x: e.clientX, y: e.clientY };
       clear();
