@@ -1,4 +1,4 @@
-import { memo, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Camera, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { doc, writeBatch, serverTimestamp } from 'firebase/firestore';
@@ -26,6 +26,15 @@ function ProductColourCard({ entry, onEdit, onShare }) {
   const addItem = useCatalogStore((s) => s.addItem);
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
+  const photoBox = useRef(null);
+  useEffect(() => {
+    if (!menu) return undefined;
+    const away = (e) => { if (!photoBox.current?.contains(e.target)) setMenu(false); };
+    const esc = (e) => { if (e.key === 'Escape') setMenu(false); };
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', esc); };
+  }, [menu]);
   const input = useRef(null);
   const [cropFile, setCropFile] = useState(null);
   const [viewSrc, setViewSrc] = useState(null);
@@ -93,7 +102,7 @@ function ProductColourCard({ entry, onEdit, onShare }) {
   return (
     <div className="glass-card mb-4 rounded-2xl p-4">
       <div className="flex items-start gap-4">
-        <div className="relative shrink-0">
+        <div ref={photoBox} className="relative shrink-0">
           <button type="button" onClick={openPreview} disabled={!hasPhoto} aria-label={hasPhoto ? 'View photo' : 'No photo yet'} className="block rounded-xl"><ProductThumb item={rep} className="h-20 w-20" /></button>
           {cropFile && <ImageCropSheet file={cropFile} onCancel={() => setCropFile(null)} onDone={saveCropped} />}
           {viewSrc && <PhotoPreview src={viewSrc} onClose={() => setViewSrc(null)} />}

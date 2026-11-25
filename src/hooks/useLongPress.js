@@ -4,7 +4,7 @@ import { useRef, useCallback } from 'react';
  * Press and hold (about 450 ms) starts something, like WhatsApp or the gallery.
  * Moving more than 10 px (a scroll) cancels it. The click that follows a long press is swallowed.
  */
-export function useLongPress(onLong, { ms = 450, slop = 10 } = {}) {
+export function useLongPress(onLong, { ms = 450, slop = 10, enabled = true } = {}) {
   const timer = useRef(null);
   const start = useRef(null);
   const fired = useRef(false);
@@ -15,7 +15,9 @@ export function useLongPress(onLong, { ms = 450, slop = 10 } = {}) {
 
   return {
     onPointerDown: (e) => {
+      if (!enabled) return;
       if (e.button != null && e.button !== 0) return;
+      if (e.target?.closest?.('button, a, input, label')) return; // buttons on a card keep their own press
       fired.current = false;
       start.current = { x: e.clientX, y: e.clientY };
       clear();
