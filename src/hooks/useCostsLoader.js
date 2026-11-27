@@ -6,14 +6,16 @@ import { useCostStore } from '../store/costStore';
 /** Reads the owner-only cost documents. Sets `error` on failure so the boxes can say why and offer a retry. */
 export async function loadCosts(shopId) {
   useCostStore.getState().setError(false);
+  useCostStore.setState({ loading: shopId });
   try {
     const snap = await getDocs(collection(db, `shops/${shopId}/costs`));
+    if (useCostStore.getState().loading !== shopId) return; // another shop was requested meanwhile
     const costs = {};
     snap.docs.forEach((d) => { const v = d.data(); costs[d.id] = { costPrice: v.costPrice ?? null, source: v.source || '' }; });
     useCostStore.getState().setAll(shopId, costs);
   } catch (err) {
     console.warn('Could not load costs', err);
-    useCostStore.getState().setError(true);
+    if (useCostStore.getState().loading === shopId) useCostStore.getState().setError(true);
   }
 }
 

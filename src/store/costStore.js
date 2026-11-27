@@ -5,9 +5,10 @@ export const useCostStore = create((set) => ({
   shopId: null,
   costs: {},
   loaded: false,
+  loading: null,
   error: false,
   setAll: (shopId, costs) => set({ shopId, costs, loaded: true, error: false }),
   setError: (error) => set({ error }),
   setOne: (id, data) => set((s) => ({ costs: { ...s.costs, [id]: { costPrice: data.costPrice ?? null, source: data.source || '' } } })),
-  reset: () => set({ shopId: null, costs: {}, loaded: false, error: false }),
+  reset: () => set({ shopId: null, costs: {}, loaded: false, error: false, loading: null }),
 }));
